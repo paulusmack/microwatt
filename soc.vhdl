@@ -10,15 +10,21 @@ use work.common.all;
 use work.wishbone_types.all;
 
 
--- 0x00000000: Main memory (1 MB)
--- 0xc0002000: UART0 (for host communication)
+-- Memory map:
+--
+-- 0x00000000: Block RAM (MEMORY_SIZE)
+-- 0x40000000: DRAM (when present)
+-- 0xc0002000: UART0 (wired up to Microwatt)
+-- 0xf0000000: Block RAM (aliased & repeated)
+
 entity soc is
     generic (
 	MEMORY_SIZE   : positive;
 	RAM_INIT_FILE : string;
 	RESET_LOW     : boolean;
 	SIM           : boolean;
-	DISABLE_FLATTEN_CORE : boolean := false
+	DISABLE_FLATTEN_CORE : boolean := false;
+	HAS_DRAM      : boolean  := false
 	);
     port(
 	rst          : in  std_ulogic;
@@ -29,7 +35,11 @@ entity soc is
 	uart0_rxd    : in  std_ulogic;
 
 	-- Misc (to use for things like LEDs)
-	core_terminated : out std_ulogic
+	core_terminated : out std_ulogic;
+
+	-- DRAM wishbone signals
+	wb_dram_in  : out wishbone_master_out;
+	wb_dram_out : in wishbone_slave_out
 	);
 end entity soc;
 
@@ -121,21 +131,26 @@ begin
 	    );
 
     -- Wishbone slaves address decoder & mux
-    slave_intercon: process(wb_master_out, wb_bram_out, wb_uart0_out)
+    slave_intercon: process(wb_master_out, wb_bram_out, wb_uart0_out, wb_dram_out)
 	-- Selected slave
-	type slave_type is (SLAVE_UART_0,
-			    SLAVE_MEMORY,
+	type slave_type is (SLAVE_UART,
+			    SLAVE_BRAM,
+			    SLAVE_DRAM,
 			    SLAVE_NONE);
 	variable slave : slave_type;
     begin
 	-- Simple address decoder.
 	slave := SLAVE_NONE;
-	if wb_master_out.adr(31 downto 24) = x"00" then
-	    slave := SLAVE_MEMORY;
-	elsif wb_master_out.adr(31 downto 24) = x"c0" then
-	    if wb_master_out.adr(23 downto 12) = x"002" then
-		slave := SLAVE_UART_0;
-	    end if;
+	-- Simple address decoder. Ignore top bits to save silicon for now
+	slave := SLAVE_NONE;
+	if    std_match(wb_master_out.adr, x"0-------") then
+	    slave := SLAVE_BRAM;
+	elsif std_match(wb_master_out.adr, x"F-------") then
+	    slave := SLAVE_BRAM;
+	elsif std_match(wb_master_out.adr, x"4-------") and HAS_DRAM then
+	    slave := SLAVE_DRAM;
+	elsif std_match(wb_master_out.adr, x"C0002---") then
+	    slave := SLAVE_UART;
 	end if;
 
 	-- Wishbone muxing. Defaults:
@@ -143,11 +158,16 @@ begin
 	wb_bram_in.cyc  <= '0';
 	wb_uart0_in <= wb_master_out;
 	wb_uart0_in.cyc <= '0';
+	wb_dram_in <= wb_master_out;
+	wb_dram_in.cyc <= '0';
 	case slave is
-	when SLAVE_MEMORY =>
+	when SLAVE_BRAM =>
 	    wb_bram_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_bram_out;
-	when SLAVE_UART_0 =>
+	when SLAVE_DRAM =>
+	    wb_dram_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_dram_out;
+	when SLAVE_UART =>
 	    wb_uart0_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_uart0_out;
 	when others =>

@@ -1,0 +1,25 @@
+CAPI=2:
+
+name : :microwatt:litedram:0
+
+filesets:
+  common:
+    files:
+      - VexRiscv.v : {file_type : verilogSource}
+      - litedram-wrapper.vhdl : {file_type : vhdlSource-2008}
+
+generators:
+  litedram_gen:
+    interpreter: python3
+    command: litedram_mw_gen.py
+    description: Generate a litedram memory controller
+    usage: |
+      litedram_gen generates a LiteX LiteDRAM memory controller based on
+      the board type.
+
+      Parameters:
+        board: The board type (arty, nexys_video)
+
+targets:
+  default:
+    filesets: [common]

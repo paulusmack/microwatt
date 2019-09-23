@@ -12,18 +12,20 @@ use work.wishbone_types.all;
 
 -- Memory map:
 --
--- 0x00000000: Block RAM (MEMORY_SIZE)
+-- 0x00000000: Block RAM (MEMORY_SIZE) or DRAM depending on syscon
 -- 0x40000000: DRAM (when present)
--- 0xc0002000: UART0 (wired up to Microwatt)
+-- 0xc0000000: SYSCON
+-- 0xc0002000: UART0
 -- 0xf0000000: Block RAM (aliased & repeated)
+-- 0xffff0000: DRAM init code (if any)
 
 entity soc is
     generic (
-	MEMORY_SIZE   : positive;
-	RAM_INIT_FILE : string;
-	RESET_LOW     : boolean;
-	SIM           : boolean;
-	HAS_DRAM      : boolean  := false
+	MEMORY_SIZE    : positive;
+	RAM_INIT_FILE  : string;
+	RESET_LOW      : boolean;
+	SIM            : boolean;
+	HAS_DRAM       : boolean := false
 	);
     port(
 	rst          : in  std_ulogic;
@@ -36,25 +38,28 @@ entity soc is
 	-- Misc (to use for things like LEDs)
 	core_terminated : out std_ulogic;
 
-	-- DRAM wishbone signals
-	wb_dram_in  : out wishbone_master_out;
-	wb_dram_out : in wishbone_slave_out
+	-- DRAM controller signals
+	wb_dram_in   : out wishbone_master_out;
+	wb_dram_out  : in wishbone_slave_out;
+	wb_dram_csr  : out std_ulogic;
+	wb_dram_init : out std_ulogic;
+	alt_reset    : in std_ulogic
 	);
 end entity soc;
 
 architecture behaviour of soc is
 
     -- Wishbone master signals:
-    signal wishbone_dcore_in : wishbone_slave_out;
+    signal wishbone_dcore_in  : wishbone_slave_out;
     signal wishbone_dcore_out : wishbone_master_out;
-    signal wishbone_icore_in : wishbone_slave_out;
+    signal wishbone_icore_in  : wishbone_slave_out;
     signal wishbone_icore_out : wishbone_master_out;
     signal wishbone_debug_in : wishbone_slave_out;
     signal wishbone_debug_out : wishbone_master_out;
 
     -- Wishbone master (output of arbiter):
-    signal wb_master_in : wishbone_slave_out;
-    signal wb_master_out : wishbone_master_out;
+    signal wb_master_in       : wishbone_slave_out;
+    signal wb_master_out      : wishbone_master_out;
 
     -- Syscon signals
     signal dram_at_0     : std_ulogic;
@@ -92,11 +97,13 @@ begin
     -- Processor core
     processor: entity work.core
 	generic map(
-	    SIM => SIM
+	    SIM => SIM,
+	    ALT_RESET_ADDRESS => (15 downto 0 => '0', others => '1')
 	    )
 	port map(
 	    clk => system_clk,
 	    rst => rst or core_reset,
+	    alt_reset => alt_reset,
 	    wishbone_insn_in => wishbone_icore_in,
 	    wishbone_insn_out => wishbone_icore_out,
 	    wishbone_data_in => wishbone_dcore_in,
@@ -126,20 +133,28 @@ begin
 			    SLAVE_UART,
 			    SLAVE_BRAM,
 			    SLAVE_DRAM,
+			    SLAVE_DRAM_INIT,
+			    SLAVE_DRAM_CSR,
 			    SLAVE_NONE);
 	variable slave : slave_type;
     begin
 	-- Simple address decoder. Ignore top bits to save silicon for now
 	slave := SLAVE_NONE;
 	if    std_match(wb_master_out.adr, x"--------0-------") then
-	    slave := SLAVE_BRAM;
+	    slave := SLAVE_DRAM when HAS_DRAM and dram_at_0 = '1' else
+		     SLAVE_BRAM;
+	elsif std_match(wb_master_out.adr, x"--------FFFF----") and HAS_DRAM then
+	    slave := SLAVE_DRAM_INIT;
 	elsif std_match(wb_master_out.adr, x"--------F-------") then
 	    slave := SLAVE_BRAM;
 	elsif std_match(wb_master_out.adr, x"--------4-------") and HAS_DRAM then
 	    slave := SLAVE_DRAM;
+	elsif std_match(wb_master_out.adr, x"--------C0000---") then
 	    slave := SLAVE_SYSCON;
 	elsif std_match(wb_master_out.adr, x"--------C0002---") then
 	    slave := SLAVE_UART;
+	elsif std_match(wb_master_out.adr, x"--------C01-----") then
+	    slave := SLAVE_DRAM_CSR;
 	end if;
 
 	-- Wishbone muxing. Defaults:
@@ -151,6 +166,8 @@ begin
 	wb_dram_in.cyc <= '0';
 	wb_syscon_in <= wb_master_out;
 	wb_syscon_in.cyc <= '0';
+	wb_dram_csr <= '0';
+	wb_dram_init <= '0';
 	case slave is
 	when SLAVE_BRAM =>
 	    wb_bram_in.cyc <= wb_master_out.cyc;
@@ -158,6 +175,14 @@ begin
 	when SLAVE_DRAM =>
 	    wb_dram_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_dram_out;
+	when SLAVE_DRAM_INIT =>
+	    wb_dram_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_dram_out;
+	    wb_dram_init <= '1';
+	when SLAVE_DRAM_CSR =>
+	    wb_dram_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_dram_out;
+	    wb_dram_csr <= '1';
 	when SLAVE_SYSCON =>
 	    wb_syscon_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_syscon_out;

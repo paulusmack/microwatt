@@ -16,7 +16,7 @@ architecture behave of core_tb is
 	constant clk_period : time := 10 ns;
 
         -- Dummy DRAM
-         signal wb_dram_in : wishbone_master_out;
+	signal wb_dram_in : wishbone_master_out;
         signal wb_dram_out : wishbone_slave_out;
 begin
 
@@ -33,7 +33,8 @@ begin
 	    uart0_rxd => '0',
 	    uart0_txd => open,
 	    wb_dram_in => wb_dram_in,
-	    wb_dram_out => wb_dram_out
+	    wb_dram_out => wb_dram_out,
+	    alt_reset => '0'
 	    );
 
     clk_process: process

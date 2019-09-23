@@ -2,12 +2,6 @@ CAPI=2:
 
 name : :microwatt:litedram:0
 
-filesets:
-  common:
-    files:
-      - VexRiscv.v : {file_type : verilogSource}
-      - litedram-wrapper.vhdl : {file_type : vhdlSource-2008}
-
 generators:
   litedram_gen:
     interpreter: python3
@@ -19,7 +13,3 @@ generators:
 
       Parameters:
         board: The board type (arty, nexys_video)
-
-targets:
-  default:
-    filesets: [common]

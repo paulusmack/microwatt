@@ -3,7 +3,7 @@
 
 {
     # General ------------------------------------------------------------------
-    "cpu":        "vexriscv",  # Type of CPU used for init/calib (vexriscv, lm32)
+    "cpu":        "None",  # Type of CPU used for init/calib (vexriscv, lm32)
     "speedgrade": -1,          # FPGA speedgrade
     "memtype":    "DDR3",      # DRAM type
 
@@ -22,7 +22,7 @@
 
     # Frequency ----------------------------------------------------------------
     "input_clk_freq":   100e6, # Input clock frequency
-    "sys_clk_freq":      50e6, # System clock frequency (DDR_clk = 4 x sys_clk)
+    "sys_clk_freq":     100e6, # System clock frequency (DDR_clk = 4 x sys_clk)
     "iodelay_clk_freq": 200e6, # IODELAYs reference clock frequency
 
     # Core ---------------------------------------------------------------------
@@ -33,5 +33,7 @@
     "user_ports_type":     "native", # Type of ports (axi, native)
 
     # CSR Port -----------------------------------------------------------------
-    "expose_csr_port": "no", # expose access to CSR (I/O) ports
+    "csr_expose": "True", # expose access to CSR (I/O) ports
+    "csr_align" : 64, # 64-bit alignment
+    "csr_base"       : 0xc0100000 # For cpu=None only
 }

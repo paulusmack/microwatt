@@ -8,12 +8,17 @@ use work.wishbone_types.all;
 
 entity core is
     generic (
-        SIM : boolean := false
+        SIM               : boolean := false;
+	ALT_RESET_ADDRESS : std_logic_vector(63 downto 0) := (others => '0')
         );
     port (
-        clk          : in std_logic;
-        rst          : in std_logic;
+        clk          : in std_ulogic;
+        rst          : in std_ulogic;
 
+	-- Alternate reset (0xffff0000) for use by DRAM init fw
+	alt_reset    : in std_ulogic;
+
+	-- Wishbone interface
         wishbone_insn_in  : in wishbone_slave_out;
         wishbone_insn_out : out wishbone_master_out;
 
@@ -103,11 +108,13 @@ begin
 
     fetch1_0: entity work.fetch1
         generic map (
-            RESET_ADDRESS => (others => '0')
+            RESET_ADDRESS => (others => '0'),
+	    ALT_RESET_ADDRESS => ALT_RESET_ADDRESS
             )
         port map (
             clk => clk,
             rst => core_rst,
+	    alt_reset_in => alt_reset,
             stall_in => fetch1_stall_in,
             flush_in => flush,
             e_in => execute1_to_fetch1,

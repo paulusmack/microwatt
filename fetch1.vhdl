@@ -7,7 +7,8 @@ use work.common.all;
 
 entity fetch1 is
     generic(
-	RESET_ADDRESS : std_logic_vector(63 downto 0) := (others => '0')
+	RESET_ADDRESS     : std_logic_vector(63 downto 0) := (others => '0');
+	ALT_RESET_ADDRESS : std_logic_vector(63 downto 0) := (others => '0')
 	);
     port(
 	clk           : in std_ulogic;
@@ -16,6 +17,7 @@ entity fetch1 is
 	-- Control inputs:
 	stall_in      : in std_ulogic;
 	flush_in      : in std_ulogic;
+	alt_reset_in  : in std_ulogic;
 
 	-- redirect from execution unit
 	e_in          : in Execute1ToFetch1Type;
@@ -56,7 +58,11 @@ begin
 	end if;
 
 	if rst = '1' then
-	    v.nia := RESET_ADDRESS;
+	    if alt_reset_in = '1' then
+		v.nia :=  ALT_RESET_ADDRESS;
+	    else
+		v.nia :=  RESET_ADDRESS;
+	    end if;
 	end if;
 
 	v_int.nia_next := std_logic_vector(unsigned(v.nia) + 4);

@@ -7,10 +7,11 @@ use work.wishbone_types.all;
 
 entity toplevel is
     generic (
-	MEMORY_SIZE   : positive := 16384;
-	RAM_INIT_FILE : string   := "firmware.hex";
-	RESET_LOW     : boolean  := true;
-	USE_LITEDRAM  : boolean  := false
+	MEMORY_SIZE    : positive := 16384;
+	RAM_INIT_FILE  : string   := "firmware.hex";
+	RESET_LOW      : boolean  := true;
+	USE_LITEDRAM   : boolean  := false;
+	DRAM_SELF_INIT : boolean  := false
 	);
     port(
 	ext_clk   : in  std_ulogic;
@@ -19,12 +20,6 @@ entity toplevel is
 	-- UART0 signals:
 	uart_main_tx : out std_ulogic;
 	uart_main_rx : in  std_ulogic;
-
-	-- DRAM UART signals (PMOD)
-	uart_pmod_tx    : out std_ulogic;
-	uart_pmod_rx    : in std_ulogic;
-	uart_pmod_cts_n : in std_ulogic;
-	uart_pmod_rts_n : out std_ulogic;
 
 	-- LEDs
 	led0_b	: out std_ulogic;
@@ -61,8 +56,13 @@ architecture behaviour of toplevel is
     signal system_clk_locked : std_ulogic;
 
     -- DRAM wishbone connection
-    signal wb_dram_in : wishbone_master_out;
-    signal wb_dram_out : wishbone_slave_out;
+    signal wb_dram_in   : wishbone_master_out;
+    signal wb_dram_out  : wishbone_slave_out;
+    signal wb_dram_csr  : std_ulogic;
+    signal wb_dram_init : std_ulogic;
+
+    -- Control/status
+    signal dram_init_done : std_ulogic;
 
     -- Status LED
     signal led0_b_pwm : std_ulogic;
@@ -75,8 +75,6 @@ architecture behaviour of toplevel is
     signal pwm_clk_div        : std_ulogic_vector(19 downto 0);
 
 begin
-
-    uart_pmod_rts_n <= '0';
 
     -- Main SoC
     soc0: entity work.soc
@@ -93,7 +91,10 @@ begin
 	    uart0_txd         => uart_main_tx,
 	    uart0_rxd         => uart_main_rx,
 	    wb_dram_in        => wb_dram_in,
-	    wb_dram_out       => wb_dram_out
+	    wb_dram_out       => wb_dram_out,
+	    wb_dram_csr       => wb_dram_csr,
+	    wb_dram_init      => wb_dram_init,
+	    alt_reset         => not dram_init_done
 	    );
 
     nodram: if not USE_LITEDRAM generate
@@ -122,13 +123,13 @@ begin
 	led0_b_pwm <= '1';
 	led0_r_pwm <= '1';
 	led0_g_pwm <= '0';
+	dram_init_done <= '1';
 
     end generate;
 
     has_dram: if USE_LITEDRAM generate
-	signal init_done : std_ulogic;
-	signal init_error : std_ulogic;
-	signal soc_rst_0 : std_ulogic;
+	signal dram_init_error : std_ulogic;
+	signal soc_rst_0       : std_ulogic;
     begin
 
 	reset_controller: entity work.soc_reset
@@ -145,7 +146,7 @@ begin
 		);
 
 	-- Hold SoC reset while DRAM controller isn't initialized
-	soc_rst <= soc_rst_0 or not init_done;
+	soc_rst <= (soc_rst_0 or not dram_init_done) when DRAM_SELF_INIT else soc_rst_0;
 
 	dram: entity work.litedram_wrapper
 	    generic map(
@@ -161,12 +162,11 @@ begin
 
 		wb_in		=> wb_dram_in,
 		wb_out		=> wb_dram_out,
+		wb_is_csr       => wb_dram_csr,
+		wb_is_init      => wb_dram_init,
 
-		serial_tx	=> uart_pmod_tx,
-		serial_rx	=> uart_pmod_rx,
-
-		init_done 	=> init_done,
-		init_error	=> init_error,
+		init_done 	=> dram_init_done,
+		init_error	=> dram_init_error,
 
 		ddram_a		=> ddram_a,
 		ddram_ba	=> ddram_ba,
@@ -185,9 +185,9 @@ begin
 		ddram_reset_n	=> ddram_reset_n
 		);
 
-	led0_b_pwm <= not (init_done or init_error);
-	led0_r_pwm <= init_error and not init_done;
-	led0_g_pwm <= init_done and not init_error;
+	led0_b_pwm <= not dram_init_done;
+	led0_r_pwm <= dram_init_error;
+	led0_g_pwm <= dram_init_done and not dram_init_error;
 
     end generate;
 

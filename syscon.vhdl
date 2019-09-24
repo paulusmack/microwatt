@@ -44,9 +44,9 @@ architecture behaviour of syscon is
     constant SYS_REG_CTRL	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "101";
 
     -- INFO register bits
-    --    SYS_REG_INFO_HAS_UART    : bit 0
-    --    SYS_REG_INFO_HAS_DRAM    : bit 1
-    --
+    constant SYS_REG_INFO_HAS_UART    : integer := 0;
+    constant SYS_REG_INFO_HAS_DRAM    : integer := 1;
+
     -- BRAMINFO contains the BRAM size in the bottom 52 bits
     -- DRAMINFO contains the DRAM size if any in the bottom 52 bits
     -- (both have reserved top bits for future use)
@@ -83,7 +83,7 @@ begin
     -- Info register is hard wired
     info_has_uart <= '1' when HAS_UART else '0';
     info_has_dram <= '1' when HAS_DRAM else '0';
-    info_clk <= std_ulogic_vector(to_unsigned(CLK_FREQ / (1024 * 1024), 40));
+    info_clk <= std_ulogic_vector(to_unsigned(CLK_FREQ, 40));
     reg_info <= (0 => info_has_uart,
 		 1 => info_has_dram,
 		 others => '0');

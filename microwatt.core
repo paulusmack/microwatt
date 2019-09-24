@@ -37,6 +37,7 @@ filesets:
       - wishbone_arbiter.vhdl
       - wishbone_debug_master.vhdl
       - soc.vhdl
+      - syscon.vhdl
     file_type : vhdlSource-2008
 
   fpga:

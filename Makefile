@@ -45,7 +45,8 @@ simple_ram_behavioural_helpers.o:
 simple_ram_behavioural_tb.o: wishbone_types.o simple_ram_behavioural.o
 simple_ram_behavioural.o: wishbone_types.o simple_ram_behavioural_helpers.o
 sim_uart.o: wishbone_types.o sim_console.o
-soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o simple_ram_behavioural.o dmi_dtm_xilinx.o wishbone_debug_master.o
+soc.o: common.o wishbone_types.o core.o wishbone_arbiter.o sim_uart.o simple_ram_behavioural.o dmi_dtm_xilinx.o wishbone_debug_master.o syscon.o
+syscon.o: wishbone_types.o
 wishbone_arbiter.o: wishbone_types.o
 wishbone_types.o:
 writeback.o: common.o

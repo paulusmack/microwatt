@@ -11,7 +11,7 @@ entity toplevel is
 	RAM_INIT_FILE  : string   := "firmware.hex";
 	RESET_LOW      : boolean  := true;
 	USE_LITEDRAM   : boolean  := false;
-	DRAM_SELF_INIT : boolean  := false
+	CLK_PERIOD_HZ  : positive := 100000000
 	);
     port(
 	ext_clk   : in  std_ulogic;
@@ -83,7 +83,9 @@ begin
 	    RAM_INIT_FILE => RAM_INIT_FILE,
 	    RESET_LOW     => RESET_LOW,
 	    SIM           => false,
-	    HAS_DRAM      => USE_LITEDRAM
+	    CLK_FREQ      => CLK_PERIOD_HZ,
+	    HAS_DRAM      => USE_LITEDRAM,
+	    DRAM_SIZE     => 256 * 1024 * 1024
 	    )
 	port map (
 	    system_clk        => system_clk,
@@ -113,6 +115,9 @@ begin
 		);
 
 	clkgen: entity work.clock_generator
+	    generic map(
+		clk_period_hz => CLK_PERIOD_HZ
+		)
 	    port map(
 		ext_clk => ext_clk,
 		pll_rst_in => pll_rst,
@@ -129,7 +134,6 @@ begin
 
     has_dram: if USE_LITEDRAM generate
 	signal dram_init_error : std_ulogic;
-	signal soc_rst_0       : std_ulogic;
     begin
 
 	reset_controller: entity work.soc_reset
@@ -142,11 +146,8 @@ begin
 		pll_locked_in => system_clk_locked,
 		ext_rst_in => ext_rst,
 		pll_rst_out => pll_rst,
-		rst_out => soc_rst_0
+		rst_out => soc_rst
 		);
-
-	-- Hold SoC reset while DRAM controller isn't initialized
-	soc_rst <= (soc_rst_0 or not dram_init_done) when DRAM_SELF_INIT else soc_rst_0;
 
 	dram: entity work.litedram_wrapper
 	    generic map(

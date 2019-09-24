@@ -24,8 +24,10 @@ entity soc is
 	MEMORY_SIZE    : positive;
 	RAM_INIT_FILE  : string;
 	RESET_LOW      : boolean;
+	CLK_FREQ       : positive;
 	SIM            : boolean;
-	HAS_DRAM       : boolean := false
+	HAS_DRAM       : boolean := false;
+	DRAM_SIZE      : integer := 0
 	);
     port(
 	rst          : in  std_ulogic;
@@ -198,11 +200,11 @@ begin
     -- Syscon slave
     syscon0: entity work.syscon
 	generic map(
-	    CLK_FREQ => 50,	-- FIXME: Get from DRAM generator
 	    HAS_UART => true,
 	    HAS_DRAM => HAS_DRAM,
 	    BRAM_SIZE => MEMORY_SIZE,
-	    DRAM_SIZE => 0	-- FIXME: Get from DRAM generator
+	    DRAM_SIZE => DRAM_SIZE,
+	    CLK_FREQ => CLK_FREQ
 	)
 	port map(
 	    clk => system_clk,
@@ -211,7 +213,7 @@ begin
 	    wishbone_out => wb_syscon_out,
 	    dram_at_0 => dram_at_0,
 	    core_reset => core_reset,
-	    user_reset => open -- XXX TODO
+	    soc_reset => open -- XXX TODO
 	    );
 
     -- Simulated memory and UART

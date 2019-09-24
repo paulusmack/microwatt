@@ -7,10 +7,11 @@ use work.wishbone_types.all;
 
 entity toplevel is
     generic (
-	MEMORY_SIZE   : positive := 16384;
-	RAM_INIT_FILE : string   := "firmware.hex";
-	RESET_LOW     : boolean  := true;
-	USE_LITEDRAM  : boolean  := false
+	MEMORY_SIZE    : positive := 16384;
+	RAM_INIT_FILE  : string   := "firmware.hex";
+	RESET_LOW      : boolean  := true;
+	USE_LITEDRAM   : boolean  := false;
+	CLK_PERIOD_HZ  : positive := 100000000
 	);
     port(
 	ext_clk   : in  std_ulogic;
@@ -19,12 +20,6 @@ entity toplevel is
 	-- UART0 signals:
 	uart_main_tx : out std_ulogic;
 	uart_main_rx : in  std_ulogic;
-
-	-- DRAM UART signals (PMOD)
-	uart_pmod_tx    : out std_ulogic;
-	uart_pmod_rx    : in std_ulogic;
-	uart_pmod_cts_n : in std_ulogic;
-	uart_pmod_rts_n : out std_ulogic;
 
 	-- LEDs
 	led0	: out std_logic;
@@ -59,12 +54,15 @@ architecture behaviour of toplevel is
     signal system_clk_locked : std_ulogic;
 
     -- DRAM wishbone connection
-    signal wb_dram_in : wishbone_master_out;
-    signal wb_dram_out : wishbone_slave_out;
+    signal wb_dram_in   : wishbone_master_out;
+    signal wb_dram_out  : wishbone_slave_out;
+    signal wb_dram_csr  : std_ulogic;
+    signal wb_dram_init : std_ulogic;
+
+    -- Control/status
+    signal dram_init_done : std_ulogic;
 
 begin
-
-    uart_pmod_rts_n <= '0';
 
     -- Main SoC
     soc0: entity work.soc
@@ -73,7 +71,9 @@ begin
 	    RAM_INIT_FILE => RAM_INIT_FILE,
 	    RESET_LOW     => RESET_LOW,
 	    SIM           => false,
-	    HAS_DRAM      => USE_LITEDRAM
+	    CLK_FREQ      => CLK_PERIOD_HZ,
+	    HAS_DRAM      => USE_LITEDRAM,
+	    DRAM_SIZE     => 512 * 1024 * 1024
 	    )
 	port map (
 	    system_clk        => system_clk,
@@ -81,7 +81,10 @@ begin
 	    uart0_txd         => uart_main_tx,
 	    uart0_rxd         => uart_main_rx,
 	    wb_dram_in        => wb_dram_in,
-	    wb_dram_out       => wb_dram_out
+	    wb_dram_out       => wb_dram_out,
+	    wb_dram_csr       => wb_dram_csr,
+	    wb_dram_init      => wb_dram_init,
+	    alt_reset         => not dram_init_done
 	    );
 
     nodram: if not USE_LITEDRAM generate
@@ -100,6 +103,9 @@ begin
 		);
 
 	clkgen: entity work.clock_generator
+	    generic map(
+		clk_period_hz => CLK_PERIOD_HZ
+		)
 	    port map(
 		ext_clk => ext_clk,
 		pll_rst_in => pll_rst,
@@ -109,13 +115,12 @@ begin
 
 	led0 <= '1';
 	led1 <= not soc_rst;
+	dram_init_done <= '1';
 
     end generate;
 
     has_dram: if USE_LITEDRAM generate
-	signal init_done : std_ulogic;
-	signal init_error : std_ulogic;
-	signal soc_rst_0 : std_ulogic;
+	signal dram_init_error : std_ulogic;
     begin
 
 	reset_controller: entity work.soc_reset
@@ -128,11 +133,8 @@ begin
 		pll_locked_in => system_clk_locked,
 		ext_rst_in => ext_rst,
 		pll_rst_out => pll_rst,
-		rst_out => soc_rst_0
+		rst_out => soc_rst
 		);
-
-	-- Hold SoC reset while DRAM controller isn't initialized
-	soc_rst <= soc_rst_0 or not init_done;
 
 	dram: entity work.litedram_wrapper
 	    generic map(
@@ -148,12 +150,11 @@ begin
 
 		wb_in		=> wb_dram_in,
 		wb_out		=> wb_dram_out,
+		wb_is_csr       => wb_dram_csr,
+		wb_is_init      => wb_dram_init,
 
-		serial_tx	=> uart_pmod_tx,
-		serial_rx	=> uart_pmod_rx,
-
-		init_done 	=> init_done,
-		init_error	=> init_error,
+		init_done 	=> dram_init_done,
+		init_error	=> dram_init_error,
 
 		ddram_a		=> ddram_a,
 		ddram_ba	=> ddram_ba,
@@ -172,8 +173,8 @@ begin
 		ddram_reset_n	=> ddram_reset_n
 		);
 
-	led0 <= init_error and not init_done;
-	led1 <= init_done and not init_error;
+	led0 <= dram_init_done and not init_error;
+	led1 <= dram_init_error; -- Make it blink ?
 
     end generate;
 end architecture behaviour;

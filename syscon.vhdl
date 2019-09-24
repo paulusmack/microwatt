@@ -26,7 +26,7 @@ entity syscon is
 	-- System control ports
 	dram_at_0  : out std_ulogic;
 	core_reset : out std_ulogic;
-	user_reset : out std_ulogic
+	soc_reset  : out std_ulogic
 	);
 end entity syscon;
 
@@ -40,24 +40,23 @@ architecture behaviour of syscon is
     constant SYS_REG_INFO	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "001";
     constant SYS_REG_BRAMINFO	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "010";
     constant SYS_REG_DRAMINFO	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "011";
-    constant SYS_REG_CTRL	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "100";
+    constant SYS_REG_CLKINFO	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "100";
+    constant SYS_REG_CTRL	: std_ulogic_vector(SYS_REG_BITS-1 downto 0) := "101";
 
     -- INFO register bits
-    --    SYS_REG_INFO_CLK         : bottom 16-bits in Mhz
-    --    SYS_REG_INFO_HAS_UART    : bit 16
-    --    SYS_REG_INFO_HAS_DRAM    : bit 17
+    --    SYS_REG_INFO_HAS_UART    : bit 0
+    --    SYS_REG_INFO_HAS_DRAM    : bit 1
     --
     -- BRAMINFO contains the BRAM size in the bottom 52 bits
     -- DRAMINFO contains the DRAM size if any in the bottom 52 bits
     -- (both have reserved top bits for future use)
-    -- NOTE: DRAMINFO is currently unavailable, either I'll find a way to
-    -- pass it from the litedram generator, or we'll need to "measure" it.
+    -- CLKINFO contains the CLK frequency is HZ in the bottom 40 bits
 
     -- CTRL register bits
-    constant SYS_REG_CTRL_BITS	: positive := 3;
-    constant SYS_REG_CTRL_DRAM_AT_0 : integer := 0;
+    constant SYS_REG_CTRL_BITS       : positive := 3;
+    constant SYS_REG_CTRL_DRAM_AT_0  : integer := 0;
     constant SYS_REG_CTRL_CORE_RESET : integer := 1;
-    constant SYS_REG_CTRL_SOC_RESET : integer := 2;
+    constant SYS_REG_CTRL_SOC_RESET  : integer := 2;
 
     -- Ctrl register
     signal reg_ctrl	: std_ulogic_vector(SYS_REG_CTRL_BITS-1 downto 0);
@@ -67,14 +66,15 @@ architecture behaviour of syscon is
     signal reg_info      : std_ulogic_vector(63 downto 0);
     signal reg_braminfo  : std_ulogic_vector(63 downto 0);
     signal reg_draminfo  : std_ulogic_vector(63 downto 0);
+    signal reg_clkinfo   : std_ulogic_vector(63 downto 0);
     signal info_has_dram : std_ulogic;
     signal info_has_uart : std_ulogic;
-    signal info_clk      : std_ulogic_vector(15 downto 0);
+    signal info_clk      : std_ulogic_vector(39 downto 0);
 begin
 
     -- Generated output signals
     dram_at_0 <= reg_ctrl(SYS_REG_CTRL_DRAM_AT_0);
-    user_reset <= reg_ctrl(SYS_REG_CTRL_SOC_RESET);
+    soc_reset <= reg_ctrl(SYS_REG_CTRL_SOC_RESET);
     core_reset <= reg_ctrl(SYS_REG_CTRL_CORE_RESET);
 
     -- All register accesses are single cycle
@@ -83,13 +83,15 @@ begin
     -- Info register is hard wired
     info_has_uart <= '1' when HAS_UART else '0';
     info_has_dram <= '1' when HAS_DRAM else '0';
-    info_clk <= std_ulogic_vector(to_unsigned(CLK_FREQ, 16));
-    reg_info <= (15 downto 0 => info_clk,
-		 16 => info_has_uart,
-		 17 => info_has_dram,
+    info_clk <= std_ulogic_vector(to_unsigned(CLK_FREQ / (1024 * 1024), 40));
+    reg_info <= (0 => info_has_uart,
+		 1 => info_has_dram,
 		 others => '0');
     reg_braminfo <= x"000" & std_ulogic_vector(to_unsigned(BRAM_SIZE, 52));
-    reg_draminfo <= x"000" & std_ulogic_vector(to_unsigned(DRAM_SIZE, 52));
+    reg_draminfo <= x"000" & std_ulogic_vector(to_unsigned(DRAM_SIZE, 52)) when HAS_DRAM
+		    else (others => '0');
+    reg_clkinfo <= (39 downto 0 => info_clk,
+		    others => '0');
 
     -- Control register read composition
     reg_ctrl_out <= (63 downto SYS_REG_CTRL_BITS => '0',
@@ -101,6 +103,7 @@ begin
 	reg_info        when SYS_REG_INFO,
 	reg_braminfo    when SYS_REG_BRAMINFO,
 	reg_draminfo    when SYS_REG_DRAMINFO,
+	reg_clkinfo     when SYS_REG_CLKINFO,
 	reg_ctrl_out	when SYS_REG_CTRL,
 	(others => '0') when others;
 

@@ -54,10 +54,7 @@ class LiteDRAMGenerator(Generator):
         builder = Builder(soc, output_dir="build", compile_gateware=False)
         vns = builder.build(build_name="litedram_core", regular_comb=False)
 
-        # XXX Generate config package
-        print(" Generating config package...")
-
-        # XXX Generate mem.h
+        # Generate mem.h
         mem_h = "#define MAIN_RAM_BASE 0x40000000"
         write_to_file(os.path.join(generated_dir, "mem.h"), mem_h)
         

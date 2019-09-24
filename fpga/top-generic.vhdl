@@ -5,7 +5,8 @@ entity toplevel is
     generic (
 	MEMORY_SIZE   : positive := 524288;
 	RAM_INIT_FILE : string   := "firmware.hex";
-	RESET_LOW     : boolean := true
+	RESET_LOW     : boolean  := true;
+	CLK_PERIOD_HZ : positive := 100000000
 	);
     port(
 	ext_clk   : in  std_ulogic;
@@ -47,6 +48,9 @@ begin
 	    );
 
     clkgen: entity work.clock_generator
+	generic map(
+	    clk_period_hz => CLK_PERIOD_HZ
+	    )
 	port map(
 	    ext_clk => ext_clk,
 	    pll_rst_in => pll_rst,
@@ -60,7 +64,8 @@ begin
 	    MEMORY_SIZE   => MEMORY_SIZE,
 	    RAM_INIT_FILE => RAM_INIT_FILE,
 	    RESET_LOW     => RESET_LOW,
-	    SIM           => false
+	    SIM           => false,
+	    CLK_FREQ      => CLK_PERIOD_HZ
 	    )
 	port map (
 	    system_clk        => system_clk,

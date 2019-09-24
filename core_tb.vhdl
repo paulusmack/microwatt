@@ -25,7 +25,8 @@ begin
 	    SIM => true,
 	    MEMORY_SIZE => 524288,
 	    RAM_INIT_FILE => "simple_ram_behavioural.bin",
-	    RESET_LOW => false
+	    RESET_LOW => false,
+	    CLK_FREQ => 100000000
 	    )
 	port map(
 	    rst => rst,

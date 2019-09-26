@@ -24,8 +24,10 @@ entity litedram_wrapper is
 	-- Wishbone ports:
 	wb_in         : in wishbone_master_out;
 	wb_out        : out wishbone_slave_out;
-	wb_is_csr     : in std_ulogic;
-	wb_is_init    : in std_ulogic;
+	wb_csr_in     : in wishbone_master_out;
+	wb_csr_out    : out wishbone_slave_out;
+	wb_init_in    : in wishbone_master_out;
+	wb_init_out   : out wishbone_slave_out;
 
 	-- Misc
 	init_done     : out std_ulogic;
@@ -115,10 +117,7 @@ architecture behaviour of litedram_wrapper is
     signal csr_valid	                : std_ulogic;
     signal csr_write_valid	        : std_ulogic;
 
-    signal wb_init_in                   : wishbone_master_out;
-    signal wb_init_out                  : wishbone_slave_out;
-
-    type state_t is (CMD, MWRITE, MREAD, CSR);
+    type state_t is (CMD, MWRITE, MREAD);
     signal state : state_t;
 
     constant INIT_RAM_SIZE : integer := 16384;
@@ -150,6 +149,7 @@ architecture behaviour of litedram_wrapper is
 begin
 
     -- BRAM Memory slave
+    -- TODO: Fix all those vivado warnings
     init_ram_0: process(system_clk)
 	variable adr : integer;
     begin
@@ -172,12 +172,30 @@ begin
 	end if;	
     end process;
 
-    wb_init_in.adr <= wb_in.adr;
-    wb_init_in.dat <= wb_in.dat;
-    wb_init_in.sel <= wb_in.sel;
-    wb_init_in.we <= wb_in.we;
-    wb_init_in.stb <= wb_in.stb;
-    wb_init_in.cyc <= wb_in.cyc and wb_is_init;
+    -- DRAM CSR interface signals. We only support access to the bottom byte
+    -- TODO: Add a latch cycle to improve timing ?
+    csr_valid <= wb_csr_in.cyc and wb_csr_in.stb;
+    csr_write_valid <= wb_csr_in.we and wb_csr_in.sel(0);
+    csr_port0_adr <= wb_csr_in.adr(15 downto 3) & '0';
+    csr_port0_dat_w <= wb_csr_in.dat(7 downto 0);
+    csr_port0_we <= csr_valid and csr_write_valid and not wb_csr_out.ack;
+    wb_csr_out.dat <= x"00000000000000" & csr_port0_dat_r;
+
+    -- CSR ACK machine
+    csr: process(system_clk)
+    begin
+	if rising_edge(system_clk) then
+	    if system_reset = '1' then
+		wb_csr_out.ack <= '0';
+	    else
+		if csr_valid = '1' and wb_csr_out.ack = '0' then
+		    wb_csr_out.ack <= '1';
+		else
+		    wb_csr_out.ack <= '0';
+		end if;
+	    end if;
+	end if;
+    end process;
 
    -- Address bit 3 selects the top or bottom half of the data
     -- bus (64-bit wishbone vs. 128-bit DRAM interface)
@@ -185,8 +203,7 @@ begin
     ad3 <= wb_in.adr(3);
 
     -- DRAM data interface signals
-    user_port0_cmd_valid <= (wb_in.cyc and wb_in.stb and not wb_is_csr and not wb_is_init)
-			    when state = CMD else '0';
+    user_port0_cmd_valid <= (wb_in.cyc and wb_in.stb) when state = CMD else '0';
     user_port0_cmd_we <= wb_in.we when state = CMD else '0';
     user_port0_wdata_valid <= '1' when state = MWRITE else '0';
     user_port0_rdata_ready <= '1' when state = MREAD else '0';
@@ -195,23 +212,10 @@ begin
     user_port0_wdata_we <= wb_in.sel & "00000000" when ad3 = '1' else
 			   "00000000" & wb_in.sel;
 
-    -- DRAM CSR interface signals. We only support access to the bottom byte
-    csr_valid <= wb_in.cyc and wb_in.stb and wb_is_csr;
-    csr_write_valid <= wb_in.we and wb_in.sel(0);
-    csr_port0_adr <= wb_in.adr(15 downto 3) & '0' when wb_is_csr = '1' else (others => '0');
-    csr_port0_dat_w <= wb_in.dat(7 downto 0);
-    csr_port0_we <= (csr_valid and csr_write_valid) when state = CMD else '0';
-
-    -- Wishbone out signals
-    wb_out.ack <= '1' when state = CSR else
-		  wb_init_out.ack when wb_is_init = '1' else
-		  user_port0_wdata_ready when state = MWRITE else
+    -- DRAM Wishbone out ACK signals
+    wb_out.ack <= user_port0_wdata_ready when state = MWRITE else
 		  user_port0_rdata_valid when state = MREAD else '0';
-
-    csr_port_read_comb <= x"00000000000000" & csr_port0_dat_r;
-    wb_out.dat <= csr_port_read_comb when wb_is_csr = '1' else
-		  wb_init_out.dat when wb_is_init = '1' else
-		  user_port0_rdata_data(127 downto 64) when ad3 = '1' else
+    wb_out.dat <= user_port0_rdata_data(127 downto 64) when ad3 = '1' else
 		  user_port0_rdata_data(63 downto 0);
 
     -- State machine
@@ -224,9 +228,8 @@ begin
 	    else
 		case state is
 		when CMD =>
-		    if csr_valid = '1' then
-			state <= CSR;
-		    elsif (user_port0_cmd_ready and user_port0_cmd_valid) = '1' then
+		    if (user_port0_cmd_ready and
+			user_port0_cmd_valid) = '1' then
 			state <= MWRITE when wb_in.we = '1' else MREAD;
 		    end if;
 		when MWRITE =>
@@ -237,8 +240,6 @@ begin
 		    if user_port0_rdata_valid = '1' then
 			state <= CMD;
 		    end if;
-		when CSR =>
-		    state <= CMD;
 		end case;
 	    end if;
 	end if;

@@ -40,11 +40,14 @@ entity soc is
 	-- Misc (to use for things like LEDs)
 	core_terminated : out std_ulogic;
 
-	-- DRAM controller signals
+	-- External wishbone interfaces
 	wb_dram_in   : out wishbone_master_out;
 	wb_dram_out  : in wishbone_slave_out;
-	wb_dram_csr  : out std_ulogic;
-	wb_dram_init : out std_ulogic;
+	wb_csr_in    : out wishbone_master_out;
+	wb_csr_out   : in wishbone_slave_out;
+	wb_bios_in   : out wishbone_master_out;
+	wb_bios_out  : in wishbone_slave_out;
+
 	alt_reset    : in std_ulogic
 	);
 end entity soc;
@@ -135,8 +138,8 @@ begin
 			    SLAVE_UART,
 			    SLAVE_BRAM,
 			    SLAVE_DRAM,
-			    SLAVE_DRAM_INIT,
-			    SLAVE_DRAM_CSR,
+			    SLAVE_BIOS,
+			    SLAVE_CSR,
 			    SLAVE_NONE);
 	variable slave : slave_type;
     begin
@@ -146,7 +149,7 @@ begin
 	    slave := SLAVE_DRAM when HAS_DRAM and dram_at_0 = '1' else
 		     SLAVE_BRAM;
 	elsif std_match(wb_master_out.adr, x"--------FFFF----") and HAS_DRAM then
-	    slave := SLAVE_DRAM_INIT;
+	    slave := SLAVE_BIOS;
 	elsif std_match(wb_master_out.adr, x"--------F-------") then
 	    slave := SLAVE_BRAM;
 	elsif std_match(wb_master_out.adr, x"--------4-------") and HAS_DRAM then
@@ -156,7 +159,7 @@ begin
 	elsif std_match(wb_master_out.adr, x"--------C0002---") then
 	    slave := SLAVE_UART;
 	elsif std_match(wb_master_out.adr, x"--------C01-----") then
-	    slave := SLAVE_DRAM_CSR;
+	    slave := SLAVE_CSR;
 	end if;
 
 	-- Wishbone muxing. Defaults:
@@ -168,8 +171,10 @@ begin
 	wb_dram_in.cyc <= '0';
 	wb_syscon_in <= wb_master_out;
 	wb_syscon_in.cyc <= '0';
-	wb_dram_csr <= '0';
-	wb_dram_init <= '0';
+	wb_csr_in <= wb_master_out;
+	wb_csr_in.cyc <= '0';
+	wb_bios_in <= wb_master_out;
+	wb_bios_in.cyc <= '0';
 	case slave is
 	when SLAVE_BRAM =>
 	    wb_bram_in.cyc <= wb_master_out.cyc;
@@ -177,14 +182,12 @@ begin
 	when SLAVE_DRAM =>
 	    wb_dram_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_dram_out;
-	when SLAVE_DRAM_INIT =>
-	    wb_dram_in.cyc <= wb_master_out.cyc;
-	    wb_master_in <= wb_dram_out;
-	    wb_dram_init <= '1';
-	when SLAVE_DRAM_CSR =>
-	    wb_dram_in.cyc <= wb_master_out.cyc;
-	    wb_master_in <= wb_dram_out;
-	    wb_dram_csr <= '1';
+	when SLAVE_BIOS =>
+	    wb_bios_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_bios_out;
+	when SLAVE_CSR =>
+	    wb_csr_in.cyc <= wb_master_out.cyc;
+	    wb_master_in <= wb_csr_out;
 	when SLAVE_SYSCON =>
 	    wb_syscon_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_syscon_out;

@@ -58,8 +58,10 @@ architecture behaviour of toplevel is
     -- DRAM wishbone connection
     signal wb_dram_in   : wishbone_master_out;
     signal wb_dram_out  : wishbone_slave_out;
-    signal wb_dram_csr  : std_ulogic;
-    signal wb_dram_init : std_ulogic;
+    signal wb_csr_in    : wishbone_master_out;
+    signal wb_csr_out   : wishbone_slave_out;
+    signal wb_bios_in   : wishbone_master_out;
+    signal wb_bios_out  : wishbone_slave_out;
 
     -- Control/status
     signal dram_init_done : std_ulogic;
@@ -94,8 +96,10 @@ begin
 	    uart0_rxd         => uart_main_rx,
 	    wb_dram_in        => wb_dram_in,
 	    wb_dram_out       => wb_dram_out,
-	    wb_dram_csr       => wb_dram_csr,
-	    wb_dram_init      => wb_dram_init,
+	    wb_csr_in         => wb_csr_in,
+	    wb_csr_out        => wb_csr_out,
+	    wb_bios_in        => wb_bios_in,
+	    wb_bios_out       => wb_bios_out,
 	    alt_reset         => not dram_init_done
 	    );
 
@@ -129,6 +133,10 @@ begin
 	led0_r_pwm <= '1';
 	led0_g_pwm <= '0';
 	dram_init_done <= '1';
+	wb_csr_out.ack <= wb_csr_in.cyc and wb_csr_in.stb;
+	wb_csr_out.dat <= (others => '1');
+	wb_bios_out.ack <= wb_bios_in.cyc and wb_bios_in.stb;
+	wb_bios_out.dat <= (others => '1');
 
     end generate;
 
@@ -163,8 +171,10 @@ begin
 
 		wb_in		=> wb_dram_in,
 		wb_out		=> wb_dram_out,
-		wb_is_csr       => wb_dram_csr,
-		wb_is_init      => wb_dram_init,
+		wb_csr_in	=> wb_csr_in,
+		wb_csr_out	=> wb_csr_out,
+		wb_init_in	=> wb_bios_in,
+		wb_init_out	=> wb_bios_out,
 
 		init_done 	=> dram_init_done,
 		init_error	=> dram_init_error,

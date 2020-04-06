@@ -888,6 +888,7 @@ begin
             e_in.insn(5 downto 1) = "10101" then
             lv.ci := '1';
         end if;
+        lv.virt_mode := ctrl.msr(63 - 59);
 
 	-- Update registers
 	rin <= v;

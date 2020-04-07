@@ -23,6 +23,7 @@ entity execute1 is
 	stall_out : out std_ulogic;
 
 	e_in  : in Decode2ToExecute1Type;
+        l_in  : in Loadstore1ToExecute1Type;
 
 	-- asynchronous
         l_out : out Execute1ToLoadstore1Type;
@@ -47,6 +48,7 @@ architecture behaviour of execute1 is
 	slow_op_rc : std_ulogic;
 	slow_op_oe : std_ulogic;
 	slow_op_xerc : xer_common_t;
+        ldst_nia : std_ulogic_vector(63 downto 0);
     end record;
 
     signal r, rin : reg_type;
@@ -395,15 +397,29 @@ begin
         v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
         v.e.exc_write_data := e_in.nia;
 
-	if ctrl.irq_state = WRITE_SRR1 then
-	    v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
-	    v.e.exc_write_data := ctrl.srr1;
+        if ctrl.irq_state /= WRITE_SRR0 then
             v.e.exc_write_enable := '1';
-	    ctrl_tmp.msr(63 - 48) <= '0'; -- clear EE
-	    f_out.redirect <= '1';
-	    f_out.redirect_nia <= ctrl.irq_nia;
-	    v.e.valid := e_in.valid;
-	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
+            v.e.valid := e_in.valid;
+            case ctrl.irq_state is
+            when WRITE_SRR0 =>
+                -- we never get here
+            when WRITE_SRR1 =>
+                v.e.exc_write_reg := fast_spr_num(SPR_SRR1);
+                v.e.exc_write_data := ctrl.srr1;
+                ctrl_tmp.msr(63 - 48) <= '0'; -- clear EE
+                ctrl_tmp.msr(63 - 59) <= '0'; -- clear DR
+                f_out.redirect <= '1';
+                f_out.redirect_nia <= ctrl.irq_nia;
+                report "Writing SRR1: " & to_hstring(ctrl.srr1);
+            when WRITE_DSISR =>
+                v.e.exc_write_reg := fast_spr_num(SPR_DSISR);
+                v.e.exc_write_data := x"00000000" & ctrl.dsisr;
+                ctrl_tmp.irq_state <= WRITE_LDST_SRR0;
+            when WRITE_LDST_SRR0 =>
+                v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
+                v.e.exc_write_data := r.ldst_nia;
+                ctrl_tmp.irq_state <= WRITE_SRR1;
+            end case;
 
 	elsif irq_valid = '1' then
 	    -- we need two cycles to write srr0 and 1
@@ -798,6 +814,7 @@ begin
 
         elsif e_in.valid = '1' then
             -- instruction for other units, i.e. LDST
+            v.ldst_nia := e_in.nia;
             v.e.valid := '0';
 
 	elsif r.lr_update = '1' then
@@ -864,6 +881,18 @@ begin
 
 	v.e.write_data := result;
 	v.e.write_enable := result_en;
+
+        -- generate DSI for load/store exceptions
+        if l_in.exception = '1' then
+            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#300#, 64));
+            ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
+            ctrl_tmp.dsisr <= l_in.dsisr;
+            v.e.exc_write_enable := '1';
+            v.e.exc_write_reg := fast_spr_num(SPR_DAR);
+            v.e.exc_write_data := l_in.address;
+            ctrl_tmp.irq_state <= WRITE_DSISR;
+            v.e.valid := '1';   -- complete the original load or store
+        end if;
 
         -- Outputs to loadstore1 (async)
         lv := Execute1ToLoadstore1Init;

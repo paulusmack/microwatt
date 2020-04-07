@@ -15,6 +15,8 @@ package common is
     constant SPR_XER    : spr_num_t := 1;
     constant SPR_LR     : spr_num_t := 8;
     constant SPR_CTR    : spr_num_t := 9;
+    constant SPR_DSISR  : spr_num_t := 18;
+    constant SPR_DAR    : spr_num_t := 19;
     constant SPR_TB     : spr_num_t := 268;
     constant SPR_DEC    : spr_num_t := 22;
     constant SPR_SRR0   : spr_num_t := 26;
@@ -63,7 +65,7 @@ package common is
     end record;
     constant xerc_init : xer_common_t := (others => '0');
 
-    type irq_state_t is (WRITE_SRR0, WRITE_SRR1);
+    type irq_state_t is (WRITE_SRR0, WRITE_SRR1, WRITE_DSISR, WRITE_LDST_SRR0);
 
     -- This needs to die...
     type ctrl_t is record
@@ -73,6 +75,8 @@ package common is
 	irq_state : irq_state_t;
 	irq_nia: std_ulogic_vector(63 downto 0);
 	srr1: std_ulogic_vector(63 downto 0);
+        dar: std_ulogic_vector(63 downto 0);
+        dsisr: std_ulogic_vector(31 downto 0);
     end record;
 
     type Fetch1ToIcacheType is record
@@ -226,6 +230,12 @@ package common is
                                                                      reserve => '0', rc => '0', virt_mode => '0',
                                                                      others => (others => '0'));
 
+    type Loadstore1ToExecute1Type is record
+        exception : std_ulogic;
+        address: std_ulogic_vector(63 downto 0);
+        dsisr : std_ulogic_vector(31 downto 0);
+    end record;
+
     type Loadstore1ToDcacheType is record
 	valid : std_ulogic;
 	load : std_ulogic;				-- is this a load
@@ -348,6 +358,10 @@ package body common is
            n := 11;
        when SPR_XER =>
            n := 12;
+       when SPR_DAR =>
+           n := 13;
+       when SPR_DSISR =>
+           n := 14;
        when others =>
            n := 0;
            return "000000";

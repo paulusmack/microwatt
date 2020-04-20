@@ -204,6 +204,114 @@ int dtlb_test_6(void)
 	return 1;
 }
 
+int dtlb_test_7(void)
+{
+	long *mem = (long *) 0x4000;
+	long *ptr = (long *) 0x124000;
+	long val;
+
+	*mem = 0x123456789abcdef0;
+	/* load a TLB entry without R or C */
+	tlbwe(ptr, mem, PERM_RD | PERM_WR);
+	/* this should fail */
+	if (test_read(ptr, &val, 0xdeadd00dbeef))
+		return 0;
+	/* dest reg of load should be unchanged */
+	if (val != 0xdeadd00dbeef)
+		return 0;
+	/* DAR and DSISR should be set correctly */
+	if (mfspr(19) != (long) ptr || mfspr(18) != 0x00040000)
+		return 0;
+	/* this should fail */
+	if (test_write(ptr, 0xdeadbeef0dd0))
+		return 0;
+	/* DAR and DSISR should be set correctly */
+	if (mfspr(19) != (long)ptr || mfspr(18) != 0x02040000)
+		return 0;
+	/* memory should be unchanged */
+	if (*mem != 0x123456789abcdef0)
+		return 0;
+	return 1;
+}
+
+int dtlb_test_8(void)
+{
+	long *mem = (long *) 0x4000;
+	long *ptr = (long *) 0x124000;
+	long val;
+
+	*mem = 0x123456789abcdef0;
+	/* load a TLB entry with R but not C */
+	tlbwe(ptr, mem, REF | PERM_RD | PERM_WR);
+	/* this should succeed */
+	if (!test_read(ptr, &val, 0xdeadd00dbeef))
+		return 0;
+	/* this should fail */
+	if (test_write(ptr, 0xdeadbeef0dd1))
+		return 0;
+	/* DAR and DSISR should be set correctly */
+	if (mfspr(19) != (long)ptr || mfspr(18) != 0x02040000)
+		return 0;
+	/* memory should be unchanged */
+	if (*mem != 0x123456789abcdef0)
+		return 0;
+	return 1;
+}
+
+int dtlb_test_9(void)
+{
+	long *mem = (long *) 0x4000;
+	long *ptr = (long *) 0x124000;
+	long val;
+
+	*mem = 0x123456789abcdef0;
+	/* load a TLB entry without read or write permission */
+	tlbwe(ptr, mem, REF);
+	/* this should fail */
+	if (test_read(ptr, &val, 0xdeadd00dbeef))
+		return 0;
+	/* dest reg of load should be unchanged */
+	if (val != 0xdeadd00dbeef)
+		return 0;
+	/* DAR and DSISR should be set correctly */
+	if (mfspr(19) != (long) ptr || mfspr(18) != 0x08000000)
+		return 0;
+	/* this should fail */
+	if (test_write(ptr, 0xdeadbeef0dd1))
+		return 0;
+	/* DAR and DSISR should be set correctly */
+	if (mfspr(19) != (long)ptr || mfspr(18) != 0x0a000000)
+		return 0;
+	/* memory should be unchanged */
+	if (*mem != 0x123456789abcdef0)
+		return 0;
+	return 1;
+}
+
+int dtlb_test_10(void)
+{
+	long *mem = (long *) 0x4000;
+	long *ptr = (long *) 0x124000;
+	long val;
+
+	*mem = 0x123456789abcdef0;
+	/* load a TLB entry with read but not write permission */
+	tlbwe(ptr, mem, REF | PERM_RD);
+	/* this should succeed */
+	if (!test_read(ptr, &val, 0xdeadd00dbeef))
+		return 0;
+	/* this should fail */
+	if (test_write(ptr, 0xdeadbeef0dd1))
+		return 0;
+	/* DAR and DSISR should be set correctly */
+	if (mfspr(19) != (long)ptr || mfspr(18) != 0x0a000000)
+		return 0;
+	/* memory should be unchanged */
+	if (*mem != 0x123456789abcdef0)
+		return 0;
+	return 1;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -211,10 +319,11 @@ void do_test(int num, int (*test)(void))
 	do_tlbie(0xc00, 0);	/* invalidate all TLB entries */
 	print_test_number(num);
 	if (test() != 0) {
-		fail = 1;
 		print_string("PASS\r\n");
-	} else
+	} else {
+		fail = 1;
 		print_string("FAIL\r\n");
+	}
 }
 
 int main(void)
@@ -227,6 +336,10 @@ int main(void)
 	do_test(4, dtlb_test_4);
 	do_test(5, dtlb_test_5);
 	do_test(6, dtlb_test_6);
+	do_test(7, dtlb_test_7);
+	do_test(8, dtlb_test_8);
+	do_test(9, dtlb_test_9);
+	do_test(10, dtlb_test_10);
 
 	return fail;
 }

@@ -59,6 +59,7 @@ architecture behave of loadstore1 is
         rc           : std_ulogic;
         nc           : std_ulogic;              -- non-cacheable access
         virt_mode    : std_ulogic;
+        priv_mode    : std_ulogic;
         state        : state_t;
         second_bytes : std_ulogic_vector(7 downto 0);
     end record;
@@ -230,6 +231,7 @@ begin
                 v.rc := l_in.rc;
                 v.nc := l_in.ci;
                 v.virt_mode := l_in.virt_mode;
+                v.priv_mode := l_in.priv_mode;
 
                 -- XXX Temporary hack. Mark the op as non-cachable if the address
                 -- is the form 0xc-------
@@ -286,6 +288,9 @@ begin
                     -- dcache will discard the second request
                     exception := '1';
                     dsisr(30) := d_in.tlb_miss;
+                    dsisr(63 - 36) := d_in.perm_error;
+                    dsisr(63 - 38) := not r.load;
+                    dsisr(63 - 45) := d_in.rc_error;
                     v.state := IDLE;
                 else
                     v.state := LAST_ACK_WAIT;
@@ -301,6 +306,9 @@ begin
                 if d_in.error = '1' then
                     exception := '1';
                     dsisr(30) := d_in.tlb_miss;
+                    dsisr(63 - 36) := d_in.perm_error;
+                    dsisr(63 - 38) := not r.load;
+                    dsisr(63 - 45) := d_in.rc_error;
                     v.state := IDLE;
                     if two_dwords = '1' then
                         exception_addr := next_addr;
@@ -336,6 +344,7 @@ begin
         d_out.data <= v.store_data;
         d_out.byte_sel <= byte_sel;
         d_out.virt_mode <= v.virt_mode;
+        d_out.priv_mode <= v.priv_mode;
 
         -- Update outputs to writeback
         -- Multiplex either cache data to the destination GPR or

@@ -16,7 +16,7 @@ static inline unsigned long mfspr(int sprnum)
 {
 	long val;
 
-	__asm__("mfspr %0,%1" : "=r" (val) : "i" (sprnum));
+	__asm__ volatile("mfspr %0,%1" : "=r" (val) : "i" (sprnum));
 	return val;
 }
 
@@ -33,6 +33,22 @@ void print_test_number(int i)
 	putchar(48 + i/10);
 	putchar(48 + i%10);
 	putchar(':');
+}
+
+#define PERM_EX		0x001
+#define PERM_WR		0x002
+#define PERM_RD		0x004
+#define PERM_PRIV	0x008
+#define ATTR_NC		0x020
+#define CHG		0x080
+#define REF		0x100
+
+#define DFLT_PERM	(PERM_WR | PERM_RD | REF | CHG)
+
+static void tlbwe(void *ea, void *pa, unsigned long perm_attr)
+{
+	do_tlbie(((unsigned long)ea & ~0xfff) | 0x200,
+		 ((unsigned long)pa & ~0xfff) | perm_attr);
 }
 
 int dtlb_test_1(void)
@@ -60,7 +76,7 @@ int dtlb_test_2(void)
 	long val;
 
 	/* load a TLB entry */
-	do_tlbie((long)ptr | 0x200, (long)mem);
+	tlbwe(ptr, mem, DFLT_PERM);
 	/* initialize the memory content */
 	mem[33] = 0xbadc0ffee;
 	/* this should succeed and be a cache miss */
@@ -70,7 +86,7 @@ int dtlb_test_2(void)
 	if (val != 0xbadc0ffee)
 		return 0;
 	/* load a second TLB entry in the same set as the first */
-	do_tlbie((long)ptr2 | 0x200, (long)mem);
+	tlbwe(ptr2, mem, DFLT_PERM);
 	/* this should succeed and be a cache hit */
 	if (!test_read(&ptr2[33], &val, 0xdeadbeefd00d))
 		return 0;
@@ -93,7 +109,7 @@ int dtlb_test_3(void)
 	long val;
 
 	/* load a TLB entry */
-	do_tlbie((long)ptr | 0x200, (long)mem);
+	tlbwe(ptr, mem, DFLT_PERM);
 	/* initialize the memory content */
 	mem[45] = 0xfee1800d4ea;
 	/* this should succeed and be a cache miss */
@@ -124,7 +140,7 @@ int dtlb_test_4(void)
 	long val;
 
 	/* load a TLB entry */
-	do_tlbie((long)ptr | 0x200, (long)mem);
+	tlbwe(ptr, mem, DFLT_PERM);
 	/* initialize the memory content */
 	mem[27] = 0xf00f00f00f00;
 	/* this should succeed and be a cache miss */
@@ -134,7 +150,7 @@ int dtlb_test_4(void)
 	if (mem[27] != 0xe44badc0ffee)
 		return 0;
 	/* load a second TLB entry in the same set as the first */
-	do_tlbie((long)ptr2 | 0x200, (long)mem);
+	tlbwe(ptr2, mem, DFLT_PERM);
 	/* this should succeed and be a cache hit */
 	if (!test_write(&ptr2[27], 0x6e11ae))
 		return 0;
@@ -157,7 +173,7 @@ int dtlb_test_5(void)
 	long val;
 
 	/* load a TLB entry */
-	do_tlbie(((long)ptr & ~0xfff) | 0x200, (long)mem & ~0xfff);
+	tlbwe(ptr, mem, DFLT_PERM);
 	/* this should fail */
 	if (test_read(ptr, &val, 0xdeadbeef0dd0))
 		return 0;
@@ -176,14 +192,14 @@ int dtlb_test_6(void)
 	long *ptr = (long *) 0x396ffd;
 
 	/* load a TLB entry */
-	do_tlbie(((long)ptr & ~0xfff) | 0x200, (long)mem & ~0xfff);
+	tlbwe(ptr, mem, DFLT_PERM);
 	/* initialize memory */
 	*mem = 0x123456789abcdef0;
 	/* this should fail */
 	if (test_write(ptr, 0xdeadbeef0dd0))
 		return 0;
 	/* DAR and DSISR should be set correctly */
-	if (mfspr(19) != ((long)ptr & ~0xfff) + 0x1000 || mfspr(18) != 0x40000000)
+	if (mfspr(19) != ((long)ptr & ~0xfff) + 0x1000 || mfspr(18) != 0x42000000)
 		return 0;
 	return 1;
 }

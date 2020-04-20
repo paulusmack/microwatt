@@ -918,6 +918,7 @@ begin
             lv.ci := '1';
         end if;
         lv.virt_mode := ctrl.msr(63 - 59);
+        lv.priv_mode := not ctrl.msr(63 - 49);
 
 	-- Update registers
 	rin <= v;

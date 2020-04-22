@@ -5,7 +5,6 @@ use ieee.numeric_std.all;
 library work;
 use work.decode_types.all;
 use work.common.all;
-use work.helpers.all;
 
 -- 2 cycle LSU
 -- We calculate the address in the first cycle
@@ -21,6 +20,9 @@ entity loadstore1 is
 
         d_out : out Loadstore1ToDcacheType;
         d_in  : in DcacheToLoadstore1Type;
+
+        m_out : out Loadstore1ToMmuType;
+        m_in  : in MmuToLoadstore1Type;
 
         dc_stall  : in std_ulogic;
         stall_out : out std_ulogic
@@ -38,7 +40,9 @@ architecture behave of loadstore1 is
                      SECOND_REQ,        -- send 2nd request of unaligned xfer
                      FIRST_ACK_WAIT,    -- waiting for 1st ack from dcache
                      LAST_ACK_WAIT,     -- waiting for last ack from dcache
-                     LD_UPDATE          -- writing rA with computed addr on load
+                     LD_UPDATE,         -- writing rA with computed addr on load
+                     MMU_LOOKUP_1ST,    -- waiting for MMU to look up translation
+                     MMU_LOOKUP_LAST
                      );
 
     type reg_stage_t is record
@@ -61,6 +65,7 @@ architecture behave of loadstore1 is
         virt_mode    : std_ulogic;
         priv_mode    : std_ulogic;
         state        : state_t;
+        first_bytes  : std_ulogic_vector(7 downto 0);
         second_bytes : std_ulogic_vector(7 downto 0);
     end record;
 
@@ -140,7 +145,7 @@ begin
         variable negative : std_ulogic;
         variable exception : std_ulogic;
         variable next_addr : std_ulogic_vector(63 downto 0);
-        variable exception_addr : std_ulogic_vector(63 downto 0);
+        variable mmureq : std_ulogic;
         variable dsisr : std_ulogic_vector(31 downto 0);
     begin
         v := r;
@@ -151,7 +156,7 @@ begin
         addr := lsu_sum;
         exception := '0';
         dsisr := (others => '0');
-        exception_addr := r.addr;
+        mmureq := '0';
 
         write_enable := '0';
         do_update := '0';
@@ -218,6 +223,9 @@ begin
                 v.tlbie := '0';
                 if l_in.op = OP_TLBIE then
                     v.tlbie := '1';
+                    mmureq := '1';
+                else
+                    req := '1';
                 end if;
                 v.addr := lsu_sum;
                 v.write_reg := l_in.write_reg;
@@ -246,9 +254,8 @@ begin
                 -- Do length_to_sel and work out if we are doing 2 dwords
                 long_sel := xfer_data_sel(l_in.length, v.addr(2 downto 0));
                 byte_sel := long_sel(7 downto 0);
+                v.first_bytes := byte_sel;
                 v.second_bytes := long_sel(15 downto 8);
-
-                v.addr := lsu_sum;
 
                 -- Do byte reversing and rotating for stores in the first cycle
                 byte_offset := "000";
@@ -265,7 +272,6 @@ begin
                     v.store_data(j + 7 downto j) := l_in.data(i * 8 + 7 downto i * 8);
                 end loop;
 
-                req := '1';
                 stall := '1';
                 if long_sel(15 downto 8) = "00000000" then
                     v.state := LAST_ACK_WAIT;
@@ -286,12 +292,18 @@ begin
             if d_in.valid = '1' then
                 if d_in.error = '1' then
                     -- dcache will discard the second request
-                    exception := '1';
-                    dsisr(30) := d_in.tlb_miss;
-                    dsisr(63 - 36) := d_in.perm_error;
-                    dsisr(63 - 38) := not r.load;
-                    dsisr(63 - 45) := d_in.rc_error;
-                    v.state := IDLE;
+                    if d_in.tlb_miss = '1' then
+                        -- give it to the MMU to look up
+                        mmureq := '1';
+                        v.state := MMU_LOOKUP_1ST;
+                    else
+                        -- signal an interrupt straight away
+                        exception := '1';
+                        dsisr(63 - 36) := d_in.perm_error;
+                        dsisr(63 - 38) := not r.load;
+                        dsisr(63 - 45) := d_in.rc_error;
+                        v.state := IDLE;
+                    end if;
                 else
                     v.state := LAST_ACK_WAIT;
                     if r.load = '1' then
@@ -300,18 +312,43 @@ begin
                 end if;
             end if;
 
+        when MMU_LOOKUP_1ST =>
+            stall := '1';
+            addr := r.addr;
+            if m_in.done = '1' then
+                if m_in.error = '0' then
+                    -- retry the request now that the MMU has installed a TLB entry
+                    req := '1';
+                    byte_sel := r.first_bytes;
+                    v.state := SECOND_REQ;
+                else
+                    exception := '1';
+                    dsisr(63 - 33) := '1';
+                    dsisr(63 - 38) := not r.load;
+                    v.state := IDLE;
+                end if;
+            end if;
+
         when LAST_ACK_WAIT =>
             stall := '1';
             if d_in.valid = '1' then
                 if d_in.error = '1' then
-                    exception := '1';
-                    dsisr(30) := d_in.tlb_miss;
-                    dsisr(63 - 36) := d_in.perm_error;
-                    dsisr(63 - 38) := not r.load;
-                    dsisr(63 - 45) := d_in.rc_error;
-                    v.state := IDLE;
                     if two_dwords = '1' then
-                        exception_addr := next_addr;
+                        addr := next_addr;
+                    else
+                        addr := r.addr;
+                    end if;
+                    if d_in.tlb_miss = '1' then
+                        -- give it to the MMU to look up
+                        mmureq := '1';
+                        v.state := MMU_LOOKUP_LAST;
+                    else
+                        -- signal an interrupt straight away
+                        exception := '1';
+                        dsisr(63 - 36) := d_in.perm_error;
+                        dsisr(63 - 38) := not r.load;
+                        dsisr(63 - 45) := d_in.rc_error;
+                        v.state := IDLE;
                     end if;
                 else
                     write_enable := r.load;
@@ -327,6 +364,34 @@ begin
                     end if;
                 end if;
             end if;
+            if m_in.done = '1' then
+                -- tlbie is finished
+                stall := '0';
+                done := '1';
+                v.state := IDLE;
+            end if;
+
+        when MMU_LOOKUP_LAST =>
+            stall := '1';
+            if two_dwords = '1' then
+                addr := next_addr;
+                byte_sel := r.second_bytes;
+            else
+                addr := r.addr;
+                byte_sel := r.first_bytes;
+            end if;
+            if m_in.done = '1' then
+                if m_in.error = '0' then
+                    -- retry the request now that the MMU has installed a TLB entry
+                    req := '1';
+                    v.state := LAST_ACK_WAIT;
+                else
+                    exception := '1';
+                    dsisr(63 - 33) := '1';
+                    dsisr(63 - 38) := not r.load;
+                    v.state := IDLE;
+                end if;
+            end if;
 
         when LD_UPDATE =>
             do_update := '1';
@@ -337,7 +402,6 @@ begin
         -- Update outputs to dcache
         d_out.valid <= req;
         d_out.load <= v.load;
-        d_out.tlbie <= v.tlbie;
         d_out.nc <= v.nc;
         d_out.reserve <= v.reserve;
         d_out.addr <= addr;
@@ -345,6 +409,12 @@ begin
         d_out.byte_sel <= byte_sel;
         d_out.virt_mode <= v.virt_mode;
         d_out.priv_mode <= v.priv_mode;
+
+        -- Update outputs to MMU
+        m_out.valid <= mmureq;
+        m_out.tlbie <= v.tlbie;
+        m_out.addr <= addr;
+        m_out.rs <= v.store_data;
 
         -- Update outputs to writeback
         -- Multiplex either cache data to the destination GPR or
@@ -365,7 +435,7 @@ begin
 
         -- update exception info back to execute1
         e_out.exception <= exception;
-        e_out.address <= exception_addr;
+        e_out.address <= addr;
         e_out.dsisr <= dsisr;
 
         stall_out <= stall;

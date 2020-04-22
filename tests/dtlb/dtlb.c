@@ -20,10 +20,28 @@ static inline unsigned long mfspr(int sprnum)
 	return val;
 }
 
+static inline void mtspr(int sprnum, unsigned long val)
+{
+	__asm__ volatile("mtspr %0,%1" : : "i" (sprnum), "r" (val));
+}
+
 void print_string(const char *str)
 {
 	for (; *str; ++str)
 		putchar(*str);
+}
+
+void print_hex(unsigned long val)
+{
+	int i, x;
+
+	for (i = 60; i >= 0; i -= 4) {
+		x = (val >> i) & 0xf;
+		if (x >= 10)
+			putchar(x + 'a' - 10);
+		else
+			putchar(x + '0');
+	}
 }
 
 // i < 100
@@ -317,12 +335,18 @@ int fail = 0;
 void do_test(int num, int (*test)(void))
 {
 	do_tlbie(0xc00, 0);	/* invalidate all TLB entries */
+	mtspr(18, 0);
+	mtspr(19, 0);
 	print_test_number(num);
 	if (test() != 0) {
 		print_string("PASS\r\n");
 	} else {
 		fail = 1;
-		print_string("FAIL\r\n");
+		print_string("FAIL DAR=");
+		print_hex(mfspr(19));
+		print_string(" DSISR=");
+		print_hex(mfspr(18));
+		print_string("\r\n");
 	}
 }
 

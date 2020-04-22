@@ -65,7 +65,7 @@ package common is
     end record;
     constant xerc_init : xer_common_t := (others => '0');
 
-    type irq_state_t is (WRITE_SRR0, WRITE_SRR1, WRITE_DSISR, WRITE_LDST_SRR0);
+    type irq_state_t is (WRITE_SRR0, WRITE_SRR1);
 
     -- This needs to die...
     type ctrl_t is record
@@ -75,8 +75,6 @@ package common is
 	irq_state : irq_state_t;
 	irq_nia: std_ulogic_vector(63 downto 0);
 	srr1: std_ulogic_vector(63 downto 0);
-        dar: std_ulogic_vector(63 downto 0);
-        dsisr: std_ulogic_vector(31 downto 0);
     end record;
 
     type Fetch1ToIcacheType is record
@@ -209,7 +207,7 @@ package common is
 
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
-        op : insn_type_t;                               -- what ld/st or TLB op to do
+        op : insn_type_t;                               -- what ld/st or tlbie or m[tf]spr to do
 	addr1 : std_ulogic_vector(63 downto 0);
 	addr2 : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);		-- data to write, unused for read
@@ -225,16 +223,15 @@ package common is
         rc : std_ulogic;                                -- set for stcx.
         virt_mode : std_ulogic;                         -- do translation through TLB
         priv_mode : std_ulogic;                         -- privileged mode (MSR[PR] = 0)
+        spr_num : spr_num_t;                            -- SPR number for mfspr/mtspr
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
                                                                      sign_extend => '0', update => '0', xerc => xerc_init,
                                                                      reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
-                                                                     others => (others => '0'));
+                                                                     spr_num => 0, others => (others => '0'));
 
     type Loadstore1ToExecute1Type is record
         exception : std_ulogic;
-        address: std_ulogic_vector(63 downto 0);
-        dsisr : std_ulogic_vector(31 downto 0);
     end record;
 
     type Loadstore1ToDcacheType is record
@@ -385,10 +382,6 @@ package body common is
            n := 11;
        when SPR_XER =>
            n := 12;
-       when SPR_DAR =>
-           n := 13;
-       when SPR_DSISR =>
-           n := 14;
        when others =>
            n := 0;
            return "000000";

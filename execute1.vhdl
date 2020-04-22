@@ -250,6 +250,7 @@ begin
 
 	v := r;
 	v.e := Execute1ToWritebackInit;
+        lv := Execute1ToLoadstore1Init;
 
 	-- XER forwarding. To avoid having to track XER hazards, we
 	-- use the previously latched value.
@@ -816,6 +817,9 @@ begin
             -- instruction for other units, i.e. LDST
             v.ldst_nia := e_in.nia;
             v.e.valid := '0';
+            if e_in.unit = LDST then
+                lv.valid := '1';
+            end if;
 
 	elsif r.lr_update = '1' then
 	    result_en := '1';
@@ -895,10 +899,6 @@ begin
         end if;
 
         -- Outputs to loadstore1 (async)
-        lv := Execute1ToLoadstore1Init;
-        if e_in.valid = '1' and e_in.unit = LDST then
-            lv.valid := '1';
-        end if;
         lv.op := e_in.insn_type;
         lv.addr1 := a_in;
         lv.addr2 := b_in;

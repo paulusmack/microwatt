@@ -150,6 +150,7 @@ begin
         variable mmureq : std_ulogic;
         variable dsisr : std_ulogic_vector(31 downto 0);
         variable mfspr : std_ulogic;
+        variable mmu_mtspr : std_ulogic;
         variable sprn : std_ulogic_vector(9 downto 0);
         variable sprval : std_ulogic_vector(63 downto 0);
     begin
@@ -163,6 +164,8 @@ begin
         dsisr := (others => '0');
         mmureq := '0';
         mfspr := '0';
+        mmu_mtspr := '0';
+        sprn := std_ulogic_vector(to_unsigned(l_in.spr_num, 10));
 
         write_enable := '0';
         do_update := '0';
@@ -238,19 +241,28 @@ begin
                     mfspr := '1';
                     -- partial decode on SPR number should be adequate given
                     -- the restricted set that get sent down this path
-                    sprn := std_ulogic_vector(to_unsigned(l_in.spr_num, 10));
-                    if sprn(0) = '0' then
-                        sprval := x"00000000" & r.dsisr;
+                    if sprn(9) = '0' then
+                        if sprn(0) = '0' then
+                            sprval := x"00000000" & r.dsisr;
+                        else
+                            sprval := r.dar;
+                        end if;
                     else
-                        sprval := r.dar;
+                        -- reading one of the SPRs in the MMU
+                        sprval := m_in.sprval;
                     end if;
                 when OP_MTSPR =>
                     done := '1';
                     sprn := std_ulogic_vector(to_unsigned(l_in.spr_num, 10));
-                    if sprn(0) = '0' then
-                        v.dsisr := l_in.data(31 downto 0);
+                    if sprn(9) = '0' then
+                        if sprn(0) = '0' then
+                            v.dsisr := l_in.data(31 downto 0);
+                        else
+                            v.dar := l_in.data;
+                        end if;
                     else
-                        v.dar := l_in.data;
+                        -- writing one of the SPRs in the MMU
+                        mmu_mtspr := '1';
                     end if;
                 when others =>
                     assert false report "unknown op sent to loadstore1";
@@ -287,13 +299,9 @@ begin
                 v.second_bytes := long_sel(15 downto 8);
 
                 -- Do byte reversing and rotating for stores in the first cycle
-                byte_offset := "000";
-                brev_lenm1 := "000";
-                if v.tlbie = '0' then
-                    byte_offset := unsigned(lsu_sum(2 downto 0));
-                    if l_in.byte_reverse = '1' then
-                        brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
-                    end if;
+                byte_offset := unsigned(lsu_sum(2 downto 0));
+                if l_in.byte_reverse = '1' then
+                    brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
                 end if;
                 for i in 0 to 7 loop
                     k := (to_unsigned(i, 3) xor brev_lenm1) + byte_offset;
@@ -327,6 +335,7 @@ begin
             if d_in.valid = '1' then
                 if d_in.error = '1' then
                     -- dcache will discard the second request
+                    addr := r.addr;
                     if d_in.tlb_miss = '1' then
                         -- give it to the MMU to look up
                         mmureq := '1';
@@ -347,19 +356,29 @@ begin
                 end if;
             end if;
 
-        when MMU_LOOKUP_1ST =>
+        when MMU_LOOKUP_1ST | MMU_LOOKUP_LAST =>
             stall := '1';
-            addr := r.addr;
+            if two_dwords = '1' and r.state = MMU_LOOKUP_LAST then
+                addr := next_addr;
+                byte_sel := r.second_bytes;
+            else
+                addr := r.addr;
+                byte_sel := r.first_bytes;
+            end if;
             if m_in.done = '1' then
-                if m_in.error = '0' then
+                if m_in.invalid = '0' and m_in.badtree = '0' then
                     -- retry the request now that the MMU has installed a TLB entry
                     req := '1';
-                    byte_sel := r.first_bytes;
-                    v.state := SECOND_REQ;
+                    if r.state = MMU_LOOKUP_1ST then
+                        v.state := SECOND_REQ;
+                    else
+                        v.state := LAST_ACK_WAIT;
+                    end if;
                 else
                     exception := '1';
-                    dsisr(63 - 33) := '1';
+                    dsisr(63 - 33) := m_in.invalid;
                     dsisr(63 - 38) := not r.load;
+                    dsisr(63 - 44) := m_in.badtree;
                     v.state := IDLE;
                 end if;
             end if;
@@ -406,28 +425,6 @@ begin
                 v.state := IDLE;
             end if;
 
-        when MMU_LOOKUP_LAST =>
-            stall := '1';
-            if two_dwords = '1' then
-                addr := next_addr;
-                byte_sel := r.second_bytes;
-            else
-                addr := r.addr;
-                byte_sel := r.first_bytes;
-            end if;
-            if m_in.done = '1' then
-                if m_in.error = '0' then
-                    -- retry the request now that the MMU has installed a TLB entry
-                    req := '1';
-                    v.state := LAST_ACK_WAIT;
-                else
-                    exception := '1';
-                    dsisr(63 - 33) := '1';
-                    dsisr(63 - 38) := not r.load;
-                    v.state := IDLE;
-                end if;
-            end if;
-
         when LD_UPDATE =>
             do_update := '1';
             v.state := IDLE;
@@ -448,8 +445,10 @@ begin
         -- Update outputs to MMU
         m_out.valid <= mmureq;
         m_out.tlbie <= v.tlbie;
+        m_out.mtspr <= mmu_mtspr;
+        m_out.sprn <= sprn(3 downto 0);
         m_out.addr <= addr;
-        m_out.rs <= v.store_data;
+        m_out.rs <= l_in.data;
 
         -- Update outputs to writeback
         -- Multiplex either cache data to the destination GPR or

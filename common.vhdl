@@ -233,6 +233,7 @@ package common is
 
     type Loadstore1ToExecute1Type is record
         exception : std_ulogic;
+        segment_fault : std_ulogic;
     end record;
 
     type Loadstore1ToDcacheType is record
@@ -270,6 +271,7 @@ package common is
         done    : std_ulogic;
         invalid : std_ulogic;
         badtree : std_ulogic;
+        segerr  : std_ulogic;
         sprval  : std_ulogic_vector(63 downto 0);
     end record;
 

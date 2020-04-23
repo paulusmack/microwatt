@@ -473,9 +473,12 @@ begin
 
         -- update exception info back to execute1
         e_out.exception <= exception;
+        e_out.segment_fault <= m_in.segerr;
         if exception = '1' then
             v.dar := addr;
-            v.dsisr := dsisr;
+            if m_in.segerr = '0' then
+                v.dsisr := dsisr;
+            end if;
         end if;
 
         stall_out <= stall;

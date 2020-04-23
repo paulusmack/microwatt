@@ -55,6 +55,10 @@ architecture behave of mmu is
     signal mask    : std_ulogic_vector(15 downto 0);
     signal finalmask : std_ulogic_vector(43 downto 0);
 
+    -- Register mid-way through the shifter, to help with timing
+    signal shift_reg    : std_ulogic_vector(30 downto 0);
+    signal shift_reg_in : std_ulogic_vector(30 downto 0);
+
 begin
     -- Multiplex internal SPR values back to loadstore1, selected
     -- by l_in.sprn.  Easy when there's only one...
@@ -84,6 +88,7 @@ begin
                         " addrsh=" & to_hstring(addrsh) & " mask=" & to_hstring(mask);
                 end if;
                 r <= rin;
+                shift_reg <= shift_reg_in;
             end if;
         end if;
     end process;
@@ -95,7 +100,8 @@ begin
         variable sh2 : std_ulogic_vector(18 downto 0);
         variable result : std_ulogic_vector(15 downto 0);
     begin
-        case r.shift(5 downto 4) is
+        -- this mux is before the register, so use rin.shift as the select
+        case rin.shift(5 downto 4) is
             when "00" =>
                 sh1 := r.addr(42 downto 12);
             when "01" =>
@@ -103,15 +109,17 @@ begin
             when others =>
                 sh1 := "0000000000000" & r.addr(61 downto 44);
         end case;
+        shift_reg_in <= sh1;
+        -- these two muxes operate after the register
         case r.shift(3 downto 2) is
             when "00" =>
-                sh2 := sh1(18 downto 0);
+                sh2 := shift_reg(18 downto 0);
             when "01" =>
-                sh2 := sh1(22 downto 4);
+                sh2 := shift_reg(22 downto 4);
             when "10" =>
-                sh2 := sh1(26 downto 8);
+                sh2 := shift_reg(26 downto 8);
             when others =>
-                sh2 := sh1(30 downto 12);
+                sh2 := shift_reg(30 downto 12);
         end case;
         case r.shift(1 downto 0) is
             when "00" =>

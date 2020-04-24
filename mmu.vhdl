@@ -40,6 +40,7 @@ architecture behave of mmu is
         -- internal state
         state     : state_t;
         pgtbl0    : std_ulogic_vector(63 downto 0);
+        pgtbl3    : std_ulogic_vector(63 downto 0);
         shift     : unsigned(5 downto 0);
         mask_size : unsigned(4 downto 0);
         pgbase    : std_ulogic_vector(55 downto 0);
@@ -61,8 +62,8 @@ architecture behave of mmu is
 
 begin
     -- Multiplex internal SPR values back to loadstore1, selected
-    -- by l_in.sprn.  Easy when there's only one...
-    l_out.sprval <= r.pgtbl0;
+    -- by l_in.sprn.
+    l_out.sprval <= r.pgtbl3 when l_in.sprn(0) = '1' else r.pgtbl0;
 
     mmu_0: process(clk)
     begin
@@ -71,6 +72,7 @@ begin
                 r.state <= IDLE;
                 r.valid <= '0';
                 r.pgtbl0 <= (others => '0');
+                r.pgtbl3 <= (others => '0');
             else
                 if rin.valid = '1' then
                     report "MMU got tlb miss for " & to_hstring(rin.addr);
@@ -173,6 +175,7 @@ begin
         variable pgtable_addr : std_ulogic_vector(63 downto 0);
         variable pte : std_ulogic_vector(63 downto 0);
         variable nonzero : std_ulogic;
+        variable pgtbl : std_ulogic_vector(63 downto 0);
     begin
         v := r;
         v.valid := '0';
@@ -186,14 +189,19 @@ begin
 
         case r.state is
         when IDLE =>
+            if l_in.addr(63) = '0' then
+                pgtbl := r.pgtbl0;
+            else
+                pgtbl := r.pgtbl3;
+            end if;
             -- rts == radix tree size, # address bits being translated
-            rts := unsigned('0' & r.pgtbl0(62 downto 61) & r.pgtbl0(7 downto 5));
+            rts := unsigned('0' & pgtbl(62 downto 61) & pgtbl(7 downto 5));
             -- mbits == # address bits to index top level of tree
-            mbits := unsigned('0' & r.pgtbl0(4 downto 0));
+            mbits := unsigned('0' & pgtbl(4 downto 0));
             -- set v.shift to rts so that we can use finalmask for the segment check
             v.shift := rts;
             v.mask_size := mbits(4 downto 0);
-            v.pgbase := r.pgtbl0(55 downto 8) & x"00";
+            v.pgbase := pgtbl(55 downto 8) & x"00";
 
             if l_in.valid = '1' then
                 v.addr := l_in.addr;
@@ -213,7 +221,11 @@ begin
                 end if;
             end if;
             if l_in.mtspr = '1' then
-                v.pgtbl0 := l_in.rs;
+                if l_in.sprn(0) = '0' then
+                    v.pgtbl0 := l_in.rs;
+                else
+                    v.pgtbl3 := l_in.rs;
+                end if;
             end if;
 
         when TLB_WAIT =>

@@ -343,9 +343,10 @@ architecture behaviour of decode1 is
 		others   => decode_rom_init
         );
 
-        --                                       unit     internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
-        --                                                      op                                           in   out   A   out  in    out  len        ext                                 pipe
-	constant nop_instr     : decode_rom_t := (ALU,    OP_NOP,       NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
+        --                                        unit   internal         in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl
+        --                                                     op                                              in   out   A   out  in    out  len        ext                                 pipe
+	constant nop_instr      : decode_rom_t := (ALU,  OP_NOP,          NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
+        constant fetch_fail_inst: decode_rom_t := (LDST, OP_FETCH_FAILED, NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0');
 
 begin
 	decode1_0: process(clk)
@@ -378,7 +379,20 @@ begin
                 end if;
 
                 majorop := unsigned(f_in.insn(31 downto 26));
-                if majorop = "011111" then
+                if f_in.fetch_failed = '1' then
+                    v.valid := '1';
+                    v.decode := fetch_fail_inst;
+                    -- if this is a simple TLB miss, send it to loadstore1
+                    -- if we are generating an ISI immediately, send it to execute1
+                    if (f_in.priv_fault or f_in.noexec_fault or f_in.rc_fault) = '1' then
+                        v.decode.unit := ALU;
+                        -- store failure cause bits in the instruction word
+                        v.insn(2) := f_in.noexec_fault;
+                        v.insn(1) := f_in.priv_fault;
+                        v.insn(0) := f_in.rc_fault;
+                    end if;
+
+                elsif majorop = "011111" then
                         -- major opcode 31, lots of things
                         v.decode := decode_op_31_array(to_integer(unsigned(f_in.insn(10 downto 1))));
 

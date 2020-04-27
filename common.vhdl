@@ -90,6 +90,8 @@ package common is
 
     type Fetch1ToIcacheType is record
 	req: std_ulogic;
+        virt_mode : std_ulogic;
+        priv_mode : std_ulogic;
 	stop_mark: std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
     end record;
@@ -97,6 +99,10 @@ package common is
     type IcacheToFetch2Type is record
 	valid: std_ulogic;
 	stop_mark: std_ulogic;
+        fetch_failed: std_ulogic;
+        priv_fault: std_ulogic;
+        noexec_fault: std_ulogic;
+        rc_fault: std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(31 downto 0);
     end record;
@@ -104,10 +110,16 @@ package common is
     type Fetch2ToDecode1Type is record
 	valid: std_ulogic;
 	stop_mark : std_ulogic;
+        fetch_failed: std_ulogic;
+        priv_fault: std_ulogic;
+        noexec_fault: std_ulogic;
+        rc_fault: std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(31 downto 0);
     end record;
-    constant Fetch2ToDecode1Init : Fetch2ToDecode1Type := (valid => '0', stop_mark => '0', others => (others => '0'));
+    constant Fetch2ToDecode1Init : Fetch2ToDecode1Type := (valid => '0', stop_mark => '0', fetch_failed => '0',
+                                                           priv_fault => '0', noexec_fault => '0', rc_fault => '0',
+                                                           others => (others => '0'));
 
     type Decode1ToDecode2Type is record
 	valid: std_ulogic;
@@ -212,13 +224,17 @@ package common is
 
     type Execute1ToFetch1Type is record
 	redirect: std_ulogic;
+        virt_mode: std_ulogic;
+        priv_mode: std_ulogic;
 	redirect_nia: std_ulogic_vector(63 downto 0);
     end record;
-    constant Execute1ToFetch1TypeInit : Execute1ToFetch1Type := (redirect => '0', others => (others => '0'));
+    constant Execute1ToFetch1TypeInit : Execute1ToFetch1Type := (redirect => '0', virt_mode => '0',
+                                                                 priv_mode => '0', others => (others => '0'));
 
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
         op : insn_type_t;                               -- what ld/st or tlbie or m[tf]spr to do
+        nia : std_ulogic_vector(63 downto 0);
 	addr1 : std_ulogic_vector(63 downto 0);
 	addr2 : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);		-- data to write, unused for read
@@ -244,6 +260,7 @@ package common is
     type Loadstore1ToExecute1Type is record
         exception : std_ulogic;
         segment_fault : std_ulogic;
+        instr_fault : std_ulogic;
     end record;
 
     type Loadstore1ToDcacheType is record
@@ -273,6 +290,7 @@ package common is
         valid : std_ulogic;
         tlbie : std_ulogic;
         mtspr : std_ulogic;
+        iside : std_ulogic;
         sprn  : std_ulogic_vector(3 downto 0);
         addr  : std_ulogic_vector(63 downto 0);
         rs    : std_ulogic_vector(63 downto 0);
@@ -299,6 +317,13 @@ package common is
         done  : std_ulogic;
         err   : std_ulogic;
         data  : std_ulogic_vector(63 downto 0);
+    end record;
+
+    type MmuToIcacheType is record
+        tlbld : std_ulogic;
+        tlbie : std_ulogic;
+        addr  : std_ulogic_vector(63 downto 0);
+        pte   : std_ulogic_vector(63 downto 0);
     end record;
 
     type Loadstore1ToWritebackType is record

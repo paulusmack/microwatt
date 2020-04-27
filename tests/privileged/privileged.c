@@ -4,6 +4,29 @@
 
 #include "console.h"
 
+static inline void do_tlbie(unsigned long rb, unsigned long rs)
+{
+	__asm__ volatile("tlbie %0,%1" : : "r" (rb), "r" (rs) : "memory");
+}
+
+#define PERM_EX		0x001
+#define PERM_WR		0x002
+#define PERM_RD		0x004
+#define PERM_PRIV	0x008
+#define ATTR_NC		0x020
+#define CHG		0x080
+#define REF		0x100
+
+static void tlbwe(unsigned long ea, unsigned long pa, unsigned long perm_attr)
+{
+	if (perm_attr & (PERM_RD | PERM_WR))
+		/* load it into dTLB */
+		do_tlbie((ea & ~0xfff) | 0x200, (pa & ~0xfff) | perm_attr);
+	if (perm_attr & PERM_EX)
+		/* load it into iTLB */
+		do_tlbie((ea & ~0xfff) | 0x100, (pa & ~0xfff) | perm_attr);
+}
+
 #define MSR_EE	0x8000
 #define MSR_PR	0x4000
 #define MSR_IR	0x0020
@@ -140,6 +163,10 @@ void do_test(int num, int (*fn)(unsigned long))
 int main(void)
 {
 	potato_uart_init();
+
+	/* Create TLB entries for user-mode code to use */
+	tlbwe(0x2000, 0x2000, REF | CHG | PERM_RD | PERM_EX);	/* map code page */
+	tlbwe(0x7000, 0x7000, REF | CHG | PERM_RD | PERM_WR);	/* map stack page */
 
 	do_test(1, priv_fn_1);
 	do_test(2, priv_fn_2);

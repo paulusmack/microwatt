@@ -38,6 +38,7 @@ architecture behave of mmu is
     type reg_stage_t is record
         -- latched request from loadstore1
         valid     : std_ulogic;
+        iside     : std_ulogic;
         addr      : std_ulogic_vector(63 downto 0);
         -- internal state
         state     : state_t;
@@ -163,14 +164,17 @@ begin
         variable dcreq : std_ulogic;
         variable done : std_ulogic;
         variable tlb_load : std_ulogic;
+        variable itlb_load : std_ulogic;
         variable tlbie_req : std_ulogic;
         variable rts : unsigned(5 downto 0);
         variable mbits : unsigned(5 downto 0);
         variable pgtable_addr : std_ulogic_vector(63 downto 0);
         variable pte : std_ulogic_vector(63 downto 0);
-        variable data : std_ulogic_vector(63 downto 0);
+        variable tlb_data : std_ulogic_vector(63 downto 0);
         variable nonzero : std_ulogic;
         variable pgtbl : std_ulogic_vector(63 downto 0);
+        variable addr : std_ulogic_vector(63 downto 0);
+        variable data : std_ulogic_vector(63 downto 0);
     begin
         v := r;
         v.valid := '0';
@@ -180,6 +184,7 @@ begin
         v.badtree := '0';
         v.segerror := '0';
         tlb_load := '0';
+        itlb_load := '0';
         tlbie_req := '0';
 
         -- Radix tree data structures in memory are big-endian,
@@ -206,6 +211,7 @@ begin
 
             if l_in.valid = '1' then
                 v.addr := l_in.addr;
+                v.iside := l_in.iside;
                 if l_in.tlbie = '1' then
                     dcreq := '1';
                     tlbie_req := '1';
@@ -287,8 +293,14 @@ begin
 
         when RADIX_LOAD_TLB =>
             tlb_load := '1';
-            dcreq := '1';
-            v.state := TLB_WAIT;
+            if r.iside = '0' then
+                dcreq := '1';
+                v.state := TLB_WAIT;
+            else
+                itlb_load := '1';
+                done := '1';
+                v.state := IDLE;
+            end if;
 
         when RADIX_ERROR =>
             done := '1';
@@ -307,6 +319,17 @@ begin
         rin <= v;
 
         -- drive outputs
+        if tlbie_req = '1' then
+            addr := l_in.addr;
+            tlb_data := l_in.rs;
+        elsif tlb_load = '1' then
+            addr := r.addr(63 downto 12) & x"000";
+            tlb_data := pte;
+        else
+            addr := pgtable_addr;
+            tlb_data := (others => '0');
+        end if;
+
         l_out.done <= done;
         l_out.invalid <= r.invalid;
         l_out.badtree <= r.badtree;
@@ -315,21 +338,13 @@ begin
         d_out.valid <= dcreq;
         d_out.tlbie <= tlbie_req;
         d_out.tlbld <= tlb_load;
-        if tlbie_req = '1' then
-            d_out.addr <= l_in.addr;
-            d_out.pte <= l_in.rs;
-        elsif tlb_load = '1' then
-            d_out.addr <= r.addr(63 downto 12) & x"000";
-            d_out.pte <= pte;
-        else
-            d_out.addr <= pgtable_addr;
-            d_out.pte <= (others => '0');
-        end if;
+        d_out.addr <= addr;
+        d_out.pte <= tlb_data;
 
-        i_out.tlbld <= '0';
+        i_out.tlbld <= itlb_load;
         i_out.tlbie <= tlbie_req;
-        i_out.addr <= l_in.addr;
-        i_out.pte <= l_in.rs;
+        i_out.addr <= addr;
+        i_out.pte <= tlb_data;
 
     end process;
 end;

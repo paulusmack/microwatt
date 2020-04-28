@@ -259,6 +259,8 @@ package common is
 
     type Loadstore1ToExecute1Type is record
         exception : std_ulogic;
+        invalid : std_ulogic;
+        badtree : std_ulogic;
         segment_fault : std_ulogic;
         instr_fault : std_ulogic;
     end record;

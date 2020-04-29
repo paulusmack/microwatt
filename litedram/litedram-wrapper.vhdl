@@ -77,31 +77,31 @@ architecture behaviour of litedram_wrapper is
 	init_error             : out std_ulogic;
 	user_clk               : out std_ulogic;
 	user_rst               : out std_ulogic;
-	user_port0_cmd_valid   : in std_ulogic;
-	user_port0_cmd_ready   : out std_ulogic;
-	user_port0_cmd_we      : in std_ulogic;
-	user_port0_cmd_addr    : in std_ulogic_vector(DRAM_ABITS-1 downto 0);
-	user_port0_wdata_valid : in std_ulogic;
-	user_port0_wdata_ready : out std_ulogic;
-	user_port0_wdata_we    : in std_ulogic_vector(15 downto 0);
-	user_port0_wdata_data  : in std_ulogic_vector(127 downto 0);
-	user_port0_rdata_valid : out std_ulogic;
-	user_port0_rdata_ready : in std_ulogic;
-	user_port0_rdata_data  : out std_ulogic_vector(127 downto 0)
+	user_port_p0_cmd_valid   : in std_ulogic;
+	user_port_p0_cmd_ready   : out std_ulogic;
+	user_port_p0_cmd_we      : in std_ulogic;
+	user_port_p0_cmd_addr    : in std_ulogic_vector(DRAM_ABITS-1 downto 0);
+	user_port_p0_wdata_valid : in std_ulogic;
+	user_port_p0_wdata_ready : out std_ulogic;
+	user_port_p0_wdata_we    : in std_ulogic_vector(15 downto 0);
+	user_port_p0_wdata_data  : in std_ulogic_vector(127 downto 0);
+	user_port_p0_rdata_valid : out std_ulogic;
+	user_port_p0_rdata_ready : in std_ulogic;
+	user_port_p0_rdata_data  : out std_ulogic_vector(127 downto 0)
 	);
     end component;
     
-    signal user_port0_cmd_valid		: std_ulogic;
-    signal user_port0_cmd_ready		: std_ulogic;
-    signal user_port0_cmd_we		: std_ulogic;
-    signal user_port0_cmd_addr		: std_ulogic_vector(DRAM_ABITS-1 downto 0);
-    signal user_port0_wdata_valid	: std_ulogic;
-    signal user_port0_wdata_ready	: std_ulogic;
-    signal user_port0_wdata_we		: std_ulogic_vector(15 downto 0);
-    signal user_port0_wdata_data	: std_ulogic_vector(127 downto 0);
-    signal user_port0_rdata_valid	: std_ulogic;
-    signal user_port0_rdata_ready	: std_ulogic;
-    signal user_port0_rdata_data	: std_ulogic_vector(127 downto 0);
+    signal user_port_p0_cmd_valid		: std_ulogic;
+    signal user_port_p0_cmd_ready		: std_ulogic;
+    signal user_port_p0_cmd_we		: std_ulogic;
+    signal user_port_p0_cmd_addr		: std_ulogic_vector(DRAM_ABITS-1 downto 0);
+    signal user_port_p0_wdata_valid	: std_ulogic;
+    signal user_port_p0_wdata_ready	: std_ulogic;
+    signal user_port_p0_wdata_we		: std_ulogic_vector(15 downto 0);
+    signal user_port_p0_wdata_data	: std_ulogic_vector(127 downto 0);
+    signal user_port_p0_rdata_valid	: std_ulogic;
+    signal user_port_p0_rdata_ready	: std_ulogic;
+    signal user_port_p0_rdata_data	: std_ulogic_vector(127 downto 0);
 
     signal ad3 : std_ulogic;
 
@@ -115,21 +115,21 @@ begin
     ad3 <= wb_in.adr(3);
 
     -- DRAM interface signals
-    user_port0_cmd_valid <= (wb_in.cyc and wb_in.stb)
+    user_port_p0_cmd_valid <= (wb_in.cyc and wb_in.stb)
 			    when state = CMD else '0';
-    user_port0_cmd_we <= wb_in.we when state = CMD else '0';
-    user_port0_wdata_valid <= '1' when state = MWRITE else '0';
-    user_port0_rdata_ready <= '1' when state = MREAD else '0';
-    user_port0_cmd_addr <= wb_in.adr(DRAM_ABITS+3 downto 4);
-    user_port0_wdata_data <= wb_in.dat & wb_in.dat;
-    user_port0_wdata_we <= wb_in.sel & "00000000" when ad3 = '1' else
+    user_port_p0_cmd_we <= wb_in.we when state = CMD else '0';
+    user_port_p0_wdata_valid <= '1' when state = MWRITE else '0';
+    user_port_p0_rdata_ready <= '1' when state = MREAD else '0';
+    user_port_p0_cmd_addr <= wb_in.adr(DRAM_ABITS+3 downto 4);
+    user_port_p0_wdata_data <= wb_in.dat & wb_in.dat;
+    user_port_p0_wdata_we <= wb_in.sel & "00000000" when ad3 = '1' else
 			   "00000000" & wb_in.sel;
 
     -- Wishbone signals
-    wb_out.ack <= user_port0_wdata_ready when state = MWRITE else
-		  user_port0_rdata_valid when state = MREAD else '0';
-    wb_out.dat <= user_port0_rdata_data(127 downto 64) when ad3 = '1' else
-		  user_port0_rdata_data(63 downto 0);
+    wb_out.ack <= user_port_p0_wdata_ready when state = MWRITE else
+		  user_port_p0_rdata_valid when state = MREAD else '0';
+    wb_out.dat <= user_port_p0_rdata_data(127 downto 64) when ad3 = '1' else
+		  user_port_p0_rdata_data(63 downto 0);
     -- We don't do pipelining yet.
     wb_out.stall <= '0' when wb_in.cyc = '0' else not wb_out.ack;
 
@@ -143,16 +143,16 @@ begin
 	    else
 		case state is
 		when CMD =>
-		    if (user_port0_cmd_ready and
-			user_port0_cmd_valid) = '1' then
+		    if (user_port_p0_cmd_ready and
+			user_port_p0_cmd_valid) = '1' then
 			state <= MWRITE when wb_in.we = '1' else MREAD;
 		    end if;
 		when MWRITE =>
-		    if user_port0_wdata_ready then
+		    if user_port_p0_wdata_ready then
 			state <= CMD;
 		    end if;
 		when MREAD =>
-		    if user_port0_rdata_valid then
+		    if user_port_p0_rdata_valid then
 			state <= CMD;
 		    end if;
 		end case;
@@ -186,17 +186,17 @@ begin
 	    init_error => init_error,
 	    user_clk => system_clk,
 	    user_rst => system_reset,
-	    user_port0_cmd_valid => user_port0_cmd_valid,
-	    user_port0_cmd_ready => user_port0_cmd_ready,
-	    user_port0_cmd_we => user_port0_cmd_we,
-	    user_port0_cmd_addr => user_port0_cmd_addr,
-	    user_port0_wdata_valid => user_port0_wdata_valid,
-	    user_port0_wdata_ready => user_port0_wdata_ready,
-	    user_port0_wdata_we => user_port0_wdata_we,
-	    user_port0_wdata_data => user_port0_wdata_data,
-	    user_port0_rdata_valid => user_port0_rdata_valid,
-	    user_port0_rdata_ready => user_port0_rdata_ready,
-	    user_port0_rdata_data => user_port0_rdata_data
+	    user_port_p0_cmd_valid => user_port_p0_cmd_valid,
+	    user_port_p0_cmd_ready => user_port_p0_cmd_ready,
+	    user_port_p0_cmd_we => user_port_p0_cmd_we,
+	    user_port_p0_cmd_addr => user_port_p0_cmd_addr,
+	    user_port_p0_wdata_valid => user_port_p0_wdata_valid,
+	    user_port_p0_wdata_ready => user_port_p0_wdata_ready,
+	    user_port_p0_wdata_we => user_port_p0_wdata_we,
+	    user_port_p0_wdata_data => user_port_p0_wdata_data,
+	    user_port_p0_rdata_valid => user_port_p0_rdata_valid,
+	    user_port_p0_rdata_ready => user_port_p0_rdata_ready,
+	    user_port_p0_rdata_data => user_port_p0_rdata_data
 	    );
 
 end architecture behaviour;

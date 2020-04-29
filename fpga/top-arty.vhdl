@@ -42,8 +42,8 @@ entity toplevel is
 	ddram_cs_n    : out std_ulogic;
 	ddram_dm      : out std_ulogic_vector(1 downto 0);
 	ddram_dq      : inout std_ulogic_vector(15 downto 0);
-	ddram_dqs_p   : out std_ulogic_vector(1 downto 0);
-	ddram_dqs_n   : out std_ulogic_vector(1 downto 0);
+	ddram_dqs_p   : inout std_ulogic_vector(1 downto 0);
+	ddram_dqs_n   : inout std_ulogic_vector(1 downto 0);
 	ddram_clk_p   : out std_ulogic;
 	ddram_clk_n   : out std_ulogic;
 	ddram_cke     : out std_ulogic;

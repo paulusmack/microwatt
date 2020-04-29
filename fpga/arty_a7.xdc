@@ -195,18 +195,22 @@ set_property IN_TERM UNTUNED_SPLIT_40 [get_ports ddram_dq[15]]
 set_property LOC N2 [get_ports ddram_dqs_p[0]]
 set_property SLEW FAST [get_ports ddram_dqs_p[0]]
 set_property IOSTANDARD DIFF_SSTL135 [get_ports ddram_dqs_p[0]]
+set_property IN_TERM UNTUNED_SPLIT_40 [get_ports ddram_dqs_p[0]]
  ## ddram:0.dqs_p
 set_property LOC U2 [get_ports ddram_dqs_p[1]]
 set_property SLEW FAST [get_ports ddram_dqs_p[1]]
 set_property IOSTANDARD DIFF_SSTL135 [get_ports ddram_dqs_p[1]]
+set_property IN_TERM UNTUNED_SPLIT_40 [get_ports ddram_dqs_p[1]]
  ## ddram:0.dqs_n
 set_property LOC N1 [get_ports ddram_dqs_n[0]]
 set_property SLEW FAST [get_ports ddram_dqs_n[0]]
 set_property IOSTANDARD DIFF_SSTL135 [get_ports ddram_dqs_n[0]]
+set_property IN_TERM UNTUNED_SPLIT_40 [get_ports ddram_dqs_n[1]]
  ## ddram:0.dqs_n
 set_property LOC V2 [get_ports ddram_dqs_n[1]]
 set_property SLEW FAST [get_ports ddram_dqs_n[1]]
 set_property IOSTANDARD DIFF_SSTL135 [get_ports ddram_dqs_n[1]]
+set_property IN_TERM UNTUNED_SPLIT_40 [get_ports ddram_dqs_n[1]]
  ## ddram:0.clk_p
 set_property LOC U9 [get_ports ddram_clk_p]
 set_property SLEW FAST [get_ports ddram_clk_p]

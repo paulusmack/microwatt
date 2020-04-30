@@ -12,9 +12,10 @@ use work.wishbone_types.all;
 
 -- Memory map:
 --
--- 0x00000000: Block RAM (MEMORY_SIZE)
+-- 0x00000000: Block RAM (MEMORY_SIZE) or DRAM depending on syscon
 -- 0x40000000: DRAM (when present)
--- 0xc0002000: UART0 (wired up to Microwatt)
+-- 0xc0000000: SYSCON
+-- 0xc0002000: UART0
 -- 0xf0000000: Block RAM (aliased & repeated)
 
 entity soc is
@@ -24,7 +25,8 @@ entity soc is
 	RESET_LOW     : boolean;
 	SIM           : boolean;
 	DISABLE_FLATTEN_CORE : boolean := false;
-	HAS_DRAM      : boolean  := false
+	HAS_DRAM      : boolean  := false;
+        CLK_FREQUENCY : positive := 50000000
 	);
     port(
 	rst          : in  std_ulogic;
@@ -150,12 +152,14 @@ begin
 			    SLAVE_NONE);
 	variable slave : slave_type;
     begin
-	-- Simple address decoder.
-	slave := SLAVE_NONE;
 	-- Simple address decoder. Ignore top bits to save silicon for now
 	slave := SLAVE_NONE;
 	if    std_match(wb_master_out.adr, x"0-------") then
-	    slave := SLAVE_BRAM;
+            if HAS_DRAM and dram_at_0 = '1' then
+                slave := SLAVE_DRAM;
+            else
+                slave := SLAVE_BRAM;
+            end if;
 	elsif std_match(wb_master_out.adr, x"F-------") then
 	    slave := SLAVE_BRAM;
 	elsif std_match(wb_master_out.adr, x"4-------") and HAS_DRAM then
@@ -198,7 +202,7 @@ begin
     -- Syscon slave
     syscon0: entity work.syscon
 	generic map(
-	    CLK_FREQ => 50,	-- FIXME: Get from DRAM generator
+	    CLK_FREQ => CLK_FREQUENCY / 1000000,
 	    HAS_UART => true,
 	    HAS_DRAM => HAS_DRAM,
 	    BRAM_SIZE => MEMORY_SIZE,

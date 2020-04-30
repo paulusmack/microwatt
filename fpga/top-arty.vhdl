@@ -88,7 +88,8 @@ begin
 	    RESET_LOW     => RESET_LOW,
 	    SIM           => false,
 	    HAS_DRAM      => USE_LITEDRAM,
-	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE
+	    DISABLE_FLATTEN_CORE => DISABLE_FLATTEN_CORE,
+            CLK_FREQUENCY => CLK_FREQUENCY
 	    )
 	port map (
 	    system_clk        => system_clk,

@@ -41,6 +41,7 @@ package common is
     constant SPR_HSPRG1 : spr_num_t := 305;
     constant SPR_PGTBL0 : spr_num_t := 720;
     constant SPR_PGTBL3 : spr_num_t := 721;
+    constant SPR_IVBASE : spr_num_t := 722;
 
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
@@ -84,7 +85,8 @@ package common is
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
 	irq_state : irq_state_t;
-	irq_nia: std_ulogic_vector(63 downto 0);
+	irq_nia: std_ulogic_vector(11 downto 0);
+        irq_base: std_ulogic_vector(63 downto 12);
 	srr1: std_ulogic_vector(63 downto 0);
     end record;
 

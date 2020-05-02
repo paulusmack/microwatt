@@ -229,6 +229,7 @@ begin
                 r <= reg_type_init;
                 ctrl.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
                 ctrl.irq_state <= WRITE_SRR0;
+                ctrl.irq_base <= (others => '0');
             else
                 r <= rin;
                 ctrl <= ctrl_tmp;
@@ -452,7 +453,7 @@ begin
 	    f_out.redirect <= '1';
             f_out.virt_mode <= '0';
             f_out.priv_mode <= '1';
-	    f_out.redirect_nia <= ctrl.irq_nia;
+	    f_out.redirect_nia <= ctrl.irq_base & ctrl.irq_nia;
 	    v.e.valid := e_in.valid;
 	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
 
@@ -462,14 +463,14 @@ begin
             -- Don't deliver the interrupt until we have a valid instruction
             -- coming in, so we have a valid NIA to put in SRR0.
 	    exception := e_in.valid;
-	    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#900#, 64));
+	    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#900#, 12));
 	    ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
 
         elsif e_in.valid = '1' and ctrl.msr(MSR_PR) = '1' and
             instr_is_privileged(e_in.insn_type, e_in.insn) then
             -- generate a program interrupt
             exception := '1';
-            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 64));
+            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 12));
             ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
             -- set bit 45 to indicate privileged instruction type interrupt
             ctrl_tmp.srr1(63 - 45) <= '1';
@@ -497,7 +498,7 @@ begin
                 if e_in.insn(1) = '1' then
                     exception := '1';
                     exception_nextpc := '1';
-                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#C00#, 64));
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#C00#, 12));
                     ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
                     report "sc";
                 else
@@ -590,7 +591,7 @@ begin
                         if or (trapval and insn_to(e_in.insn)) = '1' then
                             -- generate trap-type program interrupt
                             exception := '1';
-                            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 64));
+                            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 12));
                             ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
                             -- set bit 46 to say trap occurred
                             ctrl_tmp.srr1(63 - 46) <= '1';
@@ -753,6 +754,8 @@ begin
 			result := ctrl.tb;
 		    when SPR_DEC =>
 			result := ctrl.dec;
+                    when SPR_IVBASE =>
+                        result := ctrl.irq_base & x"000";
                     when others =>
                         -- mfspr from unimplemented SPRs should be a nop in
                         -- supervisor mode and a program interrupt for user mode
@@ -826,6 +829,8 @@ begin
 		    case decode_spr_num(e_in.insn) is
 		    when SPR_DEC =>
 			ctrl_tmp.dec <= c_in;
+                    when SPR_IVBASE =>
+                        ctrl_tmp.irq_base <= c_in(63 downto 12);
 		    when others =>
                         -- mtspr to unimplemented SPRs should be a nop in
                         -- supervisor mode and a program interrupt for user mode
@@ -868,7 +873,7 @@ begin
 
             when OP_FETCH_FAILED =>
                 exception := '1';
-                ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#400#, 64));
+                ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#400#, 12));
                 ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
                 ctrl_tmp.srr1(63 - 35) <= e_in.insn(2);
                 ctrl_tmp.srr1(63 - 36) <= e_in.insn(1);
@@ -954,7 +959,7 @@ begin
 
         if illegal = '1' then
             exception := '1';
-            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 64));
+            ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#700#, 12));
             ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
             -- Since we aren't doing Hypervisor emulation assist (0xe40) we
             -- set bit 44 to indicate we have an illegal
@@ -978,17 +983,17 @@ begin
             ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
             if l_in.instr_fault = '0' then
                 if l_in.segment_fault = '0' then
-                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#300#, 64));
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#300#, 12));
                 else
-                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#380#, 64));
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#380#, 12));
                 end if;
             else
                 if l_in.segment_fault = '0' then
                     ctrl_tmp.srr1(63 - 33) <= l_in.invalid;
                     ctrl_tmp.srr1(63 - 44) <= l_in.badtree;
-                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#400#, 64));
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#400#, 12));
                 else
-                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#480#, 64));
+                    ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#480#, 12));
                 end if;
             end if;
             v.e.exc_write_enable := '1';

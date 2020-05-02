@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-#define STACK_TOP 0x8000
-
 /* Load an immediate 64-bit value into a register */
 #define LOAD_IMM64(r, e)			\
 	lis     r,(e)@highest;			\
@@ -33,12 +31,20 @@
 	. = 0
 .global _start
 _start:
-	b	boot_entry
+	LOAD_IMM64(%r10,__bss_start)
+	LOAD_IMM64(%r11,__bss_end)
+	subf	%r11,%r10,%r11
+	addi	%r11,%r11,63
+	srdi.	%r11,%r11,6
+	beq	2f
+	mtctr	%r11
+1:	dcbz	0,%r10
+	addi	%r10,%r10,64
+	bdnz	1b
 
-.global boot_entry
-boot_entry:
-	/* setup stack */
-	LOAD_IMM64(%r1, STACK_TOP - 0x100)
+2:	LOAD_IMM64(%r1,__stack_top)
+	li	%r0,0
+	stdu	%r0,-16(%r1)
 	LOAD_IMM64(%r12, main)
 	mtctr	%r12
 	bctrl

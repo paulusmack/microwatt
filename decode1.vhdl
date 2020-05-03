@@ -385,6 +385,10 @@ begin
                 majorop := unsigned(f_in.insn(31 downto 26));
                 if f_in.fetch_failed = '1' then
                     v.valid := '1';
+                    -- Only send down a single OP_FETCH_FAILED
+                    if r.decode.insn_type = OP_FETCH_FAILED then
+                        v.valid := '0';
+                    end if;
                     v.decode := fetch_fail_inst;
                     -- if this is a simple TLB miss, send it to loadstore1
                     -- if we are generating an ISI immediately, send it to execute1

@@ -197,7 +197,6 @@ architecture rtl of icache is
 
         -- TLB miss state
         fetch_failed     : std_ulogic;
-        fetch_fail_sent  : std_ulogic;
     end record;
 
     signal r : reg_internal_t;
@@ -696,24 +695,14 @@ begin
             -- TLB miss and protection fault processing
             if rst = '1' or flush_in = '1' or m_in.tlbld = '1' then
                 r.fetch_failed <= '0';
-                r.fetch_fail_sent <= '0';
                 r.priv_fault <= '0';
                 r.noexec_fault <= '0';
                 r.rc_fault <= '0';
-            else
-                if r.fetch_fail_sent = '0' then
-                    if i_in.req = '1' and access_ok = '0' then
-                        r.fetch_failed <= '1';
-                        r.fetch_fail_sent <= '1';
-                        r.priv_fault <= ra_valid and priv_fault;
-                        r.noexec_fault <= ra_valid and noexec_fault;
-                        r.rc_fault <= ra_valid and rc_fault;
-                    end if;
-                else
-                    -- only assert fetch_failed for one cycle so we
-                    -- only get one OP_FETCH_FAILED going down the pipe
-                    r.fetch_failed <= '0';
-                end if;
+            elsif i_in.req = '1' and access_ok = '0' then
+                r.fetch_failed <= '1';
+                r.priv_fault <= ra_valid and priv_fault;
+                r.noexec_fault <= ra_valid and noexec_fault;
+                r.rc_fault <= ra_valid and rc_fault;
             end if;
 	end if;
     end process;

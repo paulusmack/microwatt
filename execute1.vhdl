@@ -763,10 +763,10 @@ begin
                     when others =>
                         -- mfspr from unimplemented SPRs should be a nop in
                         -- supervisor mode and a program interrupt for user mode
+			result := c_in;
                         if ctrl.msr(MSR_PR) = '1' then
                             illegal := '1';
                         end if;
-			result_en := '0';
 		    end case;
 		end if;
 	    when OP_MFCR =>

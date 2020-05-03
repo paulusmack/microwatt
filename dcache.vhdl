@@ -448,6 +448,7 @@ begin
                 if m_in.valid = '1' then
                     r0.req.valid <= '1';
                     r0.req.load <= not (m_in.tlbie or m_in.tlbld);
+                    r0.req.dcbz <= '0';
                     r0.req.nc <= '0';
                     r0.req.reserve <= '0';
                     r0.req.virt_mode <= '0';

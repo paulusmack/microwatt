@@ -35,7 +35,8 @@ entity core_debug is
         dbg_gpr_data    : in std_ulogic_vector(63 downto 0);
 
 	-- Misc
-	terminated_out  : out std_ulogic
+	terminated_out  : out std_ulogic;
+        debug_data      : in std_ulogic_vector(63 downto 0)
         );
 end core_debug;
 
@@ -77,6 +78,9 @@ architecture behave of core_debug is
     -- GSPR register data
     constant DBG_CORE_GSPR_DATA      : std_ulogic_vector(3 downto 0) := "0101";
 
+    -- Debug signals from various units
+    constant DBG_CORE_DEBUG_SIGNALS  : std_ulogic_vector(3 downto 0) := "0110";
+
     -- Some internal wires
     signal stat_reg : std_ulogic_vector(63 downto 0);
 
@@ -108,6 +112,7 @@ begin
 	nia             when DBG_CORE_NIA,
         msr             when DBG_CORE_MSR,
         dbg_gpr_data    when DBG_CORE_GSPR_DATA,
+        debug_data      when DBG_CORE_DEBUG_SIGNALS,
 	(others => '0') when others;
 
     -- DMI writes

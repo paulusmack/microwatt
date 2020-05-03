@@ -56,7 +56,9 @@ entity icache is
 	flush_in     : in std_ulogic;
 
         wishbone_out : out wishbone_master_out;
-        wishbone_in  : in wishbone_slave_out
+        wishbone_in  : in wishbone_slave_out;
+
+        debug_out    : out std_ulogic_vector(31 downto 0)
         );
 end entity icache;
 
@@ -200,6 +202,8 @@ architecture rtl of icache is
     end record;
 
     signal r : reg_internal_t;
+
+    signal lastnib : std_ulogic_vector(3 downto 0);
 
     -- Async signals on incoming request
     signal req_index   : index_t;
@@ -593,6 +597,7 @@ begin
     icache_miss : process(clk)
 	variable tagset    : cache_tags_set_t;
 	variable stbs_done : boolean;
+        variable nib : std_ulogic_vector(3 downto 0);
     begin
         if rising_edge(clk) then
 	    -- On reset, clear all valid bits to force misses
@@ -691,6 +696,31 @@ begin
 		    end if;
 		end case;
 	    end if;
+
+            if rst = '1' then
+                debug_out <= (others => '0');
+                lastnib <= "0000";
+            else
+                if i_in.req = '0' then
+                    nib := "0000";
+                elsif req_is_hit = '1' then
+                    nib := "0001";
+                elsif flush_in = '1' then
+                    nib := "0010";
+                elsif req_is_miss = '1' then
+                    nib := "0011";
+                elsif m_in.tlbld = '1' then
+                    nib := "1101";
+                elsif access_ok = '0' then
+                    nib := "111" & not ra_valid;
+                else
+                    nib := "0110";
+                end if;
+                if nib /= lastnib then
+                    debug_out <= debug_out(27 downto 0) & nib;
+                end if;
+                lastnib <= nib;
+            end if;
 
             -- TLB miss and protection fault processing
             if rst = '1' or flush_in = '1' or m_in.tlbld = '1' then

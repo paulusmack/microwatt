@@ -15,12 +15,15 @@ entity decode1 is
 		flush_in : in std_ulogic;
 
 		f_in     : in Fetch2ToDecode1Type;
-		d_out    : out Decode1ToDecode2Type
+		d_out    : out Decode1ToDecode2Type;
+
+                debug_out : out std_ulogic_vector(31 downto 0)
 	);
 end entity decode1;
 
 architecture behaviour of decode1 is
 	signal r, rin : Decode1ToDecode2Type;
+        signal last_byte : std_ulogic_vector(7 downto 0);
 
         subtype major_opcode_t is unsigned(5 downto 0);
         type major_rom_array_t is array(0 to 63) of decode_rom_t;
@@ -354,12 +357,31 @@ architecture behaviour of decode1 is
 
 begin
 	decode1_0: process(clk)
+            variable b : std_ulogic_vector(7 downto 0);
 	begin
 		if rising_edge(clk) then
 			-- Output state remains unchanged on stall, unless we are flushing
 			if rst = '1' or flush_in = '1' or stall_in = '0' then
 				r <= rin;
 			end if;
+                        if rst = '1' then
+                            debug_out <= (others => '0');
+                            last_byte <= x"00";
+                        else
+                            if flush_in = '1' then
+                                b := x"ff";
+                            elsif f_in.valid = '0' and f_in.fetch_failed = '0' then
+                                b := x"00";
+                            elsif f_in.fetch_failed = '1' then
+                                b := "10000" & f_in.noexec_fault & f_in.priv_fault & f_in.rc_fault;
+                            else
+                                b := "01" & f_in.insn(31 downto 26);
+                            end if;
+                            if b /= last_byte then
+                                debug_out <= debug_out(23 downto 0) & b;
+                            end if;
+                            last_byte <= b;
+                        end if;
 		end if;
 	end process;
 

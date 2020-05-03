@@ -108,6 +108,7 @@ architecture behave of core is
 
     -- Debug status
     signal dbg_core_is_stopped: std_ulogic;
+    signal debug_data: std_ulogic_vector(63 downto 0) := (others => '0');
 
     function keep_h(disable : boolean) return string is
     begin
@@ -167,7 +168,8 @@ begin
             flush_in => flush,
 	    stall_out => icache_stall_out,
             wishbone_out => wishbone_insn_out,
-            wishbone_in => wishbone_insn_in
+            wishbone_in => wishbone_insn_in,
+            debug_out => debug_data(31 downto 0)
             );
 
     icache_rst <= rst or dbg_icache_rst or ex1_icache_inval;
@@ -191,7 +193,8 @@ begin
             stall_in => decode1_stall_in,
             flush_in => flush,
             f_in => fetch2_to_decode1,
-            d_out => decode1_to_decode2
+            d_out => decode1_to_decode2,
+            debug_out => debug_data(63 downto 32)
             );
 
     decode1_stall_in <= decode2_stall_out;
@@ -340,7 +343,8 @@ begin
             dbg_gpr_ack => dbg_gpr_ack,
             dbg_gpr_addr => dbg_gpr_addr,
             dbg_gpr_data => dbg_gpr_data,
-	    terminated_out => terminated_out
+	    terminated_out => terminated_out,
+            debug_data => debug_data
 	    );
 
 end behave;

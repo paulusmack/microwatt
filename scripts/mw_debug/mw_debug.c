@@ -38,6 +38,8 @@
 #define DBG_CORE_GSPR_INDEX	0x14
 #define DBG_CORE_GSPR_DATA	0x15
 
+#define DBG_CORE_DEBUG_DATA	0x16
+
 static bool debug;
 
 struct backend {
@@ -360,7 +362,7 @@ static int dmi_write(uint8_t addr, uint64_t data)
 
 static void core_status(void)
 {
-	uint64_t stat, nia, msr;
+	uint64_t stat, nia, msr, dbg;
 	const char *statstr, *statstr2;
 
 	check(dmi_read(DBG_CORE_STAT, &stat), "reading core status");
@@ -384,6 +386,8 @@ static void core_status(void)
 	printf("Core: %s%s\n", statstr, statstr2);
 	printf(" NIA: %016llx\n", (unsigned long long)nia);
 	printf(" MSR: %016llx\n", msr);
+	check(dmi_read(DBG_CORE_DEBUG_DATA, &dbg), "reading core debug data");
+	printf(" Debug: %016llx\n", dbg);
 }
 
 static void core_stop(void)

@@ -109,6 +109,21 @@ dec_test_3:
 	li	%r3, 1
 	blr
 
+/* test taking an interrupt after a slow operation */
+.global dec_test_4
+dec_test_4:
+	li	%r3, 0x100
+	mtdec	%r3
+	LOAD_IMM64(%r3, 0x9000000000008003)
+	mtmsrd	%r3	// EE on
+2:	mulli	%r3,%r3,67
+	b	2b
+
+	nop
+	li	%r3, 0
+	blr
+
+
 #define EXCEPTION(nr)		\
 	.= nr			;\
 	b	.

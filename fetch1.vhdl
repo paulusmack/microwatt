@@ -38,7 +38,7 @@ begin
     regs : process(clk)
     begin
 	if rising_edge(clk) then
-	    if r /= r_next then
+	    if false and r /= r_next then
 		report "fetch1 rst:" & std_ulogic'image(rst) &
                     " IR:" & std_ulogic'image(e_in.virt_mode) &
                     " P:" & std_ulogic'image(e_in.priv_mode) &

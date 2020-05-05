@@ -400,7 +400,7 @@ begin
 		v.ispr1 := (others => '0');
 		v.ispr2 := (others => '0');
 
-		if f_in.valid = '1' then
+		if false and f_in.valid = '1' then
 			report "Decode insn " & to_hstring(f_in.insn) & " at " & to_hstring(f_in.nia);
                 end if;
 

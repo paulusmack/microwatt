@@ -582,13 +582,15 @@ begin
 		r.hit_way <= req_hit_way;
 		r.hit_smark <= i_in.stop_mark;
 
-		report "cache hit nia:" & to_hstring(i_in.nia) &
-                    " IR:" & std_ulogic'image(i_in.virt_mode) &
-		    " SM:" & std_ulogic'image(i_in.stop_mark) &
-		    " idx:" & integer'image(req_index) &
-		    " tag:" & to_hstring(req_tag) &
-		    " way:" & integer'image(req_hit_way) &
-                    " RA:" & to_hstring(real_addr);
+                if false then
+                    report "cache hit nia:" & to_hstring(i_in.nia) &
+                        " IR:" & std_ulogic'image(i_in.virt_mode) &
+                        " SM:" & std_ulogic'image(i_in.stop_mark) &
+                        " idx:" & integer'image(req_index) &
+                        " tag:" & to_hstring(req_tag) &
+                        " way:" & integer'image(req_hit_way) &
+                        " RA:" & to_hstring(real_addr);
+                end if;
 	    end if;
 	end if;
     end process;

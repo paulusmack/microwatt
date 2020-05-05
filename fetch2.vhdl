@@ -40,7 +40,7 @@ begin
     begin
 	if rising_edge(clk) then
 
-	    if (r /= rin) then
+	    if (false and r /= rin) then
 		report "fetch2 rst:" & std_ulogic'image(rst) &
 		    " S:" & std_ulogic'image(stall_in) &
 		    " F:" & std_ulogic'image(flush_in) &

@@ -860,7 +860,7 @@ begin
             -- Request came from loadstore1...
             -- Load hit case is the standard path
             if r1.hit_load_valid = '1' then
-                report "completing load hit";
+                --report "completing load hit";
                 d_out.valid <= '1';
             end if;
 

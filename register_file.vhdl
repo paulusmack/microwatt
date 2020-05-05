@@ -55,14 +55,16 @@ begin
     register_read_0: process(all)
         variable b_addr : gspr_index_t;
     begin
-        if d_in.read1_enable = '1' then
-            report "Reading GPR " & to_hstring(d_in.read1_reg) & " " & to_hstring(registers(to_integer(unsigned(d_in.read1_reg))));
-        end if;
-        if d_in.read2_enable = '1' then
-            report "Reading GPR " & to_hstring(d_in.read2_reg) & " " & to_hstring(registers(to_integer(unsigned(d_in.read2_reg))));
-        end if;
-        if d_in.read3_enable = '1' then
-            report "Reading GPR " & to_hstring(d_in.read3_reg) & " " & to_hstring(registers(to_integer(unsigned(d_in.read3_reg))));
+        if false then
+            if d_in.read1_enable = '1' then
+                report "Reading GPR " & to_hstring(d_in.read1_reg) & " " & to_hstring(registers(to_integer(unsigned(d_in.read1_reg))));
+            end if;
+            if d_in.read2_enable = '1' then
+                report "Reading GPR " & to_hstring(d_in.read2_reg) & " " & to_hstring(registers(to_integer(unsigned(d_in.read2_reg))));
+            end if;
+            if d_in.read3_enable = '1' then
+                report "Reading GPR " & to_hstring(d_in.read3_reg) & " " & to_hstring(registers(to_integer(unsigned(d_in.read3_reg))));
+            end if;
         end if;
         d_out.read1_data <= registers(to_integer(unsigned(d_in.read1_reg)));
         -- B read port is multiplexed with reads from the debug circuitry

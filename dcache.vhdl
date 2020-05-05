@@ -484,12 +484,17 @@ begin
         variable addrbits : std_ulogic_vector(TLB_SET_BITS - 1 downto 0);
     begin
         if rising_edge(clk) then
-            if m_in.valid = '1' then
-                addrbits := m_in.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1 downto TLB_LG_PGSZ);
+            if stall_out = '1' then
+                -- keep reading the same thing while stalled
+                index := tlb_req_index;
             else
-                addrbits := d_in.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1 downto TLB_LG_PGSZ);
+                if m_in.valid = '1' then
+                    addrbits := m_in.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1 downto TLB_LG_PGSZ);
+                else
+                    addrbits := d_in.addr(TLB_LG_PGSZ + TLB_SET_BITS - 1 downto TLB_LG_PGSZ);
+                end if;
+                index := to_integer(unsigned(addrbits));
             end if;
-            index := to_integer(unsigned(addrbits));
             tlb_valid_way <= dtlb_valids(index);
             tlb_tag_way <= dtlb_tags(index);
             tlb_pte_way <= dtlb_ptes(index);

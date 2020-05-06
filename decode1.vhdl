@@ -373,7 +373,7 @@ begin
                             elsif f_in.valid = '0' and f_in.fetch_failed = '0' then
                                 b := x"00";
                             elsif f_in.fetch_failed = '1' then
-                                b := "10000" & f_in.noexec_fault & f_in.priv_fault & f_in.rc_fault;
+                                b := "10000000";
                             else
                                 b := "01" & f_in.insn(31 downto 26);
                             end if;
@@ -412,15 +412,6 @@ begin
                         v.valid := '0';
                     end if;
                     v.decode := fetch_fail_inst;
-                    -- if this is a simple TLB miss, send it to loadstore1
-                    -- if we are generating an ISI immediately, send it to execute1
-                    if (f_in.priv_fault or f_in.noexec_fault or f_in.rc_fault) = '1' then
-                        v.decode.unit := ALU;
-                        -- store failure cause bits in the instruction word
-                        v.insn(2) := f_in.noexec_fault;
-                        v.insn(1) := f_in.priv_fault;
-                        v.insn(0) := f_in.rc_fault;
-                    end if;
 
                 elsif majorop = "011111" then
                         -- major opcode 31, lots of things

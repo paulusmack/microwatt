@@ -875,14 +875,6 @@ begin
 		stall_out <= '1';
 		x_to_divider.valid <= '1';
 
-            when OP_FETCH_FAILED =>
-                exception := '1';
-                ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#400#, 12));
-                ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
-                ctrl_tmp.srr1(63 - 35) <= e_in.insn(2);
-                ctrl_tmp.srr1(63 - 36) <= e_in.insn(1);
-                ctrl_tmp.srr1(63 - 45) <= e_in.insn(0);
-
             when others =>
 		terminate_out <= '1';
 		report "illegal";
@@ -982,7 +974,8 @@ begin
 	v.e.write_data := result;
 	v.e.write_enable := result_en;
 
-        -- generate DSI for load/store exceptions
+        -- generate DSI or DSegI for load/store exceptions
+        -- or ISI or ISegI for instruction fetch exceptions
         if l_in.exception = '1' then
             ctrl_tmp.srr1 <= msr_copy(ctrl.msr);
             if l_in.instr_fault = '0' then
@@ -994,7 +987,9 @@ begin
             else
                 if l_in.segment_fault = '0' then
                     ctrl_tmp.srr1(63 - 33) <= l_in.invalid;
+                    ctrl_tmp.srr1(63 - 35) <= l_in.perm_error; -- noexec fault
                     ctrl_tmp.srr1(63 - 44) <= l_in.badtree;
+                    ctrl_tmp.srr1(63 - 45) <= l_in.rc_error;
                     ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#400#, 12));
                 else
                     ctrl_tmp.irq_nia <= std_logic_vector(to_unsigned(16#480#, 12));

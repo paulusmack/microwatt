@@ -47,9 +47,6 @@ begin
 		    " T:" & std_ulogic'image(rin.stop_mark) &
 		    " V:" & std_ulogic'image(rin.valid) &
                     " FF:" & std_ulogic'image(rin.fetch_failed) &
-                    " PF:" & std_ulogic'image(rin.priv_fault) &
-                    " NX:" & std_ulogic'image(rin.noexec_fault) &
-                    " RC:" & std_ulogic'image(rin.rc_fault) &
 		    " nia:" & to_hstring(rin.nia);
 	    end if;
 
@@ -89,9 +86,6 @@ begin
 	v.valid := v_i_in.valid;
 	v.stop_mark := v_i_in.stop_mark;
         v.fetch_failed := v_i_in.fetch_failed;
-        v.priv_fault := v_i_in.priv_fault;
-        v.noexec_fault := v_i_in.noexec_fault;
-        v.rc_fault := v_i_in.rc_fault;
 	v.nia := v_i_in.nia;
 	v.insn := v_i_in.insn;
 

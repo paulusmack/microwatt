@@ -179,6 +179,7 @@ architecture rtl of dcache is
 		  OP_LOAD_MISS,     -- Load missing cache
 		  OP_LOAD_NC,       -- Non-cachable load
 		  OP_BAD,           -- BAD: Cache hit on NC load/store
+                  OP_TLB_ERR,       -- TLB miss or protection/RC failure
 		  OP_STORE_HIT,     -- Store hitting cache
 		  OP_STORE_MISS);   -- Store missing cache
 		      
@@ -247,6 +248,7 @@ architecture rtl of dcache is
         tlb_miss         : std_ulogic;          -- No entry found in TLB
         perm_error       : std_ulogic;          -- Permissions don't allow access
         rc_error         : std_ulogic;          -- Reference or change bit clear
+        cache_paradox    : std_ulogic;
 
         -- completion signal for tlbie
         tlbie_done       : std_ulogic;
@@ -758,7 +760,7 @@ begin
                     when others => op := OP_NONE;
                 end case;
             else
-                op := OP_BAD;
+                op := OP_TLB_ERR;
             end if;
         end if;
 	req_op <= op;
@@ -832,6 +834,7 @@ begin
         d_out.tlb_miss <= '0';
         d_out.perm_error <= '0';
         d_out.rc_error <= '0';
+        d_out.cache_paradox <= '0';
 
         -- Outputs to MMU
         m_out.done <= r1.tlbie_done;
@@ -871,6 +874,7 @@ begin
                 d_out.tlb_miss <= r1.tlb_miss;
                 d_out.perm_error <= r1.perm_error;
                 d_out.rc_error <= r1.rc_error;
+                d_out.cache_paradox <= r1.cache_paradox;
                 d_out.valid <= '1';
             end if;
 
@@ -1034,15 +1038,27 @@ begin
 		r1.hit_load_valid <= '0';
 	    end if;
 
-            if req_op = OP_BAD then
+            if req_op = OP_TLB_ERR then
                 report "Signalling ld/st error valid_ra=" & std_ulogic'image(valid_ra) &
                     " rc_ok=" & std_ulogic'image(rc_ok) & " perm_ok=" & std_ulogic'image(perm_ok);
                 r1.error_done <= '1';
                 r1.tlb_miss <= not valid_ra;
                 r1.perm_error <= valid_ra and not perm_ok;
                 r1.rc_error <= valid_ra and perm_ok and not rc_ok;
+                r1.cache_paradox <= '0';
+            elsif req_op = OP_BAD then
+                report "Signalling cache paradox";
+                r1.error_done <= '1';
+                r1.cache_paradox <= '1';
+                r1.tlb_miss <= '0';
+                r1.perm_error <= '0';
+                r1.rc_error <= '0';
             else
                 r1.error_done <= '0';
+                r1.tlb_miss <= '0';
+                r1.perm_error <= '0';
+                r1.rc_error <= '0';
+                r1.cache_paradox <= '0';
             end if;
 
             -- complete tlbies and TLB loads in the third cycle
@@ -1187,7 +1203,8 @@ begin
 		    -- OP_NONE and OP_BAD do nothing
                     -- OP_BAD was handled above already
 		    when OP_NONE =>
-		    when OP_BAD =>
+                    when OP_BAD =>
+                    when OP_TLB_ERR =>
 		    end case;
 
 		when RELOAD_WAIT_ACK =>

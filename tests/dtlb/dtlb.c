@@ -26,6 +26,19 @@ void print_string(const char *str)
 		putchar(*str);
 }
 
+void print_hex(unsigned long val)
+{
+	int i, x;
+
+	for (i = 60; i >= 0; i -= 4) {
+		x = (val >> i) & 0xf;
+		if (x >= 10)
+			putchar(x + 'a' - 10);
+		else
+			putchar(x + '0');
+	}
+}
+
 // i < 100
 void print_test_number(int i)
 {
@@ -322,7 +335,11 @@ void do_test(int num, int (*test)(void))
 		print_string("PASS\r\n");
 	} else {
 		fail = 1;
-		print_string("FAIL\r\n");
+		print_string("FAIL DAR=");
+		print_hex(mfspr(19));
+		print_string(" DSISR=");
+		print_hex(mfspr(18));
+		print_string("\r\n");
 	}
 }
 

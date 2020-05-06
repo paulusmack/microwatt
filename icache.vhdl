@@ -192,11 +192,6 @@ architecture rtl of icache is
         store_index      : index_t;
 	store_row        : row_t;
 
-        -- Access protection failure indicators
-        priv_fault       : std_ulogic;
-        noexec_fault     : std_ulogic;
-        rc_fault         : std_ulogic;
-
         -- TLB miss state
         fetch_failed     : std_ulogic;
     end record;
@@ -456,12 +451,10 @@ begin
             perm := real_mode_perm;
         end if;
 
-        -- no IAMR, so no KUEP support for now
         priv_fault <= perm.priv and not i_in.priv_mode;
-        noexec_fault <= not perm.ex_perm;
-        -- make RC fault lower priority than the others
-        rc_fault <= not perm.reference and not (priv_fault or noexec_fault);
-        access_ok <= ra_valid and not (priv_fault or noexec_fault or rc_fault);
+        -- no need to check perm.ex_perm or perm.reference because
+        -- the MMU doesn't load TLB entries with them clear
+        access_ok <= ra_valid and not priv_fault;
     end process;
 
     -- iTLB update
@@ -556,9 +549,6 @@ begin
 	i_out.nia <= r.hit_nia;
 	i_out.stop_mark <= r.hit_smark;
         i_out.fetch_failed <= r.fetch_failed;
-        i_out.priv_fault <= r.priv_fault;
-        i_out.noexec_fault <= r.noexec_fault;
-        i_out.rc_fault <= r.rc_fault;
 
 	-- Stall fetch1 if we have a miss on cache or TLB or a protection fault
 	stall_out <= not (is_hit and access_ok);
@@ -727,14 +717,8 @@ begin
             -- TLB miss and protection fault processing
             if rst = '1' or flush_in = '1' or m_in.tlbld = '1' then
                 r.fetch_failed <= '0';
-                r.priv_fault <= '0';
-                r.noexec_fault <= '0';
-                r.rc_fault <= '0';
             elsif i_in.req = '1' and access_ok = '0' then
                 r.fetch_failed <= '1';
-                r.priv_fault <= ra_valid and priv_fault;
-                r.noexec_fault <= ra_valid and noexec_fault;
-                r.rc_fault <= ra_valid and rc_fault;
             end if;
 	end if;
     end process;

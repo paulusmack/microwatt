@@ -148,72 +148,6 @@ int itlb_test_4(void)
 	return 0;
 }
 
-int itlb_test_5(void)
-{
-	unsigned long mem = 0x1000;
-	unsigned long ptr = 0x124000;
-
-	/* load a TLB entry without execute permission */
-	tlbwe(ptr, mem, DFLT_PERM_NOX);
-	/* this should fail */
-	if (test_exec(ptr, 0))
-		return 1;
-	/* SRR0 and SRR1 should be set correctly */
-	if (mfspr(26) != ptr || mfspr(27) != 0x10000020)
-		return 2;
-	return 0;
-}
-
-int itlb_test_6(void)
-{
-	unsigned long mem = 0x1000;
-	unsigned long mem2 = 0x2000;
-	unsigned long ptr = 0x10a000;
-	unsigned long ptr2 = 0x10b000;
-
-	/* load a TLB entry */
-	tlbwe(ptr, mem, DFLT_PERM);
-	/* load a TLB entry for the second page without execute permission */
-	tlbwe(ptr2, mem2, DFLT_PERM_NOX);
-	/* this should fail due to second page being no-execute */
-	if (test_exec(ptr, 2))
-		return 1;
-	/* SRR0 and SRR1 should be set correctly */
-	if (mfspr(26) != ptr2 || mfspr(27) != 0x10000020)
-		return 2;
-	/* load a TLB entry for the second page with execute permission */
-	tlbwe(ptr2, mem2, DFLT_PERM);
-	/* this should succeed */
-	if (!test_exec(ptr, 2))
-		return 3;
-	return 0;
-}
-
-int itlb_test_7(void)
-{
-	unsigned long mem = 0x1000;
-	unsigned long ptr = 0x149000;
-
-	/* load a TLB entry without the ref bit set */
-	tlbwe(ptr, mem, PERM_EX);
-	/* this should fail */
-	if (test_exec(ptr, 2))
-		return 1;
-	/* SRR0 and SRR1 should be set correctly */
-	if (mfspr(26) != (long) ptr || mfspr(27) != 0x00040020)
-		return 2;
-	/* load a TLB entry without ref or execute permission */
-	tlbwe(ptr, mem, 0);
-	/* this should fail */
-	if (test_exec(ptr, 2))
-		return 1;
-	/* SRR0 and SRR1 should be set correctly */
-	/* RC update fail bit should not be set */
-	if (mfspr(26) != (long) ptr || mfspr(27) != 0x10000020)
-		return 2;
-	return 0;
-}
-
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -247,9 +181,6 @@ int main(void)
 	do_test(2, itlb_test_2);
 	do_test(3, itlb_test_3);
 	do_test(4, itlb_test_4);
-	do_test(5, itlb_test_5);
-	do_test(6, itlb_test_6);
-	do_test(7, itlb_test_7);
 
 	return fail;
 }

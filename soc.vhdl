@@ -58,6 +58,7 @@ entity soc is
 	CLK_FREQ           : positive;
 	SIM                : boolean;
         HAS_FPU            : boolean := true;
+        HAS_VECVSX         : boolean := true;
         HAS_BTC            : boolean := true;
 	DISABLE_FLATTEN_CORE : boolean := false;
 	HAS_DRAM           : boolean  := false;
@@ -325,6 +326,7 @@ begin
 	generic map(
 	    SIM => SIM,
             HAS_FPU => HAS_FPU,
+            HAS_VECVSX => HAS_VECVSX,
             HAS_BTC => HAS_BTC,
 	    DISABLE_FLATTEN => DISABLE_FLATTEN_CORE,
 	    ALT_RESET_ADDRESS => (23 downto 0 => '0', others => '1'),

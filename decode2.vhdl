@@ -12,6 +12,7 @@ entity decode2 is
     generic (
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
+        HAS_VECVSX : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -78,8 +79,8 @@ architecture behaviour of decode2 is
             -- If it's all 0, we don't treat it as a dependency as slow SPRs
             -- operations are single issue.
             --
-            assert is_fast_spr(ispr) =  '1' or ispr = "0000000"
-                report "Decode A says SPR but ISPR is invalid:" &
+            assert is_fast_spr(ispr) =  '1' or ispr = "00000000"
+                report "Decode A of insn " & to_hstring(insn_in) & " says SPR but ISPR is invalid:" &
                 to_hstring(ispr) severity failure;
             return (is_fast_spr(ispr), ispr, reg_data);
         elsif t = CIA then
@@ -133,7 +134,7 @@ architecture behaviour of decode2 is
                 -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
                 -- If it's all 0, we don't treat it as a dependency as slow SPRs
                 -- operations are single issue.
-                assert is_fast_spr(ispr) = '1' or ispr = "0000000"
+                assert is_fast_spr(ispr) = '1' or ispr = "00000000"
                     report "Decode B says SPR but ISPR is invalid:" &
                     to_hstring(ispr) severity failure;
                 ret := (is_fast_spr(ispr), ispr, reg_data);
@@ -164,6 +165,12 @@ architecture behaviour of decode2 is
                 else
                     return ('0', (others => '0'), (others => '0'));
                 end if;
+            when VRS =>
+                if HAS_VECVSX then
+                    return ('1', vr_to_gspr(insn_vrt(insn_in)), reg_data);
+                else
+                    return ('0', (others => '0'), (others => '0'));
+                end if;
             when NONE =>
                 return ('0', (others => '0'), (others => '0'));
         end case;
@@ -181,18 +188,24 @@ architecture behaviour of decode2 is
                 if HAS_FPU then
                     return ('1', fpr_to_gspr(insn_frt(insn_in)));
                 else
-                    return ('0', "0000000");
+                    return ('0', "00000000");
+                end if;
+            when VRT =>
+                if HAS_VECVSX then
+                    return ('1', vr_to_gspr(insn_vrt(insn_in)));
+                else
+                    return ('0', "00000000");
                 end if;
             when SPR =>
                 -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
                 -- If it's all 0, we don't treat it as a dependency as slow SPRs
                 -- operations are single issue.
-                assert is_fast_spr(ispr) = '1' or ispr = "0000000"
+                assert is_fast_spr(ispr) = '1' or ispr = "00000000"
                     report "Decode B says SPR but ISPR is invalid:" &
                     to_hstring(ispr) severity failure;
                 return (is_fast_spr(ispr), ispr);
             when NONE =>
-                return ('0', "0000000");
+                return ('0', x"00");
         end case;
     end;
 
@@ -439,6 +452,9 @@ begin
         -- check for illegal instruction cases
         illegal := '0';
         if not HAS_FPU and d_in.decode.facility = FPU then
+            illegal := '1';
+        end if;
+        if not HAS_VECVSX and (d_in.decode.facility = VEC or d_in.decode.facility = VSX) then
             illegal := '1';
         end if;
         case d_in.decode.insn_type is

@@ -9,6 +9,7 @@ use work.decode_types.all;
 entity decode1 is
     generic (
         HAS_FPU : boolean := true;
+        HAS_VECVSX : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );

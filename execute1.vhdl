@@ -14,6 +14,7 @@ entity execute1 is
     generic (
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
+        HAS_VECVSX : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -797,6 +798,15 @@ begin
                 exception := '1';
                 v.e.intr_vec := 16#800#;
                 report "FP unavailable interrupt";
+
+            elsif HAS_VECVSX and ctrl.msr(MSR_VEC) = '0' and e_in.fac = VEC then
+                exception := '1';
+                v.e.intr_vec := 16#f20#;
+
+            elsif HAS_VECVSX and ctrl.msr(MSR_VSX) = '0' and e_in.fac = VSX then
+                exception := '1';
+                v.e.intr_vec := 16#f40#;
+
             end if;
         end if;
         if exception = '1' and l_in.in_progress = '1' then
@@ -1182,6 +1192,8 @@ begin
             ctrl_tmp.msr(MSR_PR) <= '0';
             ctrl_tmp.msr(MSR_SE) <= '0';
             ctrl_tmp.msr(MSR_BE) <= '0';
+            ctrl_tmp.msr(MSR_VEC) <= '0';
+            ctrl_tmp.msr(MSR_VSX) <= '0';
             ctrl_tmp.msr(MSR_FP) <= '0';
             ctrl_tmp.msr(MSR_FE0) <= '0';
             ctrl_tmp.msr(MSR_FE1) <= '0';

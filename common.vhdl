@@ -11,6 +11,8 @@ package common is
 
     -- MSR bit numbers
     constant MSR_SF  : integer := (63 - 0);     -- Sixty-Four bit mode
+    constant MSR_VEC : integer := (63 - 38);    -- Vector (VMX) available
+    constant MSR_VSX : integer := (63 - 40);    -- VSX available
     constant MSR_EE  : integer := (63 - 48);    -- External interrupt Enable
     constant MSR_PR  : integer := (63 - 49);    -- PRoblem state
     constant MSR_FP  : integer := (63 - 50);    -- Floating Point available
@@ -56,11 +58,13 @@ package common is
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
 
-    -- Extended GPR index (can hold an SPR or a FPR)
-    subtype gspr_index_t is std_ulogic_vector(6 downto 0);
+    -- Extended GPR index (can hold an SPR or a FPR/VR/VSR)
+    subtype gspr_index_t is std_ulogic_vector(7 downto 0);
 
-    -- FPR indices
+    -- FPR/VR/VSR indices
     subtype fpr_index_t is std_ulogic_vector(4 downto 0);
+    subtype vr_index_t is std_ulogic_vector(4 downto 0);
+    subtype vsr_index_t is std_ulogic_vector(5 downto 0);
 
     -- Some SPRs are stored in the register file, they use the magic
     -- GPR numbers above 31.
@@ -81,6 +85,8 @@ package common is
     function gpr_or_spr_to_gspr(g: gpr_index_t; s: gspr_index_t) return gspr_index_t;
     function is_fast_spr(s: gspr_index_t) return std_ulogic;
     function fpr_to_gspr(f: fpr_index_t) return gspr_index_t;
+    function vr_to_gspr(v: vr_index_t) return gspr_index_t;
+    function vsr_to_gspr(v: vsr_index_t) return gspr_index_t;
 
     -- The XER is split: the common bits (CA, OV, SO, OV32 and CA32) are
     -- in the CR file as a kind of CR extension (with a separate write
@@ -191,6 +197,7 @@ package common is
     type Decode2ToExecute1Type is record
 	valid: std_ulogic;
         unit : unit_t;
+        fac : facility_t;
 	insn_type: insn_type_t;
 	nia: std_ulogic_vector(63 downto 0);
 	write_reg: gspr_index_t;
@@ -227,7 +234,8 @@ package common is
         second : std_ulogic;                            -- set if this is the second op
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
-	(valid => '0', unit => NONE, insn_type => OP_ILLEGAL, bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
+	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL,
+         bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
          bypass_cr => '0', lr => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
@@ -567,10 +575,10 @@ package body common is
            n := 13;
        when others =>
            n := 0;
-           return "0000000";
+           return "00000000";
        end case;
        tmp := std_ulogic_vector(to_unsigned(n, 5));
-       return "01" & tmp;
+       return "001" & tmp;
     end;
 
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t is
@@ -580,12 +588,12 @@ package body common is
 
     function gpr_to_gspr(i: gpr_index_t) return gspr_index_t is
     begin
-	return "00" & i;
+	return "000" & i;
     end;
 
     function gpr_or_spr_to_gspr(g: gpr_index_t; s: gspr_index_t) return gspr_index_t is
     begin
-	if s(5) = '1' then
+	if s(7 downto 5) = "001" then
 	    return s;
 	else
 	    return gpr_to_gspr(g);
@@ -594,11 +602,21 @@ package body common is
 
     function is_fast_spr(s: gspr_index_t) return std_ulogic is
     begin
-	return s(5);
+	return not s(7) and not s(6) and s(5);
     end;
 
     function fpr_to_gspr(f: fpr_index_t) return gspr_index_t is
     begin
-        return "10" & f;
+        return "01" & f & "0";
+    end;
+
+    function vr_to_gspr(v: vr_index_t) return gspr_index_t is
+    begin
+        return "10" & v & "0";
+    end;
+
+    function vsr_to_gspr(v: vsr_index_t) return gspr_index_t is
+    begin
+        return v(5) & (not v(5)) & v(4 downto 0) & "0";
     end;
 end common;

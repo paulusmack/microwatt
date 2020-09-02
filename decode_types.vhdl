@@ -11,7 +11,6 @@ package decode_types is
                          OP_FPOP, OP_FPOP_I,
                          OP_ICBI, OP_ICBT, OP_ISEL, OP_ISYNC,
 			 OP_LOAD, OP_STORE,
-                         OP_FPLOAD, OP_FPSTORE,
 			 OP_MCRXRX, OP_MFCR, OP_MFMSR, OP_MFSPR, OP_MOD,
 			 OP_MTCRF, OP_MTMSRD, OP_MTSPR, OP_MUL_L64,
 			 OP_MUL_H64, OP_MUL_H32, OP_OR,
@@ -26,8 +25,8 @@ package decode_types is
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR, CIA, FRA);
     type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
                            CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, SPR, FRB);
-    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS);
-    type output_reg_a_t is (NONE, RT, RA, SPR, FRT);
+    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRS);
+    type output_reg_a_t is (NONE, RT, RA, SPR, FRT, VRT);
     type rc_t is (NONE, ONE, RC);
     type carry_in_t is (ZERO, CA, OV, ONE);
 
@@ -50,6 +49,7 @@ package decode_types is
     constant TOO_OFFSET : integer := 0;
 
     type unit_t is (NONE, ALU, LDST, FPU);
+    type facility_t is (NONE, FPU, VEC, VSX);
     type length_t is (NONE, is1B, is2B, is4B, is8B);
 
     type repeat_t is (NONE,      -- instruction is not repeated
@@ -58,6 +58,7 @@ package decode_types is
 
     type decode_rom_t is record
 	unit         : unit_t;
+        facility     : facility_t;
 	insn_type    : insn_type_t;
 	input_reg_a  : input_reg_a_t;
 	input_reg_b  : input_reg_b_t;
@@ -89,7 +90,7 @@ package decode_types is
 	sgl_pipe     : std_ulogic;
         repeat       : repeat_t;
     end record;
-    constant decode_rom_init : decode_rom_t := (unit => NONE,
+    constant decode_rom_init : decode_rom_t := (unit => NONE, facility => NONE,
 						insn_type => OP_ILLEGAL, input_reg_a => NONE,
 						input_reg_b => NONE, input_reg_c => NONE,
 						output_reg_a => NONE, input_cr => '0', output_cr => '0',

@@ -14,6 +14,7 @@ entity execute1 is
     generic (
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
+        HAS_VECVSX : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -551,6 +552,8 @@ begin
             ctrl_tmp.msr(MSR_PR) <= '0';
             ctrl_tmp.msr(MSR_SE) <= '0';
             ctrl_tmp.msr(MSR_BE) <= '0';
+            ctrl_tmp.msr(MSR_VEC) <= '0';
+            ctrl_tmp.msr(MSR_VSX) <= '0';
             ctrl_tmp.msr(MSR_FP) <= '0';
             ctrl_tmp.msr(MSR_FE0) <= '0';
             ctrl_tmp.msr(MSR_FE1) <= '0';
@@ -601,17 +604,31 @@ begin
             ctrl_tmp.srr1(63 - 45) <= '1';
             report "privileged instruction";
 
-        elsif not HAS_FPU and valid_in = '1' and
-            (e_in.insn_type = OP_FPLOAD or e_in.insn_type = OP_FPSTORE) then
+        elsif not HAS_FPU and valid_in = '1' and e_in.fac = FPU then
             -- make lfd/stfd/lfs/stfs etc. illegal in no-FPU implementations
             illegal := '1';
 
-        elsif HAS_FPU and valid_in = '1' and ctrl.msr(MSR_FP) = '0' and
-            (e_in.unit = FPU or e_in.insn_type = OP_FPLOAD or e_in.insn_type = OP_FPSTORE) then
+        elsif not HAS_VECVSX and valid_in = '1' and (e_in.fac = VEC or e_in.fac = VSX) then
+            -- make vector/VSX instructions illegal in no-vector/VSX implementations
+            illegal := '1';
+
+        elsif HAS_FPU and valid_in = '1' and ctrl.msr(MSR_FP) = '0' and e_in.fac = FPU then
             -- generate a floating-point unavailable interrupt
             exception := '1';
             v.f.redirect_nia := std_logic_vector(to_unsigned(16#800#, 64));
             report "FP unavailable interrupt";
+
+        elsif HAS_VECVSX and valid_in = '1' and ctrl.msr(MSR_VEC) = '0' and e_in.fac = VEC then
+            -- generate a vector unavailable interrupt
+            exception := '1';
+            v.f.redirect_nia := std_logic_vector(to_unsigned(16#f20#, 64));
+            report "Vector unavailable interrupt";
+
+        elsif HAS_VECVSX and valid_in = '1' and ctrl.msr(MSR_VSX) = '0' and e_in.fac = VSX then
+            -- generate a VSX unavailable interrupt
+            exception := '1';
+            v.f.redirect_nia := std_logic_vector(to_unsigned(16#f40#, 64));
+            report "VSX unavailable interrupt";
 
 	elsif valid_in = '1' and e_in.unit = ALU then
 

@@ -300,6 +300,11 @@ architecture behaviour of decode1 is
         2#0100110111#  =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', NONE), -- lhzux
         2#0100010111#  =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lhzx
         2#0100010100#  =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '1', '0', '0', NONE, '0', '0', DRTE), -- lqarx
+        2#0000000111#  =>       (LDST, VEC,  OP_VRLOAD,    RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lvebx
+        2#0000100111#  =>       (LDST, VEC,  OP_VRLOAD,    RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lvehx
+        2#0001000111#  =>       (LDST, VEC,  OP_VRLOAD,    RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lvewx
+        2#0001100111#  =>       (LDST, VEC,  OP_VRLOAD,    RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lvx
+        2#0101100111#  =>       (LDST, VEC,  OP_VRLOAD,    RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lvxl
         2#0000010100#  =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '1', '0', '0', NONE, '0', '0', NONE), -- lwarx
         2#0101110101#  =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '1', '0', '0', '0', NONE, '0', '0', NONE), -- lwaux
         2#0101010101#  =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lwax
@@ -382,6 +387,11 @@ architecture behaviour of decode1 is
         2#0110110111#  =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', NONE), -- sthux
         2#0110010111#  =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- sthx
         2#0010110110#  =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '1', '0', '0', ONE,  '0', '0', DRSE), -- stqcx
+        2#0010000111#  =>       (LDST, VEC,  OP_VRSTORE,   RA_OR_ZERO, RB,          VRS,  NONE, '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRSE), -- stvebx
+        2#0010100111#  =>       (LDST, VEC,  OP_VRSTORE,   RA_OR_ZERO, RB,          VRS,  NONE, '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRSE), -- stvehx
+        2#0011000111#  =>       (LDST, VEC,  OP_VRSTORE,   RA_OR_ZERO, RB,          VRS,  NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRSE), -- stvewx
+        2#0011100111#  =>       (LDST, VEC,  OP_VRSTORE,   RA_OR_ZERO, RB,          VRS,  NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRSE), -- stvx
+        2#0111100111#  =>       (LDST, VEC,  OP_VRSTORE,   RA_OR_ZERO, RB,          VRS,  NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRSE), -- stvxl
         2#1010010110#  =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '1', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stwbrx
         2#1110010101#  =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stwcix
         2#0010010110#  =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '1', '0', '0', ONE,  '0', '0', NONE), -- stwcx

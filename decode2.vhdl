@@ -318,7 +318,8 @@ begin
         if rising_edge(clk) then
             if rst = '1' or flush_in = '1' or deferred = '0' then
                 if rin.e.valid = '1' then
-                    report "execute " & to_hstring(rin.e.nia);
+                    report "execute " & to_hstring(rin.e.nia) & " rpt=" & std_ulogic'image(rin.e.repeat) &
+                        " 2nd=" & std_ulogic'image(rin.e.second);
                 end if;
                 r <= rin;
             end if;

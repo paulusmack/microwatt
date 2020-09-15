@@ -18,6 +18,7 @@ package decode_types is
 			 OP_RLC, OP_RLCL, OP_RLCR, OP_SC, OP_SETB,
 			 OP_SHL, OP_SHR,
 			 OP_SYNC, OP_TLBIE, OP_TRAP,
+                         OP_VRLOAD, OP_VRSTORE,
 			 OP_XOR,
                          OP_BCD, OP_ADDG6S,
                          OP_FETCH_FAILED

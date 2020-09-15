@@ -313,6 +313,8 @@ begin
         variable misaligned : std_ulogic;
         variable fp_reg_conv : std_ulogic;
         variable lfs_done : std_ulogic;
+        variable is_vector : std_ulogic;
+        variable addr_mask : std_ulogic_vector(2 downto 0);
     begin
         v := r;
         req := '0';
@@ -323,6 +325,7 @@ begin
         dsisr := (others => '0');
         mmureq := '0';
         fp_reg_conv := '0';
+        is_vector := '0';
 
         write_enable := '0';
         lfs_done := '0';
@@ -402,6 +405,12 @@ begin
                 byte_offset := unsigned(r.addr(2 downto 0));
                 byte_rev := r.byte_reverse;
                 length := r.length;
+            elsif HAS_VECVSX and l_in.op = OP_VRSTORE then
+                -- vector stores don't do any rotating but do byte-swap in BE mode
+                data_in := l_in.data;
+                byte_offset := "000";
+                byte_rev := l_in.byte_reverse;
+                length := "1000";
             else
                 data_in := l_in.data;
                 byte_offset := unsigned(lsu_sum(2 downto 0));
@@ -574,7 +583,16 @@ begin
             v.do_update := '0';
             v.extra_cycle := '0';
 
+            if HAS_VECVSX and (l_in.op = OP_VRLOAD or l_in.op = OP_VRSTORE) then
+                is_vector := '1';
+            end if;
+
             addr := lsu_sum;
+            if is_vector = '1' then
+                addr(3 downto 0) := "0000";
+                v.length := "1000";
+            end if;
+
             if l_in.second = '1' then
                 -- for the second half of a 16-byte transfer, use next_addr
                 addr := next_addr;
@@ -591,19 +609,33 @@ begin
                 v.nc := '1';
             end if;
 
-            if l_in.second = '0' then
-                -- Do length_to_sel and work out if we are doing 2 dwords
-                long_sel := xfer_data_sel(l_in.length, lsu_sum(2 downto 0));
+            addr_mask := std_ulogic_vector(unsigned(l_in.length(2 downto 0)) - 1);
+
+            -- Do length_to_sel and work out if we are doing 2 dwords
+            if is_vector = '0' and l_in.second = '0' then
+                long_sel := xfer_data_sel(l_in.length, addr(2 downto 0));
                 byte_sel := long_sel(7 downto 0);
                 v.first_bytes := byte_sel;
                 v.second_bytes := long_sel(15 downto 8);
+            elsif is_vector = '1' then
+                -- Vector load/store ops get repeated; for byte/half/word
+                -- element ops, one of the two has byte_sel = 0x00.
+                -- Note that 16-byte transfers have l_in.length = 8.
+                if l_in.length(3) = '1' or lsu_sum(3) = l_in.second then
+                    long_sel := xfer_data_sel(l_in.length, lsu_sum(2 downto 0) and not addr_mask);
+                    byte_sel := long_sel(7 downto 0);
+                else
+                    byte_sel := x"00";
+                end if;
+                v.first_bytes := byte_sel;
+                v.second_bytes := x"00";
             else
+                -- lq/stq second transfer, use same selects as first transfer
                 byte_sel := r.first_bytes;
-                long_sel := r.second_bytes & r.first_bytes;
             end if;
 
             -- check alignment for larx/stcx
-            misaligned := or (std_ulogic_vector(unsigned(l_in.length(2 downto 0)) - 1) and addr(2 downto 0));
+            misaligned := or (addr_mask and addr(2 downto 0));
             v.align_intr := l_in.reserve and misaligned;
             if l_in.repeat = '1' and l_in.second = '0' and addr(3) = '1' then
                 -- length is really 16 not 8
@@ -621,14 +653,14 @@ begin
             v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);
 
             case l_in.op is
-                when OP_STORE =>
+                when OP_STORE | OP_VRSTORE =>
                     if HAS_FPU and l_in.is_32bit = '1' then
                         v.state := FPR_CONV;
                         fp_reg_conv := '1';
                     else
                         req := '1';
                     end if;
-                when OP_LOAD =>
+                when OP_LOAD | OP_VRLOAD =>
                     req := '1';
                     v.load := '1';
                     -- Allow an extra cycle for RA update on loads
@@ -690,7 +722,7 @@ begin
             if req = '1' then
                 if v.align_intr = '1' then
                     v.state := COMPLETE;
-                elsif long_sel(15 downto 8) = "00000000" then
+                elsif v.second_bytes = "00000000" then
                     v.state := ACK_WAIT;
                 else
                     v.state := SECOND_REQ;

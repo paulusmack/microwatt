@@ -376,10 +376,12 @@ begin
         variable addr : std_ulogic_vector(63 downto 0);
         variable sprn : std_ulogic_vector(9 downto 0);
         variable misaligned : std_ulogic;
+        variable is_vector : std_ulogic;
         variable addr_mask : std_ulogic_vector(2 downto 0);
     begin
         v := request_init;
         sprn := std_ulogic_vector(to_unsigned(decode_spr_num(l_in.insn), 10));
+        is_vector := '0';
 
         v.valid := l_in.valid;
         v.instr_tag := l_in.instr_tag;
@@ -409,6 +411,12 @@ begin
 
         addr := lsu_sum;
 
+        if HAS_VECVSX and (l_in.op = OP_VRLOAD or l_in.op = OP_VRSTORE) then
+            is_vector := '1';
+            addr(3 downto 0) := "0000";
+            v.length := "1000";
+        end if;
+
         if l_in.second = '1' then
             if l_in.update = '0' then
                 -- for the second half of a 16-byte transfer,
@@ -435,11 +443,24 @@ begin
         addr_mask := std_ulogic_vector(unsigned(l_in.length(2 downto 0)) - 1);
 
         -- Do length_to_sel and work out if we are doing 2 dwords
-        long_sel := xfer_data_sel(v.length, addr(2 downto 0));
-        v.byte_sel := long_sel(7 downto 0);
-        v.second_bytes := long_sel(15 downto 8);
-        if long_sel(15 downto 8) /= "00000000" then
-            v.two_dwords := '1';
+        if is_vector = '0' then
+            long_sel := xfer_data_sel(v.length, addr(2 downto 0));
+            v.byte_sel := long_sel(7 downto 0);
+            v.second_bytes := long_sel(15 downto 8);
+            if long_sel(15 downto 8) /= "00000000" then
+                v.two_dwords := '1';
+            end if;
+        else
+            -- Vector load/store ops get repeated; for byte/half/word
+            -- element ops, one of the two has byte_sel = 0x00.
+            -- Note that 16-byte transfers have l_in.length = 8.
+            if l_in.length(3) = '1' or lsu_sum(3) = l_in.second then
+                long_sel := xfer_data_sel(l_in.length, lsu_sum(2 downto 0) and not addr_mask);
+                v.byte_sel := long_sel(7 downto 0);
+            else
+                v.byte_sel := x"00";
+            end if;
+            v.second_bytes := x"00";
         end if;
 
         -- check alignment for larx/stcx
@@ -465,9 +486,9 @@ begin
         case l_in.op is
             when OP_SYNC =>
                 v.sync := '1';
-            when OP_STORE =>
+            when OP_STORE | OP_VRSTORE =>
                 v.store := '1';
-            when OP_LOAD =>
+            when OP_LOAD | OP_VRLOAD =>
                 if l_in.update = '0' or l_in.second = '0' then
                     v.load := '1';
                     if HAS_FPU and l_in.is_32bit = '1' then

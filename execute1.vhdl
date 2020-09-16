@@ -44,7 +44,7 @@ entity execute1 is
 	icache_inval : out std_ulogic;
 	terminate_out : out std_ulogic;
 
-        log_out : out std_ulogic_vector(14 downto 0);
+        log_out : out std_ulogic_vector(13 downto 0);
         log_rd_addr : out std_ulogic_vector(31 downto 0);
         log_rd_data : in std_ulogic_vector(63 downto 0);
         log_wr_addr : in std_ulogic_vector(31 downto 0)
@@ -1349,7 +1349,7 @@ begin
     end process;
 
     e1_log: if LOG_LENGTH > 0 generate
-        signal log_data : std_ulogic_vector(14 downto 0);
+        signal log_data : std_ulogic_vector(13 downto 0);
     begin
         ex1_log : process(clk)
         begin
@@ -1359,7 +1359,7 @@ begin
                             exception_log &
                             irq_valid_log &
                             std_ulogic_vector(to_unsigned(irq_state_t'pos(ctrl.irq_state), 1)) &
-                            "000" &
+                            "00" &
                             r.e.write_enable &
                             r.e.valid &
                             f_out.redirect &

@@ -81,6 +81,7 @@ architecture behave of loadstore1 is
 	byte_reverse : std_ulogic;
         brev_mask    : unsigned(2 downto 0);
 	sign_extend  : std_ulogic;
+        is_vsx       : std_ulogic;
 	update       : std_ulogic;
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
@@ -110,7 +111,7 @@ architecture behave of loadstore1 is
                                           store_data => (others => '0'), instr_tag => instr_tag_init,
                                           write_reg => x"00", length => x"0",
                                           elt_length => x"0", byte_reverse => '0', brev_mask => "000",
-                                          sign_extend => '0', update => '0',
+                                          sign_extend => '0', is_vsx => '0', update => '0',
                                           xerc => xerc_init, reserve => '0',
                                           atomic => '0', atomic_first => '0', atomic_last => '0',
                                           rc => '0', nc => '0',
@@ -416,6 +417,16 @@ begin
             addr(3 downto 0) := "0000";
             v.length := "1000";
         end if;
+        if HAS_VECVSX and (l_in.op = OP_VSXLDV or l_in.op = OP_VSXST) then
+            v.is_vsx := '1';
+            v.length := "1000";
+        end if;
+        if HAS_VECVSX and l_in.op = OP_VSXLDS then
+            -- VSX scalar load, set right half of destination to zero
+            if l_in.second = '1' then
+                v.length := "0000";
+            end if;
+        end if;
 
         if l_in.second = '1' then
             if l_in.update = '0' then
@@ -486,9 +497,9 @@ begin
         case l_in.op is
             when OP_SYNC =>
                 v.sync := '1';
-            when OP_STORE | OP_VRSTORE =>
+            when OP_STORE | OP_VRSTORE | OP_VSXST =>
                 v.store := '1';
-            when OP_LOAD | OP_VRLOAD =>
+            when OP_LOAD | OP_VRLOAD | OP_VSXLDV =>
                 if l_in.update = '0' or l_in.second = '0' then
                     v.load := '1';
                     if HAS_FPU and l_in.is_32bit = '1' then
@@ -498,6 +509,15 @@ begin
                 else
                     -- write back address to RA
                     v.do_update := '1';
+                end if;
+            when OP_VSXLDS =>
+                if HAS_VECVSX then
+                    if l_in.second = '0' then
+                        v.load := '1';
+                        v.load_sp := l_in.is_32bit;
+                    else
+                        v.load_zero := '1';
+                    end if;
                 end if;
             when OP_DCBF =>
                 v.load := '1';
@@ -532,8 +552,17 @@ begin
 
         -- Work out controls for load and store formatting
         brev_lenm1 := "000";
-        if v.byte_reverse = '1' then
-            brev_lenm1 := unsigned(v.length(2 downto 0)) - 1;
+        if not HAS_VECVSX or v.is_vsx = '0' then
+            if v.byte_reverse = '1' then
+                brev_lenm1 := unsigned(v.length(2 downto 0)) - 1;
+            end if;
+        else
+            -- VSX loads/stores swap elements and possibly byte-swap each element
+            if v.byte_reverse = '1' then
+                brev_lenm1 := "111";
+            else
+                brev_lenm1 := not (unsigned(v.elt_length(2 downto 0)) - 1);
+            end if;
         end if;
         v.brev_mask := brev_lenm1;
 

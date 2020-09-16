@@ -67,6 +67,7 @@ architecture behaviour of decode1 is
     type op_31_subop_array_t is array(0 to 1023) of decode_rom_t;
     type op_59_subop_array_t is array(0 to 31) of decode_rom_t;
     type minor_rom_array_2_t is array(0 to 3) of decode_rom_t;
+    type op_61_subop_array_t is array(0 to 7) of decode_rom_t;
     type op_63_subop_array_0_t is array(0 to 511) of decode_rom_t;
     type op_63_subop_array_1_t is array(0 to 16) of decode_rom_t;
 
@@ -317,6 +318,18 @@ architecture behaviour of decode1 is
         2#0001000111#  =>       (LDST, VEC,  OP_VRLOAD,    RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lvewx
         2#0001100111#  =>       (LDST, VEC,  OP_VRLOAD,    RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lvx
         2#0101100111#  =>       (LDST, VEC,  OP_VRLOAD,    RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lvxl
+        2#1001001100#  =>       (LDST, VSX,  OP_VSXLDS,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxsdx
+        2#1100001101#  =>       (LDST, VOV,  OP_VSXLDS,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxsibzx
+        2#1100101101#  =>       (LDST, VOV,  OP_VSXLDS,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxsihzx
+        2#0001001100#  =>       (LDST, VSX,  OP_VSXLDS,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxsiwax
+        2#0000001100#  =>       (LDST, VSX,  OP_VSXLDS,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxsiwzx
+        2#1000001100#  =>       (LDST, VSX,  OP_VSXLDS,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', DRT ), -- lxsspx
+        2#0100001100#  =>       (LDST, VOV,  OP_LOAD,      RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lxvx
+        2#0100101100#  =>       (LDST, VOV,  OP_LOAD,      RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lxvx?
+        2#1101101100#  =>       (LDST, VOV,  OP_VSXLDV,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxvb16x
+        2#1101001100#  =>       (LDST, VSX,  OP_VSXLDV,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxvd2x
+        2#1100101100#  =>       (LDST, VOV,  OP_VSXLDV,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxvh8x
+        2#1100001100#  =>       (LDST, VSX,  OP_VSXLDV,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxvw4x
         2#0000010100#  =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '1', '0', '0', NONE, '0', '0', NONE), -- lwarx
         2#0101110101#  =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '1', '0', '0', '0', NONE, '0', '0', DUPD), -- lwaux
         2#0101010101#  =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lwax
@@ -410,6 +423,16 @@ architecture behaviour of decode1 is
         2#0010010110#  =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '1', '0', '0', ONE,  '0', '0', NONE), -- stwcx
         2#0010110111#  =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', NONE), -- stwux
         2#0010010111#  =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,          RS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stwx
+        2#1011001100#  =>       (LDST, VSX,  OP_STORE,     RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stxsdx
+        2#1110001101#  =>       (LDST, VOV,  OP_STORE,     RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stxsibx
+        2#1110101101#  =>       (LDST, VOV,  OP_STORE,     RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stxsihx
+        2#0010001100#  =>       (LDST, VSX,  OP_STORE,     RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stxsiwx
+        2#1010001100#  =>       (LDST, VSX,  OP_STORE,     RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE), -- stxsspx
+        2#0110001100#  =>       (LDST, VOV,  OP_STORE,     RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRSE), -- stxvx
+        2#1111101100#  =>       (LDST, VOV,  OP_VSXST,     RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRS ), -- stxvb16x
+        2#1111001100#  =>       (LDST, VSX,  OP_VSXST,     RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRS ), -- stxvd2x
+        2#1110101100#  =>       (LDST, VOV,  OP_VSXST,     RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRS ), -- stxvh8x
+        2#1110001100#  =>       (LDST, VSX,  OP_VSXST,     RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRS ), -- stxvw4x
         2#0000101000#  =>       (ALU,  NONE, OP_ADD,       RA,         RB,          NONE, RT,   '0', '0', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- subf
         2#1000101000#  =>       (ALU,  NONE, OP_ADD,       RA,         RB,          NONE, RT,   '0', '0', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- subfo
         2#0000001000#  =>       (ALU,  NONE, OP_ADD,       RA,         RB,          NONE, RT,   '0', '0', '1', '0', ONE,  '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- subfc
@@ -430,6 +453,14 @@ architecture behaviour of decode1 is
         2#0100111100#  =>       (ALU,  NONE, OP_XOR,       NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- xor
         others => illegal_inst
 	);
+
+    constant decode_op_57_array : minor_rom_array_2_t := (
+        --              unit  fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
+        --                               op                                            in   out   A   out  in    out  len        ext                                 pipe
+        2     =>       (LDST, VSX,  OP_VSXLDS,    RA_OR_ZERO, CONST_DS,    NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxsd
+        3     =>       (LDST, VEC,  OP_VSXLDS,    RA_OR_ZERO, CONST_DS,    NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', DRT ), -- lxssp
+        others   => decode_rom_init
+        );
 
     constant decode_op_58_array : minor_rom_array_2_t := (
         --              unit  fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
@@ -456,6 +487,19 @@ architecture behaviour of decode1 is
         2#11110#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fnmsubs
         2#11111#  =>  (FPU, FPU, OP_FPOP,       FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fnmadds
         others => illegal_inst
+        );
+
+    -- indexed by bits 2..0 of instruction word
+    constant decode_op_61_array : op_61_subop_array_t := (
+        --             unit  fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
+        --                              op                                            in   out   A   out  in    out  len        ext                                 pipe
+        2#001#  =>    (LDST, VOV2, OP_LOAD,      RA_OR_ZERO, CONST_DQ,    NONE, XT2,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lxv
+        2#010#  =>    (LDST, VEC,  OP_STORE,     RA_OR_ZERO, CONST_DS,    VRS,  NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stxsd
+        2#110#  =>    (LDST, VEC,  OP_STORE,     RA_OR_ZERO, CONST_DS,    VRS,  NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stxsd
+        2#011#  =>    (LDST, VEC,  OP_STORE,     RA_OR_ZERO, CONST_DS,    VRS,  NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE), -- stxssp
+        2#111#  =>    (LDST, VEC,  OP_STORE,     RA_OR_ZERO, CONST_DS,    VRS,  NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE), -- stxssp
+        2#101#  =>    (LDST, VOV2, OP_STORE,     RA_OR_ZERO, CONST_DQ,    XS2,  NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRSE), -- stxv
+        others   => illegal_inst
         );
 
     constant decode_op_62_array : minor_rom_array_2_t := (
@@ -704,6 +748,11 @@ begin
                 vi.override := '1';
             end if;
 
+        when 57 =>
+            if HAS_VECVSX then
+                v.decode := decode_op_57_array(to_integer(unsigned(f_in.insn(1 downto 0))));
+            end if;
+
         when 58 =>
             v.decode := decode_op_58_array(to_integer(unsigned(f_in.insn(1 downto 0))));
 
@@ -714,6 +763,11 @@ begin
                 if f_in.insn(5) = '0' and not std_match(f_in.insn(10 downto 1), "11-1001110") then
                     vi.override := '1';
                 end if;
+            end if;
+
+        when 61 =>
+            if HAS_VECVSX then
+                v.decode := decode_op_61_array(to_integer(unsigned(f_in.insn(2 downto 0))));
             end if;
 
         when 62 =>

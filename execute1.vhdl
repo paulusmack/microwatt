@@ -799,11 +799,17 @@ begin
                 v.e.intr_vec := 16#800#;
                 report "FP unavailable interrupt";
 
-            elsif HAS_VECVSX and ctrl.msr(MSR_VEC) = '0' and e_in.fac = VEC then
+            elsif HAS_VECVSX and ctrl.msr(MSR_VEC) = '0' and
+                (e_in.fac = VEC or
+                 (e_in.fac = VOV and e_in.insn(0) = '1') or
+                 (e_in.fac = VOV2 and e_in.insn(3) = '1')) then
                 exception := '1';
                 v.e.intr_vec := 16#f20#;
 
-            elsif HAS_VECVSX and ctrl.msr(MSR_VSX) = '0' and e_in.fac = VSX then
+            elsif HAS_VECVSX and ctrl.msr(MSR_VSX) = '0' and
+                (e_in.fac = VSX or
+                 (e_in.fac = VOV and e_in.insn(0) = '0') or
+                 (e_in.fac = VOV2 and e_in.insn(3) = '0')) then
                 exception := '1';
                 v.e.intr_vec := 16#f40#;
 

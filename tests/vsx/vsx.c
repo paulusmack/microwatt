@@ -722,6 +722,112 @@ int vsx_test_4(void)
 	return 0;
 }
 
+unsigned long do_vsx_ldl(unsigned long size, unsigned long addr)
+{
+	asm(".machine \"power9\"");
+	if (size & 0x100)
+		asm("lxvll 4,%0,%1; stxvx 4,0,%2" : : "b" (addr), "r" (size << 56), "r" (result) : "memory");
+	else
+		asm("lxvl 34,%0,%1; stxvx 34,0,%2" : : "b" (addr), "r" (size << 56), "r" (result) : "memory");
+	return 0;
+}
+
+unsigned long do_vsx_stl(unsigned long size, unsigned long addr)
+{
+	asm(".machine \"power9\"");
+	if (size & 0x100)
+		asm("lxvx 4,0,%2; stxvll 4,%0,%1" : : "b" (addr), "r" (size << 56), "r" (result) : "memory");
+	else
+		asm("lxvx 34,0,%2; stxvl 34,%0,%1" : : "b" (addr), "r" (size << 56), "b" (result) : "memory");
+	return 0;
+}
+
+unsigned long lens[8] = { 0, 1, 2, 3, 4, 8, 13, 16 };
+unsigned long offs[8] = { 0, 1, 2, 5, 4, 8, 11, 16 };
+
+/* test vsx load/store with length */
+int vsx_test_5(void)
+{
+	unsigned char data[32] __attribute__((__aligned__(16)));
+	unsigned long ret, i, j, len, off;
+	unsigned char v, v0;
+
+	disable_vec();
+	disable_vsx();
+	ret = callit(0, (unsigned long)data, do_vsx_ldl);
+	if (ret != 0xf20)
+		return ret | 0x1000;
+	ret = callit(0x100, (unsigned long)data, do_vsx_ldl);
+	if (ret != 0xf40)
+		return ret | 0x2000;
+	v = 4;
+	for (i = 0; i < 16; ++i)
+		result[i] = (v += 39);
+	++v;
+	enable_vec();
+	enable_vsx();
+	for (j = 0; j < 8; ++j) {
+		len = lens[j];
+		off = offs[j];
+		for (i = 0; i < 32; ++i)
+			data[i] = (v += 39);
+		++v;
+		ret = callit(len, (unsigned long)data + off, do_vsx_ldl);
+		if (ret)
+			return ret | 0x3000;
+		for (i = 0; i < len; ++i)
+			if (result[i] != data[off + i])
+				return 1 + (len << 4);
+		for (; i < 16; ++i)
+			if (result[i])
+				return 2 + (len << 4);
+		ret = callit(len + 0x100, (unsigned long)data + off, do_vsx_ldl);
+		if (ret)
+			return ret | 0x4000;
+		for (i = 0; i < len; ++i)
+			if (result[15 - i] != data[off + i])
+				return 3 + (len << 4);
+		for (; i < 16; ++i)
+			if (result[15 - i])
+				return 4 + (len << 4);
+	}
+	for (j = 0; j < 8; ++j) {
+		len = lens[j];
+		off = offs[j];
+		v0 = v;
+		for (i = 0; i < 32; ++i)
+			data[i] = (v += 39);
+		++v;
+		ret = callit(len, (unsigned long)data + off, do_vsx_stl);
+		if (ret)
+			return ret | 0x5000;
+		for (i = 0; i < 32; ++i) {
+			v0 += 39;
+			if (i >= off && i < len + off) {
+				if (data[i] != result[i - off])
+					return 5 + (len << 4);
+			} else if (data[i] != v0)
+				return 6 + (len << 4);
+		}
+		v0 = v;
+		for (i = 0; i < 32; ++i)
+			data[i] = (v += 39);
+		++v;
+		ret = callit(len + 0x100, (unsigned long)data + off, do_vsx_stl);
+		if (ret)
+			return ret | 0x6000;
+		for (i = 0; i < 32; ++i) {
+			v0 += 39;
+			if (i >= off && i < len + off) {
+				if (data[i] != result[15 - (i - off)])
+					return 7 + (len << 4);
+			} else if (data[i] != v0)
+				return 8 + (len << 4);
+		}
+	}
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -754,6 +860,7 @@ int main(void)
 	do_test(2, vsx_test_2);
 	do_test(3, vsx_test_3);
 	do_test(4, vsx_test_4);
+	do_test(5, vsx_test_5);
 
 	return fail;
 }

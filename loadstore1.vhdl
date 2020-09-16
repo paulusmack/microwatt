@@ -82,6 +82,7 @@ architecture behave of loadstore1 is
         brev_mask    : unsigned(2 downto 0);
 	sign_extend  : std_ulogic;
         is_vsx       : std_ulogic;
+        left_justify : std_ulogic;
 	update       : std_ulogic;
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
@@ -114,8 +115,8 @@ architecture behave of loadstore1 is
                                           store_data => (others => '0'), instr_tag => instr_tag_init,
                                           write_reg => x"00", length => x"0",
                                           elt_length => x"0", byte_reverse => '0', brev_mask => "000",
-                                          sign_extend => '0', is_vsx => '0', update => '0',
-                                          xerc => xerc_init, reserve => '0',
+                                          sign_extend => '0', is_vsx => '0', left_justify => '0',
+                                          update => '0', xerc => xerc_init, reserve => '0',
                                           atomic => '0', atomic_first => '0', atomic_last => '0',
                                           rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
@@ -185,20 +186,17 @@ architecture behave of loadstore1 is
     signal stage3_busy_next    : std_ulogic;
 
     -- Generate byte enables from sizes
+    -- With lxvl/lxvll we can get any length from 0 to 8
     function length_to_sel(length : in std_logic_vector(3 downto 0)) return std_ulogic_vector is
+        variable sel : std_ulogic_vector(7 downto 0);
     begin
-        case length is
-            when "0001" =>
-                return "00000001";
-            when "0010" =>
-                return "00000011";
-            when "0100" =>
-                return "00001111";
-            when "1000" =>
-                return "11111111";
-            when others =>
-                return "00000000";
-        end case;
+        sel := "00000000";
+        for i in 0 to 7 loop
+            if i < to_integer(unsigned(length)) then
+                sel(i) := '1';
+            end if;
+        end loop;
+        return sel;
     end function length_to_sel;
 
     -- Calculate byte enables
@@ -445,6 +443,27 @@ begin
             end if;
         end if;
 
+        if HAS_VECVSX and (l_in.op = OP_VSXLDLEN or l_in.op = OP_VSXSTLEN) then
+            -- address is RA|0, byte count is top byte of RB
+            addr := l_in.addr1;
+            -- left justify if big-endian or lvxll instruction
+            if l_in.insn(6) = '1' then
+                v.byte_reverse := '1';
+            end if;
+            v.left_justify := v.byte_reverse;
+            if l_in.addr2(63 downto 60) = "0000" then
+                -- byte count is less than 16
+                if l_in.second = l_in.addr2(59) then
+                    -- 1st transfer and count < 8, or 2nd and 8 <= count < 15
+                    v.length := '0' & l_in.addr2(58 downto 56);
+                elsif l_in.second = '1' and l_in.addr2(59) = '0' then
+                    -- 2nd transfer and count < 8
+                    v.length := "0000";
+                -- else leave length at 8
+                end if;
+            end if;
+        end if;
+
         if l_in.second = '1' then
             if l_in.update = '0' then
                 -- for the second half of a 16-byte transfer,
@@ -545,6 +564,22 @@ begin
                         v.use_splat := '1';
                     end if;
                 end if;
+            when OP_VSXSTLEN =>
+                if HAS_VECVSX then
+                    if v.length /= "0000" then
+                        v.store := '1';
+                    else
+                        v.noop := '1';
+                    end if;
+                end if;
+            when OP_VSXLDLEN =>
+                if HAS_VECVSX then
+                    if v.length /= "0000" then
+                        v.load := '1';
+                    else
+                        v.load_zero := '1';
+                    end if;
+                end if;
             when OP_DCBF =>
                 v.load := '1';
                 v.flush := '1';
@@ -580,7 +615,11 @@ begin
         brev_lenm1 := "000";
         if not HAS_VECVSX or v.is_vsx = '0' then
             if v.byte_reverse = '1' then
-                brev_lenm1 := unsigned(v.length(2 downto 0)) - 1;
+                if v.left_justify = '1' then
+                    brev_lenm1 := "111";
+                else
+                    brev_lenm1 := unsigned(v.length(2 downto 0)) - 1;
+                end if;
             end if;
         else
             -- VSX loads/stores swap elements and possibly byte-swap each element
@@ -793,14 +832,26 @@ begin
 
         -- trim and sign-extend
         for i in 0 to 7 loop
-            if i < to_integer(unsigned(r2.req.length)) then
-                if r2.req.dword_index = '1' then
-                    trim_ctl(i) := '1' & not r2.use_second(i);
+            if r2.req.left_justify = '0' then
+                if i < to_integer(unsigned(r2.req.length)) then
+                    if r2.req.dword_index = '1' then
+                        trim_ctl(i) := '1' & not r2.use_second(i);
+                    else
+                        trim_ctl(i) := "10";
+                    end if;
                 else
-                    trim_ctl(i) := "10";
+                    trim_ctl(i) := '0' & r2.req.use_splat;
                 end if;
             else
-                trim_ctl(i) := '0' & r2.req.use_splat;
+                if i >= 8 - to_integer(unsigned(r2.req.length)) then
+                    if r2.req.dword_index = '1' then
+                        trim_ctl(i) := '1' & not r2.use_second(i);
+                    else
+                        trim_ctl(i) := "10";
+                    end if;
+                else
+                    trim_ctl(i) := "00";
+                end if;
             end if;
         end loop;
 

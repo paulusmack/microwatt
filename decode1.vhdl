@@ -324,6 +324,8 @@ architecture behaviour of decode1 is
         2#0001001100#  =>       (LDST, VSX,  OP_VSXLDS,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxsiwax
         2#0000001100#  =>       (LDST, VSX,  OP_VSXLDS,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxsiwzx
         2#1000001100#  =>       (LDST, VSX,  OP_VSXLDS,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', DRT ), -- lxsspx
+        2#0100001101#  =>       (LDST, VOV,  OP_VSXLDLEN,  RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lxvl
+        2#0100101101#  =>       (LDST, VOV,  OP_VSXLDLEN,  RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxvll
         2#0100001100#  =>       (LDST, VOV,  OP_LOAD,      RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lxvx
         2#0100101100#  =>       (LDST, VOV,  OP_LOAD,      RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lxvx?
         2#1101101100#  =>       (LDST, VOV,  OP_VSXLDV,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxvb16x
@@ -435,6 +437,8 @@ architecture behaviour of decode1 is
         2#1111001100#  =>       (LDST, VSX,  OP_VSXST,     RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRS ), -- stxvd2x
         2#1110101100#  =>       (LDST, VOV,  OP_VSXST,     RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRS ), -- stxvh8x
         2#1110001100#  =>       (LDST, VSX,  OP_VSXST,     RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRS ), -- stxvw4x
+        2#0110001101#  =>       (LDST, VOV,  OP_VSXSTLEN,  RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRSE), -- stxvl
+        2#0110101101#  =>       (LDST, VOV,  OP_VSXSTLEN,  RA_OR_ZERO, RB,          XS,   NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRS ), -- stxvll
         2#0000101000#  =>       (ALU,  NONE, OP_ADD,       RA,         RB,          NONE, RT,   '0', '0', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- subf
         2#1000101000#  =>       (ALU,  NONE, OP_ADD,       RA,         RB,          NONE, RT,   '0', '0', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- subfo
         2#0000001000#  =>       (ALU,  NONE, OP_ADD,       RA,         RB,          NONE, RT,   '0', '0', '1', '0', ONE,  '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- subfc

@@ -68,6 +68,8 @@ architecture behave of loadstore1 is
 	length       : std_ulogic_vector(3 downto 0);
 	byte_reverse : std_ulogic;
 	sign_extend  : std_ulogic;
+        is_vsx       : std_ulogic;
+        elt_length   : std_ulogic_vector(3 downto 0);
 	update       : std_ulogic;
 	update_reg   : gpr_index_t;
 	xerc         : xer_common_t;
@@ -99,6 +101,7 @@ architecture behave of loadstore1 is
         ld_sp_nz     : std_ulogic;
         ld_sp_lz     : std_ulogic_vector(5 downto 0);
         st_sp_data   : std_ulogic_vector(31 downto 0);
+        do_wr_zero   : std_ulogic;
     end record;
 
     type byte_sel_t is array(0 to 7) of std_ulogic;
@@ -326,6 +329,7 @@ begin
         mmureq := '0';
         fp_reg_conv := '0';
         is_vector := '0';
+        v.do_wr_zero := '0';
 
         write_enable := '0';
         lfs_done := '0';
@@ -336,8 +340,17 @@ begin
         -- load data formatting
         byte_offset := unsigned(r.addr(2 downto 0));
         brev_lenm1 := "000";
-        if r.byte_reverse = '1' then
-            brev_lenm1 := unsigned(r.length(2 downto 0)) - 1;
+        if not HAS_VECVSX or r.is_vsx = '0' then
+            if r.byte_reverse = '1' then
+                brev_lenm1 := unsigned(r.elt_length(2 downto 0)) - 1;
+            end if;
+        else
+            -- VSX loads swap elements and possibly byte-swap each element
+            if r.byte_reverse = '1' then
+                brev_lenm1 := "111";
+            else
+                brev_lenm1 := not (unsigned(r.elt_length(2 downto 0)) - 1);
+            end if;
         end if;
 
         -- shift and byte-reverse data bytes
@@ -418,8 +431,17 @@ begin
                 length := l_in.length;
             end if;
             brev_lenm1 := "000";
-            if byte_rev = '1' then
-                brev_lenm1 := unsigned(length(2 downto 0)) - 1;
+            if not (HAS_VECVSX and l_in.op = OP_VSXST) then
+                if byte_rev = '1' then
+                    brev_lenm1 := unsigned(length(2 downto 0)) - 1;
+                end if;
+            else
+                -- VSX stores swap elements and possibly byte-swap each element
+                if byte_rev = '1' then
+                    brev_lenm1 := "111";
+                else
+                    brev_lenm1 := not (unsigned(length(2 downto 0)) - 1);
+                end if;
             end if;
             for i in 0 to 7 loop
                 k := (to_unsigned(i, 3) - byte_offset) xor brev_lenm1;
@@ -547,6 +569,8 @@ begin
 
         when COMPLETE =>
             exception := r.align_intr;
+            -- with r.length = 0, write 0s to destination
+            write_enable := r.do_wr_zero;
 
         end case;
 
@@ -567,6 +591,7 @@ begin
             v.last_dword := '1';
             v.write_reg := l_in.write_reg;
             v.length := l_in.length;
+            v.elt_length := l_in.length;
             v.byte_reverse := l_in.byte_reverse;
             v.sign_extend := l_in.sign_extend;
             v.update := l_in.update;
@@ -582,20 +607,32 @@ begin
             v.wait_mmu := '0';
             v.do_update := '0';
             v.extra_cycle := '0';
+            v.is_vsx := '0';
 
             if HAS_VECVSX and (l_in.op = OP_VRLOAD or l_in.op = OP_VRSTORE) then
                 is_vector := '1';
+                v.length := "1000";
+            end if;
+            if HAS_VECVSX and (l_in.op = OP_VSXLDV or l_in.op = OP_VSXST) then
+                v.is_vsx := '1';
+                v.length := "1000";
+            end if;
+            if HAS_VECVSX and l_in.op = OP_VSXLDS then
+                -- VSX scalar load, set right half of destination to zero
+                if l_in.second = '1' then
+                    v.length := "0000";
+                end if;
             end if;
 
             addr := lsu_sum;
             if is_vector = '1' then
                 addr(3 downto 0) := "0000";
-                v.length := "1000";
             end if;
 
             if l_in.second = '1' then
                 -- for the second half of a 16-byte transfer, use next_addr
-                addr := next_addr;
+                -- but preserve the 3 low-order bits
+                addr := next_addr(63 downto 3) & r.addr(2 downto 0);
             end if;
             if l_in.mode_32bit = '1' then
                 addr(63 downto 32) := (others => '0');
@@ -613,7 +650,7 @@ begin
 
             -- Do length_to_sel and work out if we are doing 2 dwords
             if is_vector = '0' and l_in.second = '0' then
-                long_sel := xfer_data_sel(l_in.length, addr(2 downto 0));
+                long_sel := xfer_data_sel(v.length, addr(2 downto 0));
                 byte_sel := long_sel(7 downto 0);
                 v.first_bytes := byte_sel;
                 v.second_bytes := long_sel(15 downto 8);
@@ -653,14 +690,14 @@ begin
             v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);
 
             case l_in.op is
-                when OP_STORE | OP_VRSTORE =>
+                when OP_STORE | OP_VRSTORE | OP_VSXST =>
                     if HAS_FPU and l_in.is_32bit = '1' then
                         v.state := FPR_CONV;
                         fp_reg_conv := '1';
                     else
                         req := '1';
                     end if;
-                when OP_LOAD | OP_VRLOAD =>
+                when OP_LOAD | OP_VRLOAD | OP_VSXLDV =>
                     req := '1';
                     v.load := '1';
                     -- Allow an extra cycle for RA update on loads
@@ -669,6 +706,18 @@ begin
                         -- Allow an extra cycle for SP->DP precision conversion
                         v.load_sp := '1';
                         v.extra_cycle := '1';
+                    end if;
+                when OP_VSXLDS =>
+                    if HAS_VECVSX then
+                        if v.length /= "0000" then
+                            req := '1';
+                            v.load := '1';
+                            v.load_sp := l_in.is_32bit;
+                            v.extra_cycle := l_in.is_32bit;
+                        else
+                            v.do_wr_zero := '1';
+                            v.state := COMPLETE;
+                        end if;
                     end if;
                 when OP_DCBZ =>
                     v.align_intr := v.nc;

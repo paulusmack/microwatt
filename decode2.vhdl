@@ -168,6 +168,18 @@ architecture behaviour of decode2 is
                 else
                     return ('0', (others => '0'), (others => '0'));
                 end if;
+            when XS =>
+                if HAS_VECVSX then
+                    return ('1', vsr_to_gspr(insn_xs(insn_in)), reg_data);
+                else
+                    return ('0', (others => '0'), (others => '0'));
+                end if;
+            when XS2 =>
+                if HAS_VECVSX then
+                    return ('1', vsr_to_gspr(insn_xs2(insn_in)), reg_data);
+                else
+                    return ('0', (others => '0'), (others => '0'));
+                end if;
             when NONE =>
                 return ('0', (others => '0'), (others => '0'));
         end case;
@@ -190,6 +202,18 @@ architecture behaviour of decode2 is
             when VRT =>
                 if HAS_VECVSX then
                     return ('1', vr_to_gspr(insn_vrt(insn_in)));
+                else
+                    return ('0', "00000000");
+                end if;
+            when XT =>
+                if HAS_VECVSX then
+                    return ('1', vsr_to_gspr(insn_xt(insn_in)));
+                else
+                    return ('0', "00000000");
+                end if;
+            when XT2 =>
+                if HAS_VECVSX then
+                    return ('1', vsr_to_gspr(insn_xt2(insn_in)));
                 else
                     return ('0', "00000000");
                 end if;
@@ -358,10 +382,20 @@ begin
             v.e.repeat := '1';
             v.e.second := r.repeat;
             case d_in.decode.repeat is
+                when DRS =>
+                    -- do RS, RS|1
+                    if r.repeat = '1' then
+                        decoded_reg_c.reg(0) := '1';
+                    end if;
                 when DRSE =>
                     -- do RS|1,RS for LE; RS,RS|1 for BE
                     if r.repeat = d_in.big_endian then
                         decoded_reg_c.reg(0) := '1';
+                    end if;
+                when DRT =>
+                    -- do RT, RT|1
+                    if r.repeat = '1' then
+                        decoded_reg_o.reg(0) := '1';
                     end if;
                 when DRTE =>
                     -- do RT|1,RT for LE; RT,RT|1 for BE

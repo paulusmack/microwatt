@@ -19,6 +19,7 @@ package decode_types is
 			 OP_SHL, OP_SHR,
 			 OP_SYNC, OP_TLBIE, OP_TRAP,
                          OP_VRLOAD, OP_VRSTORE,
+                         OP_VSXLDS, OP_VSXLDV, OP_VSXST,
 			 OP_XOR,
                          OP_BCD, OP_ADDG6S,
                          OP_FETCH_FAILED
@@ -26,8 +27,8 @@ package decode_types is
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR, CIA, FRA);
     type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
                            CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, SPR, FRB);
-    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRS);
-    type output_reg_a_t is (NONE, RT, RA, SPR, FRT, VRT);
+    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRS, XS, XS2);
+    type output_reg_a_t is (NONE, RT, RA, SPR, FRT, VRT, XT, XT2);
     type rc_t is (NONE, ONE, RC);
     type carry_in_t is (ZERO, CA, OV, ONE);
 
@@ -50,11 +51,13 @@ package decode_types is
     constant TOO_OFFSET : integer := 0;
 
     type unit_t is (NONE, ALU, LDST, FPU);
-    type facility_t is (NONE, FPU, VEC, VSX);
+    type facility_t is (NONE, FPU, VEC, VSX, VOV, VOV2);
     type length_t is (NONE, is1B, is2B, is4B, is8B);
 
     type repeat_t is (NONE,      -- instruction is not repeated
+                      DRS,       -- double RS
                       DRSE,      -- double RS, endian twist
+                      DRT,       -- double RT
                       DRTE);     -- double RT, endian twist
 
     type decode_rom_t is record

@@ -618,13 +618,17 @@ begin
             v.f.redirect_nia := std_logic_vector(to_unsigned(16#800#, 64));
             report "FP unavailable interrupt";
 
-        elsif HAS_VECVSX and valid_in = '1' and ctrl.msr(MSR_VEC) = '0' and e_in.fac = VEC then
+        elsif HAS_VECVSX and valid_in = '1' and ctrl.msr(MSR_VEC) = '0' and
+            (e_in.fac = VEC or (e_in.fac = VOV and e_in.insn(0) = '1') or
+             (e_in.fac = VOV2 and e_in.insn(3) = '1')) then
             -- generate a vector unavailable interrupt
             exception := '1';
             v.f.redirect_nia := std_logic_vector(to_unsigned(16#f20#, 64));
             report "Vector unavailable interrupt";
 
-        elsif HAS_VECVSX and valid_in = '1' and ctrl.msr(MSR_VSX) = '0' and e_in.fac = VSX then
+        elsif HAS_VECVSX and valid_in = '1' and ctrl.msr(MSR_VSX) = '0' and
+            (e_in.fac = VSX or (e_in.fac = VOV and e_in.insn(0) = '0') or
+             (e_in.fac = VOV2 and e_in.insn(3) = '0')) then
             -- generate a VSX unavailable interrupt
             exception := '1';
             v.f.redirect_nia := std_logic_vector(to_unsigned(16#f40#, 64));

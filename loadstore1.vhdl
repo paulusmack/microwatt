@@ -69,6 +69,7 @@ architecture behave of loadstore1 is
 	byte_reverse : std_ulogic;
 	sign_extend  : std_ulogic;
         is_vsx       : std_ulogic;
+        left_justify : std_ulogic;
         elt_length   : std_ulogic_vector(3 downto 0);
 	update       : std_ulogic;
 	update_reg   : gpr_index_t;
@@ -118,20 +119,17 @@ architecture behave of loadstore1 is
     signal load_dp_data  : std_ulogic_vector(63 downto 0);
 
     -- Generate byte enables from sizes
+    -- With lxvl/lxvll we can get any length from 0 to 8
     function length_to_sel(length : in std_logic_vector(3 downto 0)) return std_ulogic_vector is
+        variable sel : std_ulogic_vector(7 downto 0);
     begin
-        case length is
-            when "0001" =>
-                return "00000001";
-            when "0010" =>
-                return "00000011";
-            when "0100" =>
-                return "00001111";
-            when "1000" =>
-                return "11111111";
-            when others =>
-                return "00000000";
-        end case;
+        sel := "00000000";
+        for i in 0 to 7 loop
+            if i < to_integer(unsigned(length)) then
+                sel(i) := '1';
+            end if;
+        end loop;
+        return sel;
     end function length_to_sel;
 
     -- Calculate byte enables
@@ -320,6 +318,7 @@ begin
         variable fp_reg_conv : std_ulogic;
         variable lfs_done : std_ulogic;
         variable is_vector : std_ulogic;
+        variable is_vsx_len : std_ulogic;
         variable addr_mask : std_ulogic_vector(2 downto 0);
         variable idx : unsigned(2 downto 0);
     begin
@@ -335,6 +334,7 @@ begin
         is_vector := '0';
         v.do_wr_zero := '0';
         v.do_splat := '0';
+        is_vsx_len := '0';
 
         write_enable := '0';
         lfs_done := '0';
@@ -347,7 +347,11 @@ begin
         brev_lenm1 := "000";
         if not HAS_VECVSX or r.is_vsx = '0' then
             if r.byte_reverse = '1' then
-                brev_lenm1 := unsigned(r.elt_length(2 downto 0)) - 1;
+                if r.left_justify = '1' then
+                    brev_lenm1 := "111";
+                else
+                    brev_lenm1 := unsigned(r.elt_length(2 downto 0)) - 1;
+                end if;
             end if;
         else
             -- VSX loads swap elements and possibly byte-swap each element
@@ -388,14 +392,26 @@ begin
 
         -- trim and sign-extend
         for i in 0 to 7 loop
-            if i < to_integer(unsigned(r.length)) then
-                if r.dwords_done = '1' then
-                    trim_ctl(i) := '1' & not use_second(i);
+            if r.left_justify = '0' then
+                if i < to_integer(unsigned(r.length)) then
+                    if r.dwords_done = '1' then
+                        trim_ctl(i) := '1' & not use_second(i);
+                    else
+                        trim_ctl(i) := "10";
+                    end if;
                 else
-                    trim_ctl(i) := "10";
+                    trim_ctl(i) := '0' & (negative and r.sign_extend);
                 end if;
             else
-                trim_ctl(i) := '0' & (negative and r.sign_extend);
+                if i >= 8 - to_integer(unsigned(r.length)) then
+                    if r.dwords_done = '1' then
+                        trim_ctl(i) := '1' & not use_second(i);
+                    else
+                        trim_ctl(i) := "10";
+                    end if;
+                else
+                    trim_ctl(i) := "00";        -- left-justify never sign extends
+                end if;
             end if;
             case trim_ctl(i) is
                 when "11" =>
@@ -432,6 +448,12 @@ begin
                 data_in := l_in.data;
                 byte_offset := "000";
                 byte_rev := l_in.byte_reverse;
+                length := "1000";
+            elsif HAS_VECVSX and l_in.op = OP_VSXSTLEN then
+                -- VSX store with length; stvxll always byte-swaps
+                data_in := l_in.data;
+                byte_offset := unsigned(l_in.addr1(2 downto 0));
+                byte_rev := l_in.byte_reverse or l_in.insn(6);
                 length := "1000";
             else
                 data_in := l_in.data;
@@ -618,6 +640,7 @@ begin
             v.extra_cycle := '0';
             v.is_vsx := '0';
             v.word_splat := '0';
+            v.left_justify := '0';
 
             if HAS_VECVSX and (l_in.op = OP_VRLOAD or l_in.op = OP_VRSTORE) then
                 is_vector := '1';
@@ -640,9 +663,31 @@ begin
                 end if;
             end if;
 
-            addr := lsu_sum;
-            if is_vector = '1' then
-                addr(3 downto 0) := "0000";
+            if HAS_VECVSX and (l_in.op = OP_VSXLDLEN or l_in.op = OP_VSXSTLEN) then
+                -- address is RA|0, byte count is top byte of RB
+                is_vsx_len := '1';
+                addr := l_in.addr1;
+                -- left justify if big-endian or lvxll instruction
+                if l_in.insn(6) = '1' then
+                    v.byte_reverse := '1';
+                end if;
+                v.left_justify := v.byte_reverse;
+                if l_in.addr2(63 downto 60) = "0000" then
+                    -- byte count is less than 16
+                    if l_in.second = l_in.addr2(59) then
+                        -- 1st transfer and count < 8, or 2nd and 8 <= count < 15
+                        v.length := '0' & l_in.addr2(58 downto 56);
+                    elsif l_in.second = '1' and l_in.addr2(59) = '0' then
+                        -- 2nd transfer and count < 8
+                        v.length := "0000";
+                    -- else leave length at 8
+                    end if;
+                end if;
+            else
+                addr := lsu_sum;
+                if is_vector = '1' then
+                    addr(3 downto 0) := "0000";
+                end if;
             end if;
 
             if l_in.second = '1' then
@@ -665,7 +710,7 @@ begin
             addr_mask := std_ulogic_vector(unsigned(l_in.length(2 downto 0)) - 1);
 
             -- Do length_to_sel and work out if we are doing 2 dwords
-            if is_vector = '0' and l_in.second = '0' then
+            if is_vector = '0' and (is_vsx_len = '1' or l_in.second = '0') then
                 long_sel := xfer_data_sel(v.length, addr(2 downto 0));
                 byte_sel := long_sel(7 downto 0);
                 v.first_bytes := byte_sel;
@@ -742,6 +787,24 @@ begin
                             req := '1';
                         else
                             v.do_splat := '1';
+                            v.state := COMPLETE;
+                        end if;
+                    end if;
+                when OP_VSXSTLEN =>
+                    if HAS_VECVSX then
+                        if v.length /= "0000" then
+                            req := '1';
+                        else
+                            v.state := COMPLETE;
+                        end if;
+                    end if;
+                when OP_VSXLDLEN =>
+                    if HAS_VECVSX then
+                        v.load := '1';
+                        if v.length /= "0000" then
+                            req := '1';
+                        else
+                            v.do_wr_zero := '1';
                             v.state := COMPLETE;
                         end if;
                     end if;

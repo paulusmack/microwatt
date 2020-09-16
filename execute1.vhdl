@@ -1992,6 +1992,7 @@ begin
         lv.virt_mode := ex1.msr(MSR_DR);
         lv.priv_mode := not ex1.msr(MSR_PR);
         lv.mode_32bit := not ex1.msr(MSR_SF);
+        lv.big_endian := not ex1.msr(MSR_LE);
         lv.is_32bit := e_in.is_32bit;
         lv.prefixed := e_in.prefixed;
         lv.repeat := e_in.repeat;

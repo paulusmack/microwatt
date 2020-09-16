@@ -668,6 +668,7 @@ package common is
         virt_mode : std_ulogic;                         -- do translation through TLB
         priv_mode : std_ulogic;                         -- privileged mode (MSR[PR] = 0)
         mode_32bit : std_ulogic;                        -- trim addresses to 32 bits
+        big_endian : std_ulogic;
         is_32bit : std_ulogic;
         prefixed : std_ulogic;
         repeat : std_ulogic;
@@ -688,7 +689,7 @@ package common is
          data => (others => '0'), data_lo => (others => '0'),
          write_reg => (others => '0'),
          length => (others => '0'),
-         mode_32bit => '0', is_32bit => '0', prefixed => '0',
+         mode_32bit => '0', big_endian => '0', is_32bit => '0', prefixed => '0',
          repeat => '0', second => '0', e2stall => '0',
          msr => (others => '0'), hashkey => (others => '0'), hash_enable => '0');
 

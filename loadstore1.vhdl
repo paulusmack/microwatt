@@ -91,7 +91,7 @@ architecture behave of loadstore1 is
         elt_length   : std_ulogic_vector(3 downto 0);
 	byte_reverse : std_ulogic;
         brev_mask    : unsigned(3 downto 0);
-        splat_mask   : unsigned(2 downto 0);
+        splat_mask   : unsigned(3 downto 0);
 	sign_extend  : std_ulogic;
 	update       : std_ulogic;
         is_vector    : std_ulogic;
@@ -108,6 +108,7 @@ architecture behave of loadstore1 is
         virt_mode    : std_ulogic;
         priv_mode    : std_ulogic;
         load_sp      : std_ulogic;
+        use_conv     : std_ulogic;
         sprsel       : std_ulogic_vector(3 downto 0);
         ric          : std_ulogic_vector(1 downto 0);
         is_slbia     : std_ulogic;
@@ -115,7 +116,7 @@ architecture behave of loadstore1 is
         dawr_intr    : std_ulogic;
         dword_index  : unsigned(1 downto 0);
         incomplete   : std_ulogic;
-        overlap      : std_ulogic;
+        immed_ld     : std_ulogic;
         ea_valid     : std_ulogic;
         hash_addr    : std_ulogic_vector(63 downto 0);
     end record;
@@ -125,7 +126,7 @@ architecture behave of loadstore1 is
                                           instr_tag => instr_tag_init,
                                           write_reg => (others => '0'), length => 5x"0",
                                           elt_length => x"0", brev_mask => "0000",
-                                          splat_mask => "000",
+                                          splat_mask => "0000",
                                           xerc => xerc_init,
                                           sprsel => "0000", ric => "00",
                                           dword_index => "00",
@@ -146,12 +147,11 @@ architecture behave of loadstore1 is
         req        : request_t;
         byte_index : byte_index_t;
         trim_ctl   : trim_ctl_t;
+        trim_ctl_lo : trim_ctl_t;
         busy       : std_ulogic;
         wait_dc    : std_ulogic;
         wait_mmu   : std_ulogic;
         one_cycle  : std_ulogic;
-        wr_sel     : std_ulogic_vector(1 downto 0);
-        lo_wr_sel  : std_ulogic_vector(1 downto 0);
         addr0      : std_ulogic_vector(63 downto 0);
         sprsel     : std_ulogic_vector(3 downto 0);
         dbg_spr    : std_ulogic_vector(63 downto 0);
@@ -171,8 +171,8 @@ architecture behave of loadstore1 is
         rc           : std_ulogic;
         xerc         : xer_common_t;
         store_done   : std_ulogic;
-        load_data    : std_ulogic_vector(63 downto 0);
-        prev_data    : std_ulogic_vector(63 downto 0);
+        load_data0   : std_ulogic_vector(63 downto 0);
+        load_data1   : std_ulogic_vector(63 downto 0);
         dar          : std_ulogic_vector(63 downto 0);
         dsisr        : std_ulogic_vector(31 downto 0);
         ld_sp_data   : std_ulogic_vector(31 downto 0);
@@ -579,9 +579,9 @@ begin
         variable sprn : std_ulogic_vector(9 downto 0);
         variable misaligned : std_ulogic;
         variable addr_mask : std_ulogic_vector(3 downto 0);
-        variable hash_nop : std_ulogic;
         variable disp : std_ulogic_vector(63 downto 0);
         variable multi_dword : std_ulogic;
+        variable noop : std_ulogic;
     begin
         v := request_init;
         sprn := l_in.insn(15 downto 11) & l_in.insn(20 downto 16);
@@ -618,9 +618,11 @@ begin
             v.sprsel := "100" & sprn(8);
         end if;
 
+        lsu_sum := std_ulogic_vector(unsigned(l_in.addr1) + unsigned(l_in.addr2));
+        addr := lsu_sum;
         addr_mask := std_ulogic_vector(unsigned(l_in.length(3 downto 0)) - 1);
 
-        hash_nop := '0';
+        noop := '0';
         case l_in.mode is
             when "001" =>
                 v.nc := '1';
@@ -630,7 +632,7 @@ begin
                 elsif l_in.op = OP_LOAD then
                     v.hashcmp := '1';
                 end if;
-                hash_nop := not l_in.hash_enable;
+                noop := not l_in.hash_enable;
             when "011" =>
                 v.dcbz := '1';
             when "100" =>
@@ -653,15 +655,37 @@ begin
                         -- in general splat_mask = - length, but the splat loads
                         -- only ever have length = 4 or 8
                         v.vsx_splat := '1';
+                        v.splat_mask(3) := '1';
                         v.splat_mask(2) := l_in.length(2);
                     else
                         v.ldst_right := '1';
                     end if;
                 end if;
+            when "111" =>
+                -- VSX load/store with length
+                -- address is RA|0, byte count is top byte of RB
+                if HAS_VECVSX then
+                    addr := l_in.addr1;
+                    -- left justify if big-endian or lvxll instruction
+                    if l_in.big_endian = '1' then
+                        v.byte_reverse := '1';
+                    end if;
+                    v.vsx_vector := '1';
+                    if l_in.addr2(63 downto 60) = "0000" then
+                        -- byte count is less than 16
+                        v.length := '0' & l_in.addr2(59 downto 56);
+                        if v.length = 5x"0" then
+                            noop := '1';
+                            if l_in.op = OP_LOAD then
+                                v.immed_ld := '1';
+                            end if;
+                        end if;
+                    else
+                        -- leave length at 16
+                    end if;
+                end if;
             when others =>
         end case;
-
-        lsu_sum := std_ulogic_vector(unsigned(l_in.addr1) + unsigned(l_in.addr2));
 
         v.store_data := l_in.data;
         v.store_data2 := l_in.data_lo;
@@ -670,7 +694,6 @@ begin
             v.store_data(31 downto 0) := store_sp_data;
         end if;
 
-        addr := lsu_sum;
         if l_in.second = '1' then
             -- for an update-form load, use the previous address
             -- as the value to write back to RA.
@@ -710,7 +733,6 @@ begin
         v.second_bytes := long_sel(15 downto 8);
         v.third_bytes := long_sel(23 downto 16);
         multi_dword := or (long_sel(15 downto 8));
-        v.overlap := multi_dword and not long_sel(0);
 
         -- check alignment for larx/stcx
         -- for doubled instructions, only check the first one
@@ -780,7 +802,7 @@ begin
             when others =>
         end case;
         v.dc_req := l_in.valid and (v.load or v.store or v.sync or v.dcbz or v.tlbie) and
-                    not v.align_intr and not hash_nop;
+                    not v.align_intr and not noop;
         v.incomplete := v.dc_req and (multi_dword or v.is_vector);
 
         -- Work out controls for load and store formatting
@@ -788,6 +810,9 @@ begin
         if v.byte_reverse = '1' then
             if v.is_vector = '0' then
                 brev_lenm1 := unsigned(l_in.length(3 downto 0)) - 1;
+                if v.vsx_vector = '0' then
+                    brev_lenm1(3) := '0';
+                end if;
             else
                 brev_lenm1 := "1111";
             end if;
@@ -856,7 +881,9 @@ begin
                 -- (In other words we insert an extra dummy request.)
                 -- For an MMU request last cycle, we have nothing
                 -- to do in this cycle, so make it invalid.
-                if r1.req.load_sp = '0' then
+                if r1.req.load_sp = '1' then
+                    req.use_conv := '1';
+                else
                     req.valid := '0';
                 end if;
                 req.dc_req := '0';
@@ -924,7 +951,7 @@ begin
         variable v : reg_stage2_t;
         variable j : integer;
         variable kk : unsigned(3 downto 0);
-        variable idx : unsigned(2 downto 0);
+        variable idx : unsigned(3 downto 0);
         variable byte_offset : unsigned(3 downto 0);
         variable interrupt : std_ulogic;
         variable dbg_spr_rd : std_ulogic;
@@ -932,6 +959,8 @@ begin
         variable sprval : std_ulogic_vector(63 downto 0);
         variable dawr_match : std_ulogic;
         variable data_mixed : std_ulogic_vector(63 downto 0);
+        variable hidw1 : std_ulogic;
+        variable mbi : unsigned(4 downto 0);
     begin
         v := r2;
 
@@ -1017,27 +1046,7 @@ begin
                     v.busy := r1.req.valid and r1.req.mmu_op;
                     v.one_cycle := r1.req.valid and not (r1.req.dc_req or r1.req.mmu_op);
                 end if;
-                if r1.req.do_update = '1' or r1.req.store = '1' or r1.req.read_spr = '1' or
-                    r1.req.ldst_right = '1' then
-                    v.wr_sel := "00";
-                elsif r1.req.load_sp = '1' then
-                    v.wr_sel := "01";
-                elsif (r1.req.is_vector = '1' or r1.req.vsx_vector = '1') and r1.req.brev_mask(3) = '1' then
-                    -- high part of result is first dword read
-                    v.wr_sel := "11";
-                else
-                    v.wr_sel := "10";
-                end if;
-                if r1.req.is_vector = '1' or r1.req.vsx_vector = '1' then
-                    v.lo_wr_sel := '1' & r1.req.brev_mask(3);
-                elsif r1.req.ldst_right = '1' or r1.req.vsx_splat = '1' then
-                    v.lo_wr_sel := "11";
-                else
-                    v.lo_wr_sel := "00";
-                end if;
-                if r1.req.ldst_right = '1' then
-                    v.addr0 := (others => '0');
-                elsif r1.req.read_spr = '1' then
+                if r1.req.read_spr = '1' then
                     v.addr0 := sprval;
                 end if;
                 -- tlbie has req.dc_req set in order to send the TLB probe to
@@ -1048,18 +1057,30 @@ begin
                     v.req.dc_req := '0';
                 end if;
 
-                -- Work out load formatter controls for next cycle
+                -- Work out load formatter controls for next cycle for write_data
+                -- Does 'write_data' contain higher-numbered bytes of result?
+                hidw1 := r1.req.is_vector or r1.req.vsx_vector or r1.req.ldst_right;
                 for i in 0 to 7 loop
-                    idx := (to_unsigned(i, 3) xor r1.req.brev_mask(2 downto 0)) and not r1.req.splat_mask;
-                    kk := ('0' & idx) + byte_offset;
-                    v.byte_index(i) := kk(2 downto 0);
+                    -- determine source for byte i of 'write_data'
+                    -- idx = byte number of memory operand
+                    idx := ((hidw1 & to_unsigned(i, 3)) xor r1.req.brev_mask) and not r1.req.splat_mask;
+                    -- mbi = memory address offset (from addr0 & ~7)
+                    mbi := ('0' & idx) + ('0' & byte_offset);
+                    v.byte_index(i) := mbi(2 downto 0);
                     v.trim_ctl(i) := "00";
-                    if r1.req.is_vector = '1' then
-                        v.trim_ctl(i)(1) := '1';
-                    elsif (not is_X(r1.req.length) and i < to_integer(unsigned(r1.req.length))) or
-                        r1.req.vsx_splat = '1' then
-                        v.trim_ctl(i)(0) := r1.req.overlap and not kk(3);
-                        v.trim_ctl(i)(1) := '1';
+                    if not is_X(idx) and not is_X(mbi) and r1.req.load = '1' and r1.req.use_conv = '0' and
+                        mbi(4 downto 3) <= r1.req.dword_index and
+                        (r1.req.is_vector = '1' or ('0' & idx) < unsigned(r1.req.length)) then
+                        v.trim_ctl(i) := std_ulogic_vector(r1.req.dword_index - mbi(4 downto 3) + 1);
+                    end if;
+                    -- determine source for byte i of 'write_data_lo'
+                    idx := ((not hidw1 & to_unsigned(i, 3)) xor r1.req.brev_mask) and not r1.req.splat_mask;
+                    mbi := ('0' & idx) + ('0' & byte_offset);
+                    v.trim_ctl_lo(i) := "00";
+                    if not is_X(idx) and not is_X(mbi) and r1.req.load = '1' and r1.req.use_conv = '0' and
+                        mbi(4 downto 3) <= r1.req.dword_index and
+                        (r1.req.is_vector = '1' or ('0' & idx) < unsigned(r1.req.length)) then
+                        v.trim_ctl_lo(i) := std_ulogic_vector(r1.req.dword_index - mbi(4 downto 3) + 1);
                     end if;
                 end loop;
             else
@@ -1166,10 +1187,10 @@ begin
         -- first dword for big-endian (byte_reverse = 1), or the second dword
         -- for little-endian.
         if r2.req.dword_index(0) = '1' and r2.req.byte_reverse = '1' then
-            negative := (r2.req.length(3) and r3.load_data(63)) or
-                        (r2.req.length(2) and r3.load_data(31)) or
-                        (r2.req.length(1) and r3.load_data(15)) or
-                        (r2.req.length(0) and r3.load_data(7));
+            negative := (r2.req.length(3) and r3.load_data0(63)) or
+                        (r2.req.length(2) and r3.load_data0(31)) or
+                        (r2.req.length(1) and r3.load_data0(15)) or
+                        (r2.req.length(0) and r3.load_data0(7));
         else
             negative := (r2.req.length(3) and data_permuted(63)) or
                         (r2.req.length(2) and data_permuted(31)) or
@@ -1178,26 +1199,48 @@ begin
         end if;
 
         for i in 0 to 7 loop
+            j := i * 8;
             case r2.trim_ctl(i) is
-                when "11" =>
-                    data_trimmed(i * 8 + 7 downto i * 8) := r3.load_data(i * 8 + 7 downto i * 8);
-                when "10" =>
-                    data_trimmed(i * 8 + 7 downto i * 8) := data_permuted(i * 8 + 7 downto i * 8);
-                when others =>
-                    data_trimmed(i * 8 + 7 downto i * 8) := (others => negative and r2.req.sign_extend);
+            when "11" =>
+                write_data(j + 7 downto j) := r3.load_data1(j + 7 downto j);
+            when "10" =>
+                write_data(j + 7 downto j) := r3.load_data0(j + 7 downto j);
+            when "01" =>
+                write_data(j + 7 downto j) := data_permuted(j + 7 downto j);
+            when others =>
+                if r2.req.use_conv = '1' then
+                    -- lfs result
+                    write_data(j + 7 downto j) := load_dp_data(j + 7 downto j);
+                elsif r2.req.load = '1' then
+                    write_data(j + 7 downto j) := (others => negative and r2.req.sign_extend);
+                else
+                    -- update reg or SPR data
+                    write_data(j + 7 downto j) := r2.addr0(j + 7 downto j);
+                end if;
+            end case;
+
+            case r2.trim_ctl_lo(i) is
+            when "11" =>
+                write_data_lo(j + 7 downto j) := r3.load_data1(j + 7 downto j);
+            when "10" =>
+                write_data_lo(j + 7 downto j) := r3.load_data0(j + 7 downto j);
+            when "01" =>
+                write_data_lo(j + 7 downto j) := data_permuted(j + 7 downto j);
+            when others =>
+                write_data_lo(j + 7 downto j) := (others => '0');
             end case;
         end loop;
 
         if HAS_FPU then
             -- Single-precision FP conversion for loads
-            v.ld_sp_data := data_trimmed(31 downto 0);
-            v.ld_sp_nz := or (data_trimmed(22 downto 0));
-            v.ld_sp_lz := count_left_zeroes(data_trimmed(22 downto 0));
+            v.ld_sp_data := write_data(31 downto 0);
+            v.ld_sp_nz := or (write_data(22 downto 0));
+            v.ld_sp_lz := count_left_zeroes(write_data(22 downto 0));
         end if;
 
         if d_in.valid = '1' and r2.req.load = '1' then
-            v.load_data := data_permuted;
-            v.prev_data := data_trimmed;
+            v.load_data0 := data_permuted;
+            v.load_data1 := r3.load_data0;
         end if;
 
         hashchk_trap := '0';
@@ -1211,18 +1254,13 @@ begin
         end if;
 
         if r2.req.valid = '1' then
-            if r2.req.read_spr = '1' then
-                write_enable := '1';
-            end if;
+            write_enable := r2.req.read_spr or r2.req.use_conv or r2.req.immed_ld;
             if r2.req.align_intr = '1' then
                 -- generate alignment interrupt
                 exception := '1';
             end if;
             if r2.req.do_update = '1' then
                 do_update := '1';
-            end if;
-            if r2.req.load_sp = '1' and r2.req.dc_req = '0' then
-                write_enable := '1';
             end if;
             if r2.req.write_spr = '1' then
                 if r2.req.sprsel(3 downto 2) = "01" then
@@ -1343,32 +1381,6 @@ begin
                 end if;
             end if;
         end if;
-
-        case r2.wr_sel is
-        when "00" =>
-            -- update reg, SPR data, or constant zero
-            write_data := r2.addr0;
-        when "01" =>
-            -- lfs result
-            write_data := load_dp_data;
-        when "11" =>
-            -- first load data for BE vector load
-            write_data := r3.prev_data;
-        when others =>
-            -- load data
-            write_data := data_trimmed;
-        end case;
-
-        case r2.lo_wr_sel is
-        when "10" =>
-            -- LE vector load does low then high
-            write_data_lo := r3.prev_data;
-        when "11" =>
-            -- BE vector load does high then low
-            write_data_lo := data_trimmed;
-        when others =>
-            write_data_lo := (others => '0');
-        end case;
 
         -- Update outputs to dcache
         if r3.stage1_en = '1' then

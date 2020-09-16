@@ -27,7 +27,7 @@ struct log_entry {
 	u64	d1_valid: 1;
 	u64	d1_unit: 2;
 	u64	d1_part_nia: 4;
-	u64	d1_insn_type: 6;
+	u64	d1_insn_type: 7;
 	u64	d2_bypass_a: 1;
 	u64	d2_bypass_b: 1;
 	u64	d2_bypass_c: 1;
@@ -40,7 +40,7 @@ struct log_entry {
 	u64	e1_redirect: 1;
 	u64	e1_valid: 1;
 	u64	e1_write_enable: 1;
-	u64	e1_unused: 3;
+	u64	e1_unused: 2;
 
 	u64	e1_irq_state: 1;
 	u64	e1_irq: 1;
@@ -84,7 +84,7 @@ struct log_entry {
 #define PNIA(f)		(full_nia[log.f] & 0xff)
 
 const char *units[4] = { "--", "al", "ls", "fp" };
-const char *ops[64] =
+const char *ops[128] =
 {
 	"illegal", "nop    ", "add    ", "and    ", "attn   ", "b      ", "bc     ", "bcreg  ",
 	"bperm  ", "cmp    ", "cmpb   ", "cmpeqb ", "cmprb  ", "cntz   ", "crop   ", "darn   ",
@@ -94,6 +94,14 @@ const char *ops[64] =
 	"mtspr  ", "mull64 ", "mulh64 ", "mulh32 ", "or     ", "popcnt ", "prty   ", "rfid   ",
 	"rlc    ", "rlcl   ", "rlcr   ", "sc     ", "setb   ", "shl    ", "shr    ", "sync   ",
 	"tlbie  ", "trap   ", "vrld   ", "vrst   ", "xor    ", "bcd    ", "addg6s ", "ffail  ",
+	"?64    ", "?65    ", "?66    ", "?67    ", "?68    ", "?69    ", "?70    ", "?71    ", 
+	"?72    ", "?73    ", "?74    ", "?75    ", "?76    ", "?77    ", "?78    ", "?79    ", 
+	"?80    ", "?81    ", "?82    ", "?83    ", "?84    ", "?85    ", "?86    ", "?87    ",
+	"?88    ", "?89    ", "?90    ", "?91    ", "?92    ", "?93    ", "?94    ", "?95    ",
+	"?96    ", "?97    ", "?98    ", "?99    ", "?100   ", "?101   ", "?102   ", "?103   ",
+	"?104   ", "?105   ", "?106   ", "?107   ", "?108   ", "?109   ", "?110   ", "?111   ",
+	"?112   ", "?113   ", "?114   ", "?115   ", "?116   ", "?117   ", "?118   ", "?119   ",
+	"?120   ", "?121   ", "?122   ", "?123   ", "?124   ", "?125   ", "?126   ", "?127   "
 };
 
 const char *spr_names[13] =

@@ -328,8 +328,10 @@ architecture behaviour of decode1 is
         2#0100101100#  =>       (LDST, VOV,  OP_LOAD,      RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lxvx?
         2#1101101100#  =>       (LDST, VOV,  OP_VSXLDV,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxvb16x
         2#1101001100#  =>       (LDST, VSX,  OP_VSXLDV,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxvd2x
+        2#0101001100#  =>       (LDST, VSX,  OP_VSXLDSPLT, RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxvdsx
         2#1100101100#  =>       (LDST, VOV,  OP_VSXLDV,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxvh8x
         2#1100001100#  =>       (LDST, VSX,  OP_VSXLDV,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxvw4x
+        2#0101101100#  =>       (LDST, VSX,  OP_VSXLDSPLT, RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxvwsx
         2#0000010100#  =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '1', '0', '0', NONE, '0', '0', NONE), -- lwarx
         2#0101110101#  =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '1', '0', '0', '0', NONE, '0', '0', DUPD), -- lwaux
         2#0101010101#  =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lwax

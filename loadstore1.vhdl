@@ -97,6 +97,9 @@ architecture behave of loadstore1 is
         is_slbia     : std_ulogic;
         badop_intr   : std_ulogic;
         ncat_intr    : std_ulogic;
+        use_splat    : std_ulogic;
+        do_splat     : std_ulogic;
+        word_splat   : std_ulogic;
         dword_index  : std_ulogic;
         two_dwords   : std_ulogic;
         nia          : std_ulogic_vector(63 downto 0);
@@ -118,6 +121,7 @@ architecture behave of loadstore1 is
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
                                           sprn => 10x"0", is_slbia => '0', badop_intr => '0',
                                           ncat_intr => '0', dword_index => '0', two_dwords => '0',
+                                          use_splat => '0', do_splat => '0', word_splat => '0',
                                           nia => (others => '0'));
 
     type reg_stage1_t is record
@@ -146,6 +150,7 @@ architecture behave of loadstore1 is
         store_done   : std_ulogic;
         convert_lfs  : std_ulogic;
         load_data    : std_ulogic_vector(63 downto 0);
+        splat_data   : std_ulogic_vector(63 downto 0);
         dar          : std_ulogic_vector(63 downto 0);
         dsisr        : std_ulogic_vector(31 downto 0);
         ld_sp_data   : std_ulogic_vector(31 downto 0);
@@ -379,6 +384,7 @@ begin
         variable misaligned : std_ulogic;
         variable is_vector : std_ulogic;
         variable addr_mask : std_ulogic_vector(2 downto 0);
+        variable idx : unsigned(2 downto 0);
     begin
         v := request_init;
         sprn := std_ulogic_vector(to_unsigned(decode_spr_num(l_in.insn), 10));
@@ -425,6 +431,17 @@ begin
             -- VSX scalar load, set right half of destination to zero
             if l_in.second = '1' then
                 v.length := "0000";
+            end if;
+        end if;
+        if HAS_VECVSX and l_in.op = OP_VSXLDSPLT then
+            if l_in.length(3) = '0' then
+                v.word_splat := '1';
+            end if;
+            -- for second half set length to 0 to get splat data
+            if l_in.second = '1' then
+                v.length := "0000";
+            else
+                v.length := "1000";
             end if;
         end if;
 
@@ -517,6 +534,15 @@ begin
                         v.load_sp := l_in.is_32bit;
                     else
                         v.load_zero := '1';
+                    end if;
+                end if;
+            when OP_VSXLDSPLT =>
+                if HAS_VECVSX then
+                    if l_in.second = '0' then
+                        v.load := '1';
+                        v.do_splat := '1';
+                    else
+                        v.use_splat := '1';
                     end if;
                 end if;
             when OP_DCBF =>
@@ -669,7 +695,7 @@ begin
             v.wait_mmu := r1.req.valid and r1.req.mmu_op;
             v.one_cycle := r1.req.valid and (r1.req.noop or r1.req.read_spr or
                                              (r1.req.write_spr and not r1.req.mmu_op) or
-                                             r1.req.load_zero or r1.req.do_update);
+                                             r1.req.load_zero or r1.req.use_splat or r1.req.do_update);
             if r1.req.read_spr = '1' then
                 v.wr_sel := "00";
             elsif r1.req.do_update = '1' or r1.req.store = '1' then
@@ -683,6 +709,9 @@ begin
             -- Work out load formatter controls for next cycle
             for i in 0 to 7 loop
                 idx := to_unsigned(i, 3) xor r1.req.brev_mask;
+                if r1.req.word_splat = '1' then
+                    idx(2) := '0';
+                end if;
                 kk := ('0' & idx) + ('0' & byte_offset);
                 v.use_second(i) := kk(3);
                 v.byte_index(i) := kk(2 downto 0);
@@ -715,7 +744,6 @@ begin
         variable write_enable  : std_ulogic;
         variable write_data    : std_ulogic_vector(63 downto 0);
         variable do_update     : std_ulogic;
-        variable done          : std_ulogic;
         variable part_done     : std_ulogic;
         variable exception     : std_ulogic;
         variable data_permuted : std_ulogic_vector(63 downto 0);
@@ -731,7 +759,6 @@ begin
         req := '0';
         mmureq := '0';
         mmu_mtspr := '0';
-        done := '0';
         part_done := '0';
         exception := '0';
         dsisr := (others => '0');
@@ -773,7 +800,7 @@ begin
                     trim_ctl(i) := "10";
                 end if;
             else
-                trim_ctl(i) := "00";
+                trim_ctl(i) := '0' & r2.req.use_splat;
             end if;
         end loop;
 
@@ -783,6 +810,8 @@ begin
                     data_trimmed(i * 8 + 7 downto i * 8) := r3.load_data(i * 8 + 7 downto i * 8);
                 when "10" =>
                     data_trimmed(i * 8 + 7 downto i * 8) := data_permuted(i * 8 + 7 downto i * 8);
+                when "01" =>
+                    data_trimmed(i * 8 + 7 downto i * 8) := r3.splat_data(i * 8 + 7 downto i * 8);
                 when others =>
                     data_trimmed(i * 8 + 7 downto i * 8) := (others => negative and r2.req.sign_extend);
             end case;
@@ -797,6 +826,9 @@ begin
 
         if d_in.valid = '1' and r2.req.load = '1' then
             v.load_data := data_permuted;
+        end if;
+        if d_in.valid = '1' and r2.req.do_splat = '1' then
+            v.splat_data := data_trimmed;
         end if;
 
         if r2.req.valid = '1' then
@@ -814,6 +846,10 @@ begin
                     -- reading one of the SPRs in the MMU
                     sprval := m_in.sprval;
                 end if;
+            end if;
+            if r2.req.use_splat = '1' then
+                -- write splat data to destination
+                write_enable := '1';
             end if;
             if r2.req.badop_intr = '1' then
                 -- generate alignment interrupt or DSI

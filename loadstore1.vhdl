@@ -102,6 +102,9 @@ architecture behave of loadstore1 is
         ld_sp_lz     : std_ulogic_vector(5 downto 0);
         st_sp_data   : std_ulogic_vector(31 downto 0);
         do_wr_zero   : std_ulogic;
+        do_splat     : std_ulogic;
+        word_splat   : std_ulogic;
+        splat_data   : std_ulogic_vector(63 downto 0);
     end record;
 
     type byte_sel_t is array(0 to 7) of std_ulogic;
@@ -318,6 +321,7 @@ begin
         variable lfs_done : std_ulogic;
         variable is_vector : std_ulogic;
         variable addr_mask : std_ulogic_vector(2 downto 0);
+        variable idx : unsigned(2 downto 0);
     begin
         v := r;
         req := '0';
@@ -330,6 +334,7 @@ begin
         fp_reg_conv := '0';
         is_vector := '0';
         v.do_wr_zero := '0';
+        v.do_splat := '0';
 
         write_enable := '0';
         lfs_done := '0';
@@ -355,7 +360,11 @@ begin
 
         -- shift and byte-reverse data bytes
         for i in 0 to 7 loop
-            kk := ('0' & (to_unsigned(i, 3) xor brev_lenm1)) + ('0' & byte_offset);
+            idx := to_unsigned(i, 3) xor brev_lenm1;
+            if r.word_splat = '1' then
+                idx(2) := '0';
+            end if;
+            kk := ('0' & idx) + ('0' & byte_offset);
             use_second(i) := kk(3);
             j := to_integer(kk(2 downto 0)) * 8;
             data_permuted(i * 8 + 7 downto i * 8) := d_in.data(j + 7 downto j);
@@ -608,6 +617,7 @@ begin
             v.do_update := '0';
             v.extra_cycle := '0';
             v.is_vsx := '0';
+            v.word_splat := '0';
 
             if HAS_VECVSX and (l_in.op = OP_VRLOAD or l_in.op = OP_VRSTORE) then
                 is_vector := '1';
@@ -621,6 +631,12 @@ begin
                 -- VSX scalar load, set right half of destination to zero
                 if l_in.second = '1' then
                     v.length := "0000";
+                end if;
+            end if;
+            if HAS_VECVSX and l_in.op = OP_VSXLDSPLT then
+                v.length := "1000";
+                if l_in.length(3) = '0' then
+                    v.word_splat := '1';
                 end if;
             end if;
 
@@ -719,6 +735,16 @@ begin
                             v.state := COMPLETE;
                         end if;
                     end if;
+                when OP_VSXLDSPLT =>
+                    if HAS_VECVSX then
+                        v.load := '1';
+                        if l_in.second = '0' then
+                            req := '1';
+                        else
+                            v.do_splat := '1';
+                            v.state := COMPLETE;
+                        end if;
+                    end if;
                 when OP_DCBZ =>
                     v.align_intr := v.nc;
                     req := '1';
@@ -781,6 +807,10 @@ begin
             v.busy := req or mmureq or mmu_mtspr or fp_reg_conv;
         end if;
 
+        if write_enable = '1' then
+            v.splat_data := data_trimmed;
+        end if;
+
         -- Update outputs to dcache
         d_out.valid <= req and not v.align_intr;
         d_out.load <= v.load;
@@ -823,6 +853,10 @@ begin
             l_out.write_enable <= '1';
             l_out.write_reg <= r.write_reg;
             l_out.write_data <= load_dp_data;
+        elsif r.do_splat = '1' then
+            l_out.write_enable <= '1';
+            l_out.write_reg <= r.write_reg;
+            l_out.write_data <= r.splat_data;
         else
             l_out.write_enable <= write_enable;
             l_out.write_reg <= r.write_reg;

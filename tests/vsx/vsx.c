@@ -302,8 +302,14 @@ unsigned long do_vector_load(unsigned long size, unsigned long addr)
 	case 4:
 		asm("lxvw4x 37,0,%0; stvx 5,0,%1" : : "r" (addr), "r" (result) : "memory");
 		break;
+	case 5:
+		asm("lxvwsx 40,0,%0; stvx 8,0,%1" : : "r" (addr), "r" (result) : "memory");
+		break;
 	case 8:
 		asm("lxvd2x 38,0,%0; stvx 6,0,%1" : : "r" (addr), "r" (result) : "memory");
+		break;
+	case 9:
+		asm("lxvdsx 40,0,%0; stvx 8,0,%1" : : "r" (addr), "r" (result) : "memory");
 		break;
 	case 16:
 		asm("lxv 33,0(%0); stvx 1,0,%1" : : "b" (addr), "r" (result) : "memory");
@@ -379,6 +385,18 @@ int vsx_test_2(void)
 	for (i = 0; i < 16; ++i)
 		if (result[i ^ 8] != data[i + 9])
 			return 6;
+	ret = callit(5, (unsigned long)data + 9, do_vector_load);
+	if (ret)
+		return ret | 0x9000;
+	for (i = 0; i < 16; ++i)
+		if (result[i] != data[(i & 3) + 9])
+			return 7;
+	ret = callit(9, (unsigned long)data + 6, do_vector_load);
+	if (ret)
+		return ret | 0xa000;
+	for (i = 0; i < 16; ++i)
+		if (result[i] != data[(i & 7) + 6])
+			return 8;
 	return 0;
 }
 

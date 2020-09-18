@@ -4,7 +4,7 @@
 #
 
 for i in sc illegal decrementer xics privileged mmu misc modes pmu reservation \
-	trace fpu spr_read branch_alias vector ; do
+	trace fpu spr_read branch_alias vector vsx ; do
     cd $i
     make
     cd -

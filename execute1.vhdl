@@ -1110,7 +1110,7 @@ begin
 		v.busy := '1';
 		x_to_divider.valid <= '1';
 
-            when OP_VPERM | OP_VPACK =>
+            when OP_VPERM | OP_VPACK | OP_VMERGE =>
                 vec_valid <= '1';
                 if e_in.second = '0' then
                     v.e.valid := '0';

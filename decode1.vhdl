@@ -116,14 +116,28 @@ architecture behaviour of decode1 is
 
     -- indexed by bits 5..0 and 10..6 of instruction word
     constant decode_op_4_valid : minor_valid_array_2t := (
-        2#11000000000# to 2#11000011111# => '1',        -- maddhd
-        2#11000100000# to 2#11000111111# => '1',        -- maddhdu
-        2#11001100000# to 2#11001111111# => '1',        -- maddld
-        2#10101100000# to 2#10101111111# => '1',        -- vperm
-        2#11101100000# to 2#11101111111# => '1',        -- vpermr
-        2#00111000000#                   => '1',        -- vpkuhum
-        2#00111000001#                   => '1',        -- vpkuwum
-        2#00111010001#                   => '1',        -- vpkudum
+        2#110000_00000# to 2#110000_11111# => '1',        -- maddhd
+        2#110001_00000# to 2#110001_11111# => '1',        -- maddhdu
+        2#110011_00000# to 2#110011_11111# => '1',        -- maddld
+        2#001100_00000#                    => '1',        -- vmrghb
+        2#001100_00100#                    => '1',        -- vmrglb
+        2#001100_00001#                    => '1',        -- vmrghh
+        2#001100_00101#                    => '1',        -- vmrglh
+        2#001100_00010#                    => '1',        -- vmrghw
+        2#001100_00110#                    => '1',        -- vmrglw
+        2#001100_11110#                    => '1',        -- vmrgew
+        2#001100_11010#                    => '1',        -- vmrgow
+        2#001100_01000#                    => '1',        -- vspltb
+        2#001100_01001#                    => '1',        -- vsplth
+        2#001100_01100#                    => '1',        -- vspltisb
+        2#001100_01101#                    => '1',        -- vspltish
+        2#001100_01110#                    => '1',        -- vspltisw
+        2#001100_01010#                    => '1',        -- vspltw
+        2#101011_00000# to 2#101011_11111# => '1',        -- vperm
+        2#111011_00000# to 2#111011_11111# => '1',        -- vpermr
+        2#001110_00000#                    => '1',        -- vpkuhum
+        2#001110_00001#                    => '1',        -- vpkuwum
+        2#001110_10001#                    => '1',        -- vpkudum
         others => '0'
         );
 
@@ -134,6 +148,7 @@ architecture behaviour of decode1 is
         2#110000#  =>       (ALU, NONE, OP_MUL_H64,   RA,         RB,          RCR,  RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0', NONE), -- maddhd
         2#110001#  =>       (ALU, NONE, OP_MUL_H64,   RA,         RB,          RCR,  RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- maddhdu
         2#110011#  =>       (ALU, NONE, OP_MUL_L64,   RA,         RB,          RCR,  RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0', NONE), -- maddld
+        2#001100#  =>       (ALU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrg*/vsplt*
         2#101011#  =>       (ALU, VEC,  OP_VPERM,     VRA,        VRB,         VRC,  VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vperm
         2#111011#  =>       (ALU, VEC,  OP_VPERM,     VRA,        VRB,         VRC,  VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpermr
         2#001110#  =>       (ALU, VEC,  OP_VPACK,     VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpk*/vupk*

@@ -62,12 +62,13 @@ architecture behaviour of execute1 is
         prev_op : insn_type_t;
 	lr_update : std_ulogic;
 	next_lr : std_ulogic_vector(63 downto 0);
+        vec_in_progress : std_ulogic;
 	mul_in_progress : std_ulogic;
         mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
         cntz_in_progress : std_ulogic;
         slow_op_insn : insn_type_t;
-	slow_op_dest : gpr_index_t;
+	slow_op_dest : gspr_index_t;
 	slow_op_rc : std_ulogic;
 	slow_op_oe : std_ulogic;
 	slow_op_xerc : xer_common_t;
@@ -77,7 +78,7 @@ architecture behaviour of execute1 is
     constant reg_type_init : reg_type :=
         (e => Execute1ToWritebackInit, f => Execute1ToFetch1Init,
          busy => '0', lr_update => '0', terminate => '0',
-         fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL,
+         fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL, vec_in_progress => '0',
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
          slow_op_insn => OP_ILLEGAL, slow_op_rc => '0', slow_op_oe => '0', slow_op_xerc => xerc_init,
          next_lr => (others => '0'), last_nia => (others => '0'), others => (others => '0'));
@@ -96,6 +97,8 @@ architecture behaviour of execute1 is
     signal rotator_carry: std_ulogic;
     signal logical_result: std_ulogic_vector(63 downto 0);
     signal countzero_result: std_ulogic_vector(63 downto 0);
+    signal vec_result: std_ulogic_vector(63 downto 0);
+    signal vec_valid: std_ulogic;
 
     -- multiply signals
     signal x_to_multiply: MultiplyInputType;
@@ -266,6 +269,19 @@ begin
             err => random_err
             );
 
+    vector_0: entity work.vector_unit
+        port map (
+            clk             => clk,
+            rst             => rst,
+            vec_valid       => vec_valid,
+            vec_in_progress => r.vec_in_progress,
+            a_in            => a_in,
+            b_in            => b_in,
+            c_in            => c_in,
+            e_in            => e_in,
+            vec_result      => vec_result
+            );
+
     dbg_msr_out <= ctrl.msr;
     log_rd_addr <= r.log_addr_spr;
 
@@ -348,6 +364,7 @@ begin
         is_branch := '0';
         taken_branch := '0';
         abs_branch := '0';
+        vec_valid <= '0';
 
 	v := r;
 	v.e := Execute1ToWritebackInit;
@@ -401,6 +418,7 @@ begin
         end if;
 
 	v.lr_update := '0';
+        v.vec_in_progress := '0';
 	v.mul_in_progress := '0';
         v.div_in_progress := '0';
         v.cntz_in_progress := '0';
@@ -641,7 +659,7 @@ begin
 	    v.e.valid := '1';
 	    v.e.write_reg := e_in.write_reg;
             v.slow_op_insn := e_in.insn_type;
-	    v.slow_op_dest := gspr_to_gpr(e_in.write_reg);
+	    v.slow_op_dest := e_in.write_reg;
 	    v.slow_op_rc := e_in.rc;
 	    v.slow_op_oe := e_in.oe;
 	    v.slow_op_xerc := v.e.xerc;
@@ -1092,6 +1110,17 @@ begin
 		v.busy := '1';
 		x_to_divider.valid <= '1';
 
+            when OP_VPERM =>
+                vec_valid <= '1';
+                if e_in.second = '0' then
+                    v.e.valid := '0';
+                    v.busy := '1';
+                    v.vec_in_progress := '1';
+                else
+                    result := vec_result;
+                    result_en := '1';
+                end if;
+
             when others =>
 		v.terminate := '1';
 		report "illegal";
@@ -1158,11 +1187,21 @@ begin
 	    v.e.exc_write_data := r.next_lr;
 	    v.e.exc_write_reg := fast_spr_num(SPR_LR);
 	    v.e.valid := '1';
+        elsif r.vec_in_progress = '1' then
+            -- wait for the second half to be presented
+            if e_in.valid = '0' then
+                v.vec_in_progress := '1';
+            else
+                result := vec_result;
+                result_en := '1';
+                v.e.write_reg := r.slow_op_dest;
+                v.e.valid := '1';
+            end if;
         elsif r.cntz_in_progress = '1' then
             -- cnt[lt]z always takes two cycles
             result := countzero_result;
             result_en := '1';
-            v.e.write_reg := gpr_to_gspr(r.slow_op_dest);
+            v.e.write_reg := r.slow_op_dest;
             v.e.rc := r.slow_op_rc;
             v.e.xerc := r.slow_op_xerc;
             v.e.valid := '1';
@@ -1191,7 +1230,7 @@ begin
                     v.busy := '1';
                 else
                     result_en := '1';
-                    v.e.write_reg := gpr_to_gspr(r.slow_op_dest);
+                    v.e.write_reg := r.slow_op_dest;
                     v.e.rc := r.slow_op_rc;
                     v.e.xerc := r.slow_op_xerc;
                     v.e.write_xerc_enable := r.slow_op_oe;
@@ -1213,7 +1252,7 @@ begin
         elsif r.mul_finish = '1' then
             result := r.e.write_data;
             result_en := '1';
-            v.e.write_reg := gpr_to_gspr(r.slow_op_dest);
+            v.e.write_reg := r.slow_op_dest;
             v.e.rc := r.slow_op_rc;
             v.e.xerc := r.slow_op_xerc;
             v.e.write_xerc_enable := r.slow_op_oe;

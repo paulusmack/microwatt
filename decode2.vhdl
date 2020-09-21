@@ -84,6 +84,8 @@ architecture behaviour of decode2 is
             return ('0', (others => '0'), instr_addr);
         elsif HAS_FPU and t = FRA then
             return ('1', fpr_to_gspr(insn_fra(insn_in)), reg_data);
+        elsif HAS_VECVSX and t = VRA then
+            return ('1', vr_to_gspr(insn_vra(insn_in)), reg_data);
         else
             return ('0', (others => '0'), (others => '0'));
         end if;
@@ -100,6 +102,12 @@ architecture behaviour of decode2 is
             when FRB =>
                 if HAS_FPU then
                     ret := ('1', fpr_to_gspr(insn_frb(insn_in)), reg_data);
+                else
+                    ret := ('0', (others => '0'), (others => '0'));
+                end if;
+            when VRB =>
+                if HAS_VECVSX then
+                    ret := ('1', vr_to_gspr(insn_vrb(insn_in)), reg_data);
                 else
                     ret := ('0', (others => '0'), (others => '0'));
                 end if;
@@ -159,6 +167,12 @@ architecture behaviour of decode2 is
             when FRC =>
                 if HAS_FPU then
                     return ('1', fpr_to_gspr(insn_frc(insn_in)), reg_data);
+                else
+                    return ('0', (others => '0'), (others => '0'));
+                end if;
+            when VRC =>
+                if HAS_VECVSX then
+                    return ('1', vr_to_gspr(insn_vrc(insn_in)), reg_data);
                 else
                     return ('0', (others => '0'), (others => '0'));
                 end if;
@@ -402,6 +416,12 @@ begin
                     if r.repeat = d_in.big_endian then
                         decoded_reg_o.reg(0) := '1';
                     end if;
+                when DABCT =>
+                    -- do RA,RA|1; RB,RB|1; RC,RC|1; RT,RT|1
+                    decoded_reg_a.reg(0) := r.repeat;
+                    decoded_reg_b.reg(0) := r.repeat;
+                    decoded_reg_c.reg(0) := r.repeat;
+                    decoded_reg_o.reg(0) := r.repeat;
                 when others =>
             end case;
         end if;

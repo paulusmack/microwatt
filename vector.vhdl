@@ -175,6 +175,101 @@ begin
                             v.perm_sel(k + 31 downto k + 24) := std_ulogic_vector(to_unsigned(m + 3, 8));
                         end loop;
                     end if;
+                when OP_VMERGE =>
+                    case e_in.insn(10 downto 6) is
+                        when "01000" =>
+                            -- vspltb
+                            for i in 0 to 7 loop
+                                k := i * 8;
+                                v.perm_sel(k + 7 downto k) := "0000" & not e_in.insn(19 downto 16);
+                            end loop;
+                        when "01001" =>
+                            -- vsplth
+                            for i in 0 to 3 loop
+                                k := i * 16;
+                                v.perm_sel(k + 7 downto k) := "0000" & not e_in.insn(18 downto 16) & '0';
+                                v.perm_sel(k + 15 downto k + 8) := "0000" & not e_in.insn(18 downto 16) & '1';
+                            end loop;
+                        when "01010" =>
+                            -- vspltw
+                            for i in 0 to 1 loop
+                                k := i * 32;
+                                v.perm_sel(k + 7 downto k) := "0000" & not e_in.insn(17 downto 16) & "00";
+                                v.perm_sel(k + 15 downto k + 8) := "0000" & not e_in.insn(17 downto 16) & "01";
+                                v.perm_sel(k + 23 downto k + 16) := "0000" & not e_in.insn(17 downto 16) & "10";
+                                v.perm_sel(k + 31 downto k + 24) := "0000" & not e_in.insn(17 downto 16) & "11";
+                            end loop;
+                        when "01100" =>
+                            -- vspltisb
+                            v.b0 := std_ulogic_vector(resize(signed(e_in.insn(20 downto 16)), 64));
+                            v.perm_sel := x"0808080808080808";
+                        when "01101" =>
+                            -- vspltish
+                            v.b0 := std_ulogic_vector(resize(signed(e_in.insn(20 downto 16)), 64));
+                            v.perm_sel := x"0908090809080908";
+                        when "01110" =>
+                            -- vspltisw
+                            v.b0 := std_ulogic_vector(resize(signed(e_in.insn(20 downto 16)), 64));
+                            v.perm_sel := x"0b0a09080b0a0908";
+                        when "00000" =>
+                            -- vmrghb
+                            if e_in.second = '0' then
+                                v.perm_sel := x"1f0f1e0e1d0d1c0c";
+                            else
+                                v.perm_sel := x"1b0b1a0a19091808";
+                            end if;
+                        when "00100" =>
+                            -- vmrglb
+                            if e_in.second = '0' then
+                                v.perm_sel := x"1707160615051404";
+                            else
+                                v.perm_sel := x"1303120211011000";
+                            end if;
+                        when "00001" =>
+                            -- vmrghh
+                            if e_in.second = '0' then
+                                v.perm_sel := x"1f1e0f0e1d1c0d0c";
+                            else
+                                v.perm_sel := x"1b1a0b0a19180908";
+                            end if;
+                        when "00101" =>
+                            -- vmrglh
+                            if e_in.second = '0' then
+                                v.perm_sel := x"1716070615140504";
+                            else
+                                v.perm_sel := x"1312030211100100";
+                            end if;
+                        when "00010" =>
+                            -- vmrghw
+                            if e_in.second = '0' then
+                                v.perm_sel := x"1f1e1d1c0f0e0d0c";
+                            else
+                                v.perm_sel := x"1b1a19180b0a0908";
+                            end if;
+                        when "00110" =>
+                            -- vmrglw
+                            if e_in.second = '0' then
+                                v.perm_sel := x"1716151407060504";
+                            else
+                                v.perm_sel := x"1312111003020100";
+                            end if;
+                        when "11110" =>
+                            -- vmrgew
+                            if e_in.second = '0' then
+                                v.perm_sel := x"1f1e1d1c0f0e0d0c";
+                            else
+                                v.perm_sel := x"1716151407060504";
+                            end if;
+                        when "11010" =>
+                            -- vmrgow
+                            if e_in.second = '0' then
+                                v.perm_sel := x"1b1a19180b0a0908";
+                            else
+                                v.perm_sel := x"1312111003020100";
+                            end if;
+                        when others =>
+                            v.perm_sel := (others => '0');
+                    end case;
                 when others =>
                     v.perm_sel := (others => '0');
             end case;

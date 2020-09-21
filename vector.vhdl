@@ -60,12 +60,52 @@ begin
             v.b0 := b_in;
         end if;
         if e_in.valid = '1' then
-            if e_in.insn(4) = '0' then
-                -- vperm
-                v.perm_sel := not c_in;
+            if e_in.insn(5) = '1' then
+                -- OP_VPERM
+                if e_in.insn(4) = '0' then
+                    -- vperm
+                    v.perm_sel := not c_in;
+                else
+                    -- vpermr
+                    v.perm_sel := c_in;
+                end if;
             else
-                -- vpermr
-                v.perm_sel := c_in;
+                -- OP_VPACK
+                if e_in.insn(6) = '0' then
+                    -- vpkuhum
+                    for i in 0 to 7 loop
+                        k := i * 8;
+                        m := i * 2;
+                        if e_in.second = '0' then
+                            m := m + 16;
+                        end if;
+                        v.perm_sel(k + 7 downto k) := std_ulogic_vector(to_unsigned(m, 8));
+                    end loop;
+                elsif e_in.insn(10) = '0' then
+                    -- vpkuwum
+                    for i in 0 to 3 loop
+                        k := i * 16;
+                        m := i * 4;
+                        if e_in.second = '0' then
+                            m := m + 16;
+                        end if;
+                        v.perm_sel(k + 7 downto k) := std_ulogic_vector(to_unsigned(m, 8));
+                        v.perm_sel(k + 15 downto k + 8) := std_ulogic_vector(to_unsigned(m + 1, 8));
+                    end loop;
+                else
+                    -- vpkudum
+                    for i in 0 to 1 loop
+                        k := i * 32;
+                        m := i * 8;
+                        if e_in.second = '0' then
+                            m := m + 16;
+                        end if;
+                        v.perm_sel(k + 7 downto k) := std_ulogic_vector(to_unsigned(m, 8));
+                        v.perm_sel(k + 15 downto k + 8) := std_ulogic_vector(to_unsigned(m + 1, 8));
+                        v.perm_sel(k + 23 downto k + 16) := std_ulogic_vector(to_unsigned(m + 2, 8));
+                        v.perm_sel(k + 31 downto k + 24) := std_ulogic_vector(to_unsigned(m + 3, 8));
+                    end loop;
+                end if;
             end if;
         end if;
 

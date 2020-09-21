@@ -253,13 +253,25 @@ unsigned long do_vperm(unsigned long x, unsigned long y)
 		asm("lvx 0,0,%0; lvx 1,0,%1; lvx 2,0,%2; vpermr 3,0,1,2; stvx 3,0,%3" : :
 		    "r" (a), "r" (b), "r" (c), "r" (result) : "memory");
 		break;
+	case 3:
+		asm("lvx 0,0,%0; lvx 1,0,%1; vpkuhum 3,0,1; stvx 3,0,%2" : :
+		    "r" (a), "r" (b), "r" (result) : "memory");
+		break;
+	case 4:
+		asm("lvx 0,0,%0; lvx 1,0,%1; vpkuwum 3,0,1; stvx 3,0,%2" : :
+		    "r" (a), "r" (b), "r" (result) : "memory");
+		break;
+	case 5:
+		asm("lvx 0,0,%0; lvx 1,0,%1; vpkudum 3,0,1; stvx 3,0,%2" : :
+		    "r" (a), "r" (b), "r" (result) : "memory");
+		break;
 	default:
 		return 0xff000 | x;
 	}
 	return 0;
 }
 
-/* test vperm and vpermr */
+/* test vperm, vpermr, vpku*um */
 int vector_test_3(void)
 {
 	unsigned long ret, i, j, v;
@@ -302,6 +314,40 @@ int vector_test_3(void)
 				return 0x200 | (j << 4) | i;
 		}
 	}
+	ret = callit(3, 0, do_vperm);
+	if (ret)
+		return ret | 0x4000;
+	for (i = 0; i < 8; ++i)
+		if (result[i] != 0xb0 + (i * 2))
+			return 1;
+	for (; i < 16; ++i)
+		if (result[i] != 0xa0 + ((i - 8) * 2))
+			return 2;
+	ret = callit(4, 0, do_vperm);
+	if (ret)
+		return ret | 0x5000;
+	for (i = 0; i < 8; i += 2)
+		if (result[i] != 0xb0 + (i * 2) || result[i+1] != 0xb0 + (i * 2) + 1)
+			return 3;
+	for (; i < 16; i += 2)
+		if (result[i] != 0xa0 + ((i - 8) * 2) ||
+		    result[i+1] != 0xa0 + ((i - 8) * 2) + 1)
+			return 4;
+	ret = callit(5, 0, do_vperm);
+	if (ret)
+		return ret | 0x6000;
+	for (i = 0; i < 8; i += 4)
+		if (result[i] != 0xb0 + (i * 2) ||
+		    result[i+1] != 0xb0 + (i * 2) + 1 ||
+		    result[i+2] != 0xb0 + (i * 2) + 2 ||
+		    result[i+3] != 0xb0 + (i * 2) + 3)
+			return 5;
+	for (; i < 16; i += 4)
+		if (result[i] != 0xa0 + ((i - 8) * 2) ||
+		    result[i+1] != 0xa0 + ((i - 8) * 2) + 1 ||
+		    result[i+2] != 0xa0 + ((i - 8) * 2) + 2 ||
+		    result[i+3] != 0xa0 + ((i - 8) * 2) + 3)
+			return 6;
 	return 0;
 }
 

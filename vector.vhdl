@@ -100,6 +100,7 @@ begin
     vector_1: process(all)
         variable v    : vec_state;
         variable k, m : integer;
+        variable b    : std_ulogic;
         variable sum  : unsigned(7 downto 0);
         variable lvs_result : std_ulogic_vector(63 downto 0);
     begin
@@ -281,6 +282,17 @@ begin
                         when others =>
                             v.perm_sel := (others => '0');
                     end case;
+                when OP_XPERM =>
+                    if e_in.second = '0' then
+                        b := e_in.insn(9);
+                    else
+                        b := e_in.insn(8);
+                    end if;
+                    for i in 0 to 7 loop
+                        k := i * 8;
+                        v.perm_sel(k + 7 downto k) := "000" & not e_in.second &
+                                                      not b & std_ulogic_vector(to_unsigned(i, 3));
+                    end loop;
                 when others =>
                     v.perm_sel := (others => '0');
             end case;

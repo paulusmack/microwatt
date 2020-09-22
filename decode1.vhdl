@@ -66,6 +66,7 @@ architecture behaviour of decode1 is
     type op_19_subop_array_t is array(0 to 7) of decode_rom_t;
     type op_30_subop_array_t is array(0 to 15) of decode_rom_t;
     type op_31_subop_array_t is array(0 to 1023) of decode_rom_t;
+    type op_60_subop_array_t is array(0 to 255) of decode_rom_t;
     type op_59_subop_array_t is array(0 to 31) of decode_rom_t;
     type minor_rom_array_2_t is array(0 to 3) of decode_rom_t;
     type op_61_subop_array_t is array(0 to 7) of decode_rom_t;
@@ -520,6 +521,22 @@ architecture behaviour of decode1 is
         others => illegal_inst
         );
 
+    -- indexed by bits 5..3 and 10..6 of instruction word
+    constant decode_op_60_array : op_60_subop_array_t := (
+        --                   unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
+        --                                   op                                            in   out   A   out  in    out  len        ext                                 pipe
+        2#010_00001#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
+        2#010_00101#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
+        2#010_01001#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
+        2#010_01101#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
+        others   => illegal_inst
+        );
+
+    -- indexed by bits 10..1 of instruction word
+    constant decode_op_60_invalid : minor_valid_array_t := (
+        others => '0'
+        );
+
     -- indexed by bits 2..0 of instruction word
     constant decode_op_61_array : op_61_subop_array_t := (
         --             unit  fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
@@ -649,6 +666,7 @@ begin
         variable majorop : major_opcode_t;
         variable minor4op : std_ulogic_vector(8 downto 0);
         variable op_19_bits: std_ulogic_vector(2 downto 0);
+        variable minor60op : std_ulogic_vector(7 downto 0);
         variable sprn : spr_num_t;
         variable br_target : std_ulogic_vector(61 downto 0);
         variable br_offset : signed(23 downto 0);
@@ -798,6 +816,11 @@ begin
                     vi.override := '1';
                 end if;
             end if;
+
+        when 60 =>
+            minor60op := f_in.insn(5 downto 3) & f_in.insn(10 downto 6);
+            v.decode := decode_op_60_array(to_integer(unsigned(minor60op)));
+            vi.override := decode_op_60_invalid(to_integer(unsigned(f_in.insn(10 downto 1))));
 
         when 61 =>
             if HAS_VECVSX then

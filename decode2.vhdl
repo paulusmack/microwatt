@@ -89,6 +89,8 @@ architecture behaviour of decode2 is
             return ('1', fpr_to_gspr(insn_fra(insn_in)), reg_data);
         elsif HAS_VECVSX and t = VRA then
             return ('1', vr_to_gspr(insn_vra(insn_in)), reg_data);
+        elsif HAS_VECVSX and t = XA then
+            return ('1', vsr_to_gspr(insn_xa(insn_in)), reg_data);
         else
             return ('0', (others => '0'), (others => '0'));
         end if;
@@ -111,6 +113,12 @@ architecture behaviour of decode2 is
             when VRB =>
                 if HAS_VECVSX then
                     ret := ('1', vr_to_gspr(insn_vrb(insn_in)), reg_data);
+                else
+                    ret := ('0', (others => '0'), (others => '0'));
+                end if;
+            when XB =>
+                if HAS_VECVSX then
+                    ret := ('1', vsr_to_gspr(insn_xb(insn_in)), reg_data);
                 else
                     ret := ('0', (others => '0'), (others => '0'));
                 end if;

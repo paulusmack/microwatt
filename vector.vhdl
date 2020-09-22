@@ -28,11 +28,13 @@ architecture behaviour of vector_unit is
     
     -- State for vector instructions
     type vec_state is record
+        ni       : std_ulogic;          -- non-IEEE mode
+        sat      : std_ulogic;          -- saturation flag
         a0       : std_ulogic_vector(63 downto 0);
         b0       : std_ulogic_vector(63 downto 0);
         perm_sel : std_ulogic_vector(63 downto 0);
     end record;
-    constant vec_state_init : vec_state := (others => (others => '0'));
+    constant vec_state_init : vec_state := (ni => '0', sat => '0', others => (others => '0'));
 
     signal vst, vst_in : vec_state;
 
@@ -54,8 +56,9 @@ begin
         variable k, m, n      : integer;
         variable data         : std_ulogic_vector(255 downto 0);
         variable sum          : unsigned(7 downto 0);
-        variable lvs_result   : std_ulogic_vector(63 downto 0);
         variable vperm_result : std_ulogic_vector(63 downto 0);
+        variable lvs_result   : std_ulogic_vector(63 downto 0);
+        variable vscr_result  : std_ulogic_vector(63 downto 0);
     begin
         v := vst;
         if e_in.valid = '1' and e_in.second = '0' then
@@ -231,7 +234,22 @@ begin
             lvs_result(k + 7 downto k) := std_ulogic_vector(sum + to_unsigned(7 - i, 8));
         end loop;
 
+        -- compute result for mfvscr
+        vscr_result := (others => '0');
+        if e_in.second = '1' then
+            vscr_result(16) := vst.ni;
+            vscr_result(0) := vst.sat;
+        end if;
+
+        -- execute mtvscr
+        if vec_valid = '1' and e_in.insn_type = OP_MTVSCR and e_in.second = '1' then
+            v.ni := b_in(16);
+            v.sat := b_in(0);
+        end if;
+
         case e_in.insn_type is
+            when OP_MFVSCR =>
+                vec_result <= vscr_result;
             when OP_LVS =>
                 vec_result <= lvs_result;
             when others =>

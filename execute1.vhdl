@@ -1121,10 +1121,13 @@ begin
                     result_en := '1';
                 end if;
 
-            when OP_LVS =>
+            when OP_LVS | OP_MFVSCR =>
                 vec_valid <= '1';
                 result := vec_result;
                 result_en := '1';
+
+            when OP_MTVSCR =>
+                vec_valid <= '1';
 
             when others =>
 		v.terminate := '1';

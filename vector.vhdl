@@ -38,13 +38,15 @@ architecture behaviour of vector_unit is
         itag     : instr_tag_t;
         part1    : std_ulogic;
         part2    : std_ulogic;
+        ni       : std_ulogic;          -- non-IEEE mode
+        sat      : std_ulogic;          -- saturation flag
         e        : VectorToExecute1Type;
         w        : VectorToWritebackType;
     end record;
     constant vec_state_init : vec_state := (e => VectorToExecute1Init, w => VectorToWritebackInit,
                                             writes => '0', wr_reg => (others => '0'), wr_cr => '0',
                                             op => OP_ILLEGAL, rsel => "000", itag => instr_tag_init,
-                                            part1 => '0', part2 => '0',
+                                            part1 => '0', part2 => '0', ni => '0', sat => '0',
                                             others => (others => '0'));
 
     signal vst, vst_in : vec_state;
@@ -55,6 +57,7 @@ architecture behaviour of vector_unit is
     signal a1_in        : std_ulogic_vector(63 downto 0);
     signal b1_in        : std_ulogic_vector(63 downto 0);
     signal vperm_result : std_ulogic_vector(63 downto 0);
+    signal vscr_result  : std_ulogic_vector(63 downto 0);
     signal perm_data    : std_ulogic_vector(255 downto 0);
     signal vec_result   : std_ulogic_vector(63 downto 0);
     signal vec_cr6      : std_ulogic_vector(3 downto 0);
@@ -79,6 +82,7 @@ begin
     end generate;
 
     with vst.rsel select vec_result <=
+        vscr_result  when "000",
         vst.result   when "001",
         vperm_result when others;
 
@@ -298,6 +302,16 @@ begin
         end loop;
         if e_in.valid = '1' then
             v.result := lvs_result;
+        end if;
+
+        -- compute result for mfvscr
+        vscr_result <= (16 => vst.ni and vst.part2,
+                        0 => vst.sat and vst.part2, others => '0');
+
+        -- execute mtvscr
+        if e_in.valid = '1' and e_in.insn_type = OP_MTVSCR and e_in.second = '1' then
+            v.ni := b_in(16);
+            v.sat := b_in(0);
         end if;
 
         -- Set up outputs to writeback

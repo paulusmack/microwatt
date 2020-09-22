@@ -301,6 +301,7 @@ architecture behaviour of decode2 is
         OP_VPACK    => "111",
         OP_VMERGE   => "111",
         OP_LVS      => "001",
+        OP_MFVSCR   => "000",
         others      => "000"            -- default to adder_result
         );
 

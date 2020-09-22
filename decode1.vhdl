@@ -142,6 +142,8 @@ architecture behaviour of decode1 is
     constant decode_op_4l_array : op_4l_subop_array_t := (
         --                   unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
         --                                   op                                            in   out   A   out  in    out  len        ext                                 pipe
+        2#0100_11001# =>    (VSU, VEC,  OP_MTVSCR,    NONE,       VRB,         NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- mtvscr
+        2#0100_11000# =>    (VSU, VEC,  OP_MFVSCR,    NONE,       NONE,        NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- mfvscr
         2#1100_00000# =>    (VSU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrghb
         2#1100_00100# =>    (VSU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrglb
         2#1100_00001# =>    (VSU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrghh

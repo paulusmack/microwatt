@@ -1121,6 +1121,11 @@ begin
                     result_en := '1';
                 end if;
 
+            when OP_LVS =>
+                vec_valid <= '1';
+                result := vec_result;
+                result_en := '1';
+
             when others =>
 		v.terminate := '1';
 		report "illegal";

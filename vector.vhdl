@@ -53,6 +53,9 @@ begin
         variable v            : vec_state;
         variable k, m, n      : integer;
         variable data         : std_ulogic_vector(255 downto 0);
+        variable sum          : unsigned(7 downto 0);
+        variable lvs_result   : std_ulogic_vector(63 downto 0);
+        variable vperm_result : std_ulogic_vector(63 downto 0);
     begin
         v := vst;
         if e_in.valid = '1' and e_in.second = '0' then
@@ -210,8 +213,30 @@ begin
             k := i * 8;
             m := to_integer(unsigned(vst.perm_sel(k + 4 downto k)));
             n := m * 8;
-            vec_result(k + 7 downto k) <= data(n + 7 downto n);
+            vperm_result(k + 7 downto k) := data(n + 7 downto n);
         end loop;
+
+        -- compute result for lvsl or lvsr
+        sum := (others => '0');
+        sum(3 downto 0) := unsigned(a_in(3 downto 0)) + unsigned(b_in(3 downto 0));
+        if e_in.insn(6) = '1' then
+            -- lvsr
+            sum := to_unsigned(16, 8) - sum;
+        end if;
+        if e_in.second = '1' then
+            sum := sum + to_unsigned(8, 8);
+        end if;
+        for i in 0 to 7 loop
+            k := i * 8;
+            lvs_result(k + 7 downto k) := std_ulogic_vector(sum + to_unsigned(7 - i, 8));
+        end loop;
+
+        case e_in.insn_type is
+            when OP_LVS =>
+                vec_result <= lvs_result;
+            when others =>
+                vec_result <= vperm_result;
+        end case;
 
         -- update state
         vst_in <= v;

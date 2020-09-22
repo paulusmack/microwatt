@@ -327,6 +327,8 @@ architecture behaviour of decode1 is
         2#0000000111#  =>       (LDST, VEC,  OP_VRLOAD,    RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lvebx
         2#0000100111#  =>       (LDST, VEC,  OP_VRLOAD,    RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lvehx
         2#0001000111#  =>       (LDST, VEC,  OP_VRLOAD,    RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lvewx
+        2#0000000110#  =>       (ALU,  VEC,  OP_LVS,       RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lvsl
+        2#0000100110#  =>       (ALU,  VEC,  OP_LVS,       RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lvsr
         2#0001100111#  =>       (LDST, VEC,  OP_VRLOAD,    RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lvx
         2#0101100111#  =>       (LDST, VEC,  OP_VRLOAD,    RA_OR_ZERO, RB,          NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lvxl
         2#1001001100#  =>       (LDST, VSX,  OP_VSXLDS,    RA_OR_ZERO, RB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRT ), -- lxsdx

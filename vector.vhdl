@@ -251,6 +251,7 @@ begin
         variable sum  : unsigned(7 downto 0);
         variable lvs_result : std_ulogic_vector(63 downto 0);
         variable log_result : std_ulogic_vector(63 downto 0);
+        variable move_result: std_ulogic_vector(63 downto 0);
         variable all0, all1 : std_ulogic;
     begin
         v := vst;
@@ -498,12 +499,38 @@ begin
                 log_result := a_in xnor b_in;
         end case;
 
+        -- mtvsr* result (mfvsr* is done in execute1)
+        if e_in.second = '0' then
+            move_result := a_in;
+        elsif e_in.insn(9) = '1' then
+            -- mtvsrdd or mtvsrws
+            if e_in.insn(6) = '1' then
+                move_result := b_in;        -- mtvsrdd
+            else
+                move_result := a_in;        -- mtvsrws
+            end if;
+        else
+            move_result := (others => '0');
+        end if;
+        if e_in.is_32bit = '1' then
+            if e_in.insn(9) = '1' then
+                -- mtvsrws
+                move_result(63 downto 32) := move_result(31 downto 0);
+            else
+                b := e_in.sign_extend and move_result(31);
+                move_result(63 downto 32) := (others => b);
+            end if;
+        end if;
+
+        -- Stash away result for ops which compute their result in the first cycle
         if e_in.valid = '1' then
             case e_in.sub_select is
                 when "000" =>
                     v.result := lvs_result;
-                when others =>
+                when "001" =>
                     v.result := log_result;
+                when others =>
+                    v.result := move_result;
             end case;
         end if;
 

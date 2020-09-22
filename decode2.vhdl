@@ -304,6 +304,7 @@ architecture behaviour of decode2 is
         OP_MFMSR    => "111",
         OP_MFCR     => "111",
         OP_SETB     => "111",
+        OP_MFROMV   => "111",
         -- The following are used in the vector unit to select vec_result
         OP_VCMP     => "010",
         OP_VPERM    => "111",
@@ -311,6 +312,7 @@ architecture behaviour of decode2 is
         OP_VMERGE   => "111",
         OP_LVS      => "001",
         OP_VLOG     => "001",
+        OP_VMOVE    => "001",
         OP_MFVSCR   => "000",
         others      => "000"            -- default to adder_result
         );
@@ -328,6 +330,7 @@ architecture behaviour of decode2 is
         OP_MFMSR   => "100",
         OP_MFCR    => "101",
         OP_SETB    => "110",
+        OP_MFROMV  => "111",
         OP_CMP     => "000",            -- cr_result
         OP_CMPRB   => "001",
         OP_CMPEQB  => "010",
@@ -337,6 +340,7 @@ architecture behaviour of decode2 is
         -- The following are used in the vector unit to select vst.result
         OP_LVS     => "000",
         OP_VLOG    => "001",
+        OP_VMOVE   => "010",
         others     => "000"
         );
 
@@ -561,7 +565,9 @@ begin
             illegal := '1';
         end if;
 
-        if d_in.decode.repeat /= NONE then
+        if d_in.decode.repeat = SGLS then
+            decoded_reg_c.reg(0) := '1';
+        elsif d_in.decode.repeat /= NONE then
             v.e.repeat := '1';
             v.e.second := r.repeat;
             case d_in.decode.repeat is

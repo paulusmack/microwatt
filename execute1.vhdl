@@ -364,6 +364,7 @@ begin
 	variable darn : std_ulogic_vector(63 downto 0);
 	variable setb_result : std_ulogic_vector(63 downto 0);
 	variable mfcr_result : std_ulogic_vector(63 downto 0);
+	variable vmove_result : std_ulogic_vector(63 downto 0);
 	variable lo, hi : integer;
 	variable l : std_ulogic;
         variable zerohi, zerolo : std_ulogic;
@@ -556,6 +557,14 @@ begin
                     setb_result(0) := '1';
                 end if;
                 misc_result <= setb_result;
+            when "111" =>
+                -- mfvsrd, mfvsrld, mfvsrwz done here not in vector unit
+                -- because they don't get doubled
+                vmove_result := c_in;
+                if e_in.is_32bit = '1' then
+                    vmove_result(63 downto 32) := 32x"0";
+                end if;
+                misc_result <= vmove_result;
             when others =>
                 misc_result <= (others => '0');
         end case;
@@ -1128,6 +1137,8 @@ begin
 		v.busy := '1';
 		x_to_divider.valid <= '1';
 
+            when OP_MFROMV =>
+
             when others =>
 		v.terminate := '1';
 		report "unknown insn_type";
@@ -1295,6 +1306,8 @@ begin
         -- Outputs to vector unit
         vv.instr_tag := e_in.instr_tag;
         vv.insn_type := e_in.insn_type;
+        vv.is_32bit := e_in.is_32bit;
+        vv.sign_extend := e_in.sign_extend;
         vv.result_sel := e_in.result_sel;
         vv.sub_select := e_in.sub_select;
         vv.nia := e_in.nia;

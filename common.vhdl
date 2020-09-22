@@ -661,6 +661,8 @@ package common is
         valid            : std_ulogic;
         instr_tag        : instr_tag_t;
         insn_type        : insn_type_t;
+	is_32bit         : std_ulogic;
+	sign_extend      : std_ulogic;
         result_sel       : std_ulogic_vector(2 downto 0);
         sub_select       : std_ulogic_vector(2 downto 0);
         nia              : std_ulogic_vector(63 downto 0);

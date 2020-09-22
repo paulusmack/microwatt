@@ -29,10 +29,12 @@ architecture behaviour of vector_unit is
         a1       : std_ulogic_vector(63 downto 0);
         b1       : std_ulogic_vector(63 downto 0);
         perm_sel : std_ulogic_vector(63 downto 0);
+        result   : std_ulogic_vector(63 downto 0);
         writes   : std_ulogic;
         wr_reg   : gspr_index_t;
         wr_cr    : std_ulogic;
         op       : insn_type_t;
+        rsel     : std_ulogic_vector(2 downto 0);
         itag     : instr_tag_t;
         part1    : std_ulogic;
         part2    : std_ulogic;
@@ -41,7 +43,7 @@ architecture behaviour of vector_unit is
     end record;
     constant vec_state_init : vec_state := (e => VectorToExecute1Init, w => VectorToWritebackInit,
                                             writes => '0', wr_reg => (others => '0'), wr_cr => '0',
-                                            op => OP_ILLEGAL, itag => instr_tag_init,
+                                            op => OP_ILLEGAL, rsel => "000", itag => instr_tag_init,
                                             part1 => '0', part2 => '0',
                                             others => (others => '0'));
 
@@ -76,7 +78,9 @@ begin
                       to_integer(unsigned(vst.perm_sel(i*8 + 4 downto i*8))) * 8);
     end generate;
 
-    vec_result <= vperm_result;
+    with vst.rsel select vec_result <=
+        vst.result   when "001",
+        vperm_result when others;
 
     vector_0: process(clk)
     begin
@@ -92,6 +96,8 @@ begin
     vector_1: process(all)
         variable v    : vec_state;
         variable k, m : integer;
+        variable sum  : unsigned(7 downto 0);
+        variable lvs_result : std_ulogic_vector(63 downto 0);
     begin
         v := vst;
         v.e.busy := '0';
@@ -111,6 +117,7 @@ begin
             if e_in.second = '0' then
                 v.part1 := '1';
                 v.e.in_progress := '1';
+                v.rsel := e_in.result_sel;
             else
                 v.part1 := '0';
                 v.part2 := '1';
@@ -275,6 +282,25 @@ begin
             end case;
         end if;
 
+        -- compute result for lvsl or lvsr
+        sum := (others => '0');
+        sum(3 downto 0) := unsigned(a_in(3 downto 0)) + unsigned(b_in(3 downto 0));
+        if e_in.insn(6) = '1' then
+            -- lvsr
+            sum := to_unsigned(16, 8) - sum;
+        end if;
+        if e_in.second = '1' then
+            sum := sum + to_unsigned(8, 8);
+        end if;
+        for i in 0 to 7 loop
+            k := i * 8;
+            lvs_result(k + 7 downto k) := std_ulogic_vector(sum + to_unsigned(7 - i, 8));
+        end loop;
+        if e_in.valid = '1' then
+            v.result := lvs_result;
+        end if;
+
+        -- Set up outputs to writeback
         v.w.valid := (vst.part1 and e_in.valid) or vst.part2;
         v.w.instr_tag := vst.itag;
         v.w.write_enable := v.w.valid and vst.writes;

@@ -1294,6 +1294,7 @@ begin
         -- Outputs to vector unit
         vv.instr_tag := e_in.instr_tag;
         vv.insn_type := e_in.insn_type;
+        vv.result_sel := e_in.result_sel;
         vv.nia := e_in.nia;
         vv.write_reg := e_in.write_reg;
         vv.write_reg_enable := e_in.write_reg_enable;

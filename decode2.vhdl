@@ -296,6 +296,11 @@ architecture behaviour of decode2 is
         OP_MFMSR    => "111",
         OP_MFCR     => "111",
         OP_SETB     => "111",
+        -- The following are used in the vector unit to select vec_result
+        OP_VPERM    => "111",
+        OP_VPACK    => "111",
+        OP_VMERGE   => "111",
+        OP_LVS      => "001",
         others      => "000"            -- default to adder_result
         );
 

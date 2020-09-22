@@ -661,6 +661,7 @@ package common is
         valid            : std_ulogic;
         instr_tag        : instr_tag_t;
         insn_type        : insn_type_t;
+        result_sel       : std_ulogic_vector(2 downto 0);
         nia              : std_ulogic_vector(63 downto 0);
         write_reg        : gspr_index_t;
         write_reg_enable : std_ulogic;

@@ -68,6 +68,7 @@ begin
         variable vscr_result  : std_ulogic_vector(63 downto 0);
         variable cmp_result   : std_ulogic_vector(63 downto 0);
         variable log_result   : std_ulogic_vector(63 downto 0);
+        variable move_result  : std_ulogic_vector(63 downto 0);
         variable all0, all1   : std_ulogic;
         variable cmpeq        : byte_comparison_t;
         variable cmpgt        : byte_comparison_t;
@@ -468,6 +469,35 @@ begin
             when others =>
                 log_result := a_in xnor b_in;
         end case;
+
+        -- compute mfvsr*/mtvsr* result
+        if e_in.insn(8) = '0' then
+            -- mfvsr*
+            move_result := c_in;
+        else
+            -- mtvsr*
+            if e_in.second = '0' then
+                move_result := a_in;
+            elsif e_in.insn(9) = '1' then
+                -- mtvsrdd or mtvsrws
+                if e_in.insn(6) = '1' then
+                    move_result := b_in;        -- mtvsrdd
+                else
+                    move_result := a_in;        -- mtvsrws
+                end if;
+            else
+                move_result := (others => '0');
+            end if;
+        end if;
+        if e_in.is_32bit = '1' then
+            if e_in.insn(9) = '1' then
+                -- mtvsrws
+                move_result(63 downto 32) := move_result(31 downto 0);
+            else
+                b := e_in.sign_extend and move_result(31);
+                move_result(63 downto 32) := (others => b);
+            end if;
+        end if;
 
         -- execute mtvscr
         if vec_valid = '1' and e_in.insn_type = OP_MTVSCR and e_in.second = '1' then

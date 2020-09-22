@@ -22,7 +22,7 @@ package decode_types is
                          OP_VSXLDS, OP_VSXLDV, OP_VSXLDSPLT, OP_VSXST,
                          OP_VSXLDLEN, OP_VSXSTLEN,
                          OP_VPERM, OP_VPACK, OP_VMERGE, OP_VCMP,
-                         OP_VLOG,
+                         OP_VLOG, OP_VMOVE,
                          OP_MFVSCR, OP_MTVSCR,
                          OP_LVS,
                          OP_XPERM,
@@ -61,6 +61,7 @@ package decode_types is
     type length_t is (NONE, is1B, is2B, is4B, is8B);
 
     type repeat_t is (NONE,      -- instruction is not repeated
+                      SGLS,      -- not repeated but inc RS
                       DRS,       -- double RS
                       DRSE,      -- double RS, endian twist
                       DRT,       -- double RT

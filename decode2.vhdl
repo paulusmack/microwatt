@@ -400,7 +400,9 @@ begin
         decoded_reg_c := decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn, r_in.read3_data);
         decoded_reg_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn, d_in.ispr1);
 
-        if d_in.decode.repeat /= NONE then
+        if d_in.decode.repeat = SGLS then
+            decoded_reg_c.reg(0) := '1';
+        elsif d_in.decode.repeat /= NONE then
             v.e.repeat := '1';
             v.e.second := r.repeat;
             case d_in.decode.repeat is

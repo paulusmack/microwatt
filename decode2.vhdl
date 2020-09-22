@@ -305,6 +305,7 @@ architecture behaviour of decode2 is
         OP_MFCR     => "111",
         OP_SETB     => "111",
         -- The following are used in the vector unit to select vec_result
+        OP_VCMP     => "010",
         OP_VPERM    => "111",
         OP_VPACK    => "111",
         OP_VMERGE   => "111",

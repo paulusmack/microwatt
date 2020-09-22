@@ -40,6 +40,9 @@ architecture behaviour of vector_unit is
         part2    : std_ulogic;
         ni       : std_ulogic;          -- non-IEEE mode
         sat      : std_ulogic;          -- saturation flag
+        cmp_bits : std_ulogic_vector(7 downto 0);
+        all0     : std_ulogic;
+        all1     : std_ulogic;
         e        : VectorToExecute1Type;
         w        : VectorToWritebackType;
     end record;
@@ -47,6 +50,7 @@ architecture behaviour of vector_unit is
                                             writes => '0', wr_reg => (others => '0'), wr_cr => '0',
                                             op => OP_ILLEGAL, rsel => "000", itag => instr_tag_init,
                                             part1 => '0', part2 => '0', ni => '0', sat => '0',
+                                            cmp_bits => x"00", all0 => '0', all1 => '0',
                                             others => (others => '0'));
 
     signal vst, vst_in : vec_state;
@@ -58,9 +62,81 @@ architecture behaviour of vector_unit is
     signal b1_in        : std_ulogic_vector(63 downto 0);
     signal vperm_result : std_ulogic_vector(63 downto 0);
     signal vscr_result  : std_ulogic_vector(63 downto 0);
+    signal vcmp_result  : std_ulogic_vector(63 downto 0);
     signal perm_data    : std_ulogic_vector(255 downto 0);
     signal vec_result   : std_ulogic_vector(63 downto 0);
     signal vec_cr6      : std_ulogic_vector(3 downto 0);
+    signal cmp_bits     : std_ulogic_vector(7 downto 0);
+
+    signal cmpeq        : std_ulogic_vector(7 downto 0);
+    signal cmpgt        : std_ulogic_vector(7 downto 0);
+    signal cmpgtu       : std_ulogic_vector(7 downto 0);
+    signal cmpaz        : std_ulogic_vector(7 downto 0);
+    signal cmpbz        : std_ulogic_vector(7 downto 0);
+    signal hcmpeq       : std_ulogic_vector(3 downto 0);
+    signal hcmpgt       : std_ulogic_vector(3 downto 0);
+    signal hcmpgtu      : std_ulogic_vector(3 downto 0);
+    signal hcmpaz       : std_ulogic_vector(3 downto 0);
+    signal hcmpbz       : std_ulogic_vector(3 downto 0);
+    signal wcmpeq       : std_ulogic_vector(1 downto 0);
+    signal wcmpgt       : std_ulogic_vector(1 downto 0);
+    signal wcmpgtu      : std_ulogic_vector(1 downto 0);
+    signal wcmpaz       : std_ulogic_vector(1 downto 0);
+    signal wcmpbz       : std_ulogic_vector(1 downto 0);
+    signal dcmpeq       : std_ulogic;
+    signal dcmpgt       : std_ulogic;
+    signal dcmpgtu      : std_ulogic;
+    signal dcmpaz       : std_ulogic;
+    signal dcmpbz       : std_ulogic;
+
+    type byte_comparison_t is array(0 to 7) of boolean;
+
+    -- 2x comparison reduction functions
+    function reduce_eq(eq: std_ulogic_vector) return std_ulogic_vector is
+        variable result: std_ulogic_vector(eq'length / 2 - 1 downto 0);
+    begin
+        for i in 0 to result'left loop
+            result(i) := eq(2*i + 1) and eq(2*i);
+        end loop;
+        return result;
+    end;
+    function reduce_gtu(gtu: std_ulogic_vector; eq: std_ulogic_vector) return std_ulogic_vector is
+        variable result: std_ulogic_vector(gtu'length / 2 - 1 downto 0);
+    begin
+        for i in 0 to result'left loop
+            result(i) := gtu(2*i + 1) or (eq(2*i + 1) and gtu(2*i));
+        end loop;
+        return result;
+    end;
+    function reduce_gt(gt: std_ulogic_vector; eq: std_ulogic_vector;
+                       gtu: std_ulogic_vector) return std_ulogic_vector is
+        variable result: std_ulogic_vector(gt'length / 2 - 1 downto 0);
+    begin
+        for i in 0 to result'left loop
+            result(i) := gt(2*i + 1) or (eq(2*i + 1) and gtu(2*i));
+        end loop;
+        return result;
+    end;
+
+    -- Expand each bit of a vector to 2 consecutive bits
+    function vexpand2(vec: std_ulogic_vector(3 downto 0)) return std_ulogic_vector is
+        variable result: std_ulogic_vector(7 downto 0);
+    begin
+        for i in 0 to 3 loop
+            result(2*i + 1 downto 2*i) := (others => vec(i));
+        end loop;
+        return result;
+    end;
+
+    -- Expand each bit of a vector to 4 consecutive bits
+    function vexpand4(vec: std_ulogic_vector(1 downto 0)) return std_ulogic_vector is
+        variable result: std_ulogic_vector(7 downto 0);
+    begin
+        for i in 0 to 1 loop
+            result(4*i + 3 downto 4*i) := (others => vec(i));
+        end loop;
+        return result;
+    end;
 
 begin
 
@@ -68,10 +144,80 @@ begin
     a_in <= e_in.vra;
     b_in <= e_in.vrb;
     c_in <= e_in.vrc;
-    vec_cr6 <= (others => '0');
 
     a1_in <= a_in when vst.part1 = '1' else vst.a1;
     b1_in <= b_in when vst.part1 = '1' else vst.b1;
+
+    -- do comparisons for vcmp*
+    byte_cmp: for i in 0 to 7 generate
+        cmpeq(i) <= '1' when unsigned(a_in(i*8 + 7 downto i*8)) = unsigned(b_in(i*8 + 7 downto i*8)) else '0';
+        cmpgt(i) <= '1' when signed(a_in(i*8 + 7 downto i*8)) > signed(b_in(i*8 + 7 downto i*8)) else '0';
+        cmpgtu(i) <= '1' when unsigned(a_in(i*8 + 7 downto i*8)) > unsigned(b_in(i*8 + 7 downto i*8)) else '0';
+        cmpaz(i) <= '1' when a_in(i*8 + 7 downto i*8) = x"00" else '0';
+        cmpbz(i) <= '1' when b_in(i*8 + 7 downto i*8) = x"00" else '0';
+    end generate;
+    -- Work out half-word comparison results
+    hcmpeq <= reduce_eq(cmpeq);
+    hcmpgt <= reduce_gt(cmpgt, cmpeq, cmpgtu);
+    hcmpgtu <= reduce_gtu(cmpgtu, cmpeq);
+    hcmpaz <= reduce_eq(cmpaz);
+    hcmpbz <= reduce_eq(cmpbz);
+    -- Work out word comparison results
+    wcmpeq <= reduce_eq(hcmpeq);
+    wcmpgt <= reduce_gt(hcmpgt, hcmpeq, hcmpgtu);
+    wcmpgtu <= reduce_gtu(hcmpgtu, hcmpeq);
+    wcmpaz <= reduce_eq(hcmpaz);
+    wcmpbz <= reduce_eq(hcmpbz);
+    -- Work out doubleword comparison results
+    dcmpeq <= reduce_eq(wcmpeq)(0);
+    dcmpgt <= reduce_gt(wcmpgt, wcmpeq, wcmpgtu)(0);
+    dcmpgtu <= reduce_gtu(wcmpgtu, wcmpeq)(0);
+    dcmpaz <= reduce_eq(wcmpaz)(0);
+    dcmpbz <= reduce_eq(wcmpbz)(0);
+
+    -- vcmp* result
+    with e_in.insn(9 downto 6) & e_in.insn(0) select cmp_bits <=
+        -- vcmpequb
+        cmpeq when "00000",
+        -- vcmpneb
+        not cmpeq when "00001",
+        -- vcmpnezb
+        not cmpeq or cmpaz or cmpbz when "01001",
+        -- vcmpequh
+        vexpand2(hcmpeq) when "00010",
+        -- vcmpneh
+        vexpand2(not hcmpeq) when "00011",
+        -- vcmpnezh
+        vexpand2(not hcmpeq or hcmpaz or hcmpbz) when "01011",
+        -- vcmpequw
+        vexpand4(wcmpeq) when "00100",
+        -- vcmpnew
+        vexpand4(not wcmpeq) when "00101",
+        -- vcmpnezw
+        vexpand4(not wcmpeq or wcmpaz or wcmpbz) when "01101",
+        -- vcmpequd
+        (others => dcmpeq) when "00111",
+        -- vcmpgtub
+        cmpgtu when "10000",
+        -- vcmpgtuh
+        vexpand2(hcmpgtu) when "10010",
+        -- vcmpgtuw
+        vexpand4(wcmpgtu) when "10100",
+        -- vcmpgtud
+        (others => dcmpgtu) when "10111",
+        -- vcmpgtsb
+        cmpgt when "11000",
+        -- vcmpgtsh
+        vexpand2(hcmpgt) when "11010",
+        -- vcmpgtsw
+        vexpand4(wcmpgt) when "11100",
+        -- vcmpgtsd
+        (others => dcmpgt) when "11111",
+        (others => '0') when others;
+
+    vcmp_expand: for i in 0 to 7 generate
+        vcmp_result(i*8 + 7 downto i*8) <= (others => vst.cmp_bits(i));
+    end generate;
 
     -- vperm
     perm_data <= vst.a0 & a1_in & vst.b0 & b1_in;
@@ -84,6 +230,7 @@ begin
     with vst.rsel select vec_result <=
         vscr_result  when "000",
         vst.result   when "001",
+        vcmp_result  when "010",
         vperm_result when others;
 
     vector_0: process(clk)
@@ -103,6 +250,7 @@ begin
         variable b    : std_ulogic;
         variable sum  : unsigned(7 downto 0);
         variable lvs_result : std_ulogic_vector(63 downto 0);
+        variable all0, all1 : std_ulogic;
     begin
         v := vst;
         v.e.busy := '0';
@@ -297,6 +445,18 @@ begin
                     v.perm_sel := (others => '0');
             end case;
         end if;
+
+        -- CR6 result for vcmp*.
+        if e_in.valid = '1' then
+            v.cmp_bits := cmp_bits;
+        end if;
+        all0 := not (or (vst.cmp_bits));
+        all1 := (and (vst.cmp_bits));
+        if vst.part1 = '1' then
+            v.all0 := all0;
+            v.all1 := all1;
+        end if;
+        vec_cr6 <= (all1 and vst.all1) & '0' & (all0 and vst.all0) & '0';
 
         -- compute result for lvsl or lvsr
         sum := (others => '0');

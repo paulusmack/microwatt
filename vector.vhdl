@@ -67,6 +67,7 @@ begin
         variable lvs_result   : std_ulogic_vector(63 downto 0);
         variable vscr_result  : std_ulogic_vector(63 downto 0);
         variable cmp_result   : std_ulogic_vector(63 downto 0);
+        variable log_result   : std_ulogic_vector(63 downto 0);
         variable all0, all1   : std_ulogic;
         variable cmpeq        : byte_comparison_t;
         variable cmpgt        : byte_comparison_t;
@@ -448,6 +449,26 @@ begin
             vscr_result(0) := vst.sat;
         end if;
 
+        -- compute vector logical result
+        case e_in.insn(8 downto 6) is
+            when "000" =>
+                log_result := a_in and b_in;
+            when "001" =>
+                log_result := a_in and not b_in;
+            when "010" =>
+                log_result := a_in or b_in;
+            when "011" =>
+                log_result := a_in xor b_in;
+            when "100" =>
+                log_result := not (a_in or b_in);
+            when "101" =>
+                log_result := a_in or not b_in;
+            when "110" =>
+                log_result := not (a_in and b_in);
+            when others =>
+                log_result := a_in xnor b_in;
+        end case;
+
         -- execute mtvscr
         if vec_valid = '1' and e_in.insn_type = OP_MTVSCR and e_in.second = '1' then
             v.ni := b_in(16);
@@ -461,6 +482,8 @@ begin
                 vec_result <= lvs_result;
             when OP_VCMP =>
                 vec_result <= cmp_result;
+            when OP_VLOG =>
+                vec_result <= log_result;
             when others =>
                 vec_result <= vperm_result;
         end case;

@@ -1123,7 +1123,7 @@ begin
                     result_en := '1';
                 end if;
 
-            when OP_LVS | OP_MFVSCR =>
+            when OP_LVS | OP_MFVSCR | OP_VLOG =>
                 vec_valid <= '1';
                 result := vec_result;
                 result_en := '1';

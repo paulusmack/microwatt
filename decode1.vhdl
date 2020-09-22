@@ -53,6 +53,7 @@ architecture behaviour of decode1 is
     type minor_valid_array_t is array(0 to 1023) of std_ulogic;
     type minor_valid_array_2t is array(0 to 2047) of std_ulogic;
     type op_4_subop_array_t is array(0 to 63) of decode_rom_t;
+    type op_4l_subop_array_t is array(0 to 512) of decode_rom_t;
     type op_19_subop_array_t is array(0 to 7) of decode_rom_t;
     type op_30_subop_array_t is array(0 to 15) of decode_rom_t;
     type op_31_subop_array_t is array(0 to 1023) of decode_rom_t;
@@ -114,44 +115,41 @@ architecture behaviour of decode1 is
         others   => illegal_inst
         );
 
-    -- indexed by bits 5..0 and 10..6 of instruction word
-    constant decode_op_4_valid : minor_valid_array_2t := (
-        2#110000_00000# to 2#110000_11111# => '1',        -- maddhd
-        2#110001_00000# to 2#110001_11111# => '1',        -- maddhdu
-        2#110011_00000# to 2#110011_11111# => '1',        -- maddld
-        2#001100_00000#                    => '1',        -- vmrghb
-        2#001100_00100#                    => '1',        -- vmrglb
-        2#001100_00001#                    => '1',        -- vmrghh
-        2#001100_00101#                    => '1',        -- vmrglh
-        2#001100_00010#                    => '1',        -- vmrghw
-        2#001100_00110#                    => '1',        -- vmrglw
-        2#001100_11110#                    => '1',        -- vmrgew
-        2#001100_11010#                    => '1',        -- vmrgow
-        2#001100_01000#                    => '1',        -- vspltb
-        2#001100_01001#                    => '1',        -- vsplth
-        2#001100_01100#                    => '1',        -- vspltisb
-        2#001100_01101#                    => '1',        -- vspltish
-        2#001100_01110#                    => '1',        -- vspltisw
-        2#001100_01010#                    => '1',        -- vspltw
-        2#101011_00000# to 2#101011_11111# => '1',        -- vperm
-        2#111011_00000# to 2#111011_11111# => '1',        -- vpermr
-        2#001110_00000#                    => '1',        -- vpkuhum
-        2#001110_00001#                    => '1',        -- vpkuwum
-        2#001110_10001#                    => '1',        -- vpkudum
-        others => '0'
-        );
-
     -- indexed by bits 5..0 of instruction word
-    constant decode_op_4_array : op_4_subop_array_t := (
+    -- used when bits 5..4 /= 00
+    constant decode_op_4h_array : op_4_subop_array_t := (
         --                   unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
         --                                   op                                            in   out   A   out  in    out  len        ext                                 pipe
         2#110000#  =>       (ALU, NONE, OP_MUL_H64,   RA,         RB,          RCR,  RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0', NONE), -- maddhd
         2#110001#  =>       (ALU, NONE, OP_MUL_H64,   RA,         RB,          RCR,  RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- maddhdu
         2#110011#  =>       (ALU, NONE, OP_MUL_L64,   RA,         RB,          RCR,  RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0', NONE), -- maddld
-        2#001100#  =>       (ALU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrg*/vsplt*
         2#101011#  =>       (ALU, VEC,  OP_VPERM,     VRA,        VRB,         VRC,  VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vperm
         2#111011#  =>       (ALU, VEC,  OP_VPERM,     VRA,        VRB,         VRC,  VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpermr
-        2#001110#  =>       (ALU, VEC,  OP_VPACK,     VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpk*/vupk*
+        others   => decode_rom_init
+        );
+
+    -- indexed by bits 3..0 and 10..6 of instruction word
+    -- used when bits 5..4 = 00
+    constant decode_op_4l_array : op_4l_subop_array_t := (
+        --                   unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
+        --                                   op                                            in   out   A   out  in    out  len        ext                                 pipe
+        2#1100_00000# =>    (ALU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrghb
+        2#1100_00100# =>    (ALU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrglb
+        2#1100_00001# =>    (ALU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrghh
+        2#1100_00101# =>    (ALU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrglh
+        2#1100_00010# =>    (ALU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrghw
+        2#1100_00110# =>    (ALU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrglw
+        2#1100_11110# =>    (ALU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrgew
+        2#1100_11010# =>    (ALU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrgow
+        2#1100_01000# =>    (ALU, VEC,  OP_VMERGE,    NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vspltb
+        2#1100_01001# =>    (ALU, VEC,  OP_VMERGE,    NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsplth
+        2#1100_01010# =>    (ALU, VEC,  OP_VMERGE,    NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vspltw
+        2#1100_01100# =>    (ALU, VEC,  OP_VMERGE,    NONE,       NONE,        NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vspltisb
+        2#1100_01101# =>    (ALU, VEC,  OP_VMERGE,    NONE,       NONE,        NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vspltish
+        2#1100_01110# =>    (ALU, VEC,  OP_VMERGE,    NONE,       NONE,        NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vspltisw
+        2#1110_00000# =>    (ALU, VEC,  OP_VPACK,     VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpkuhum
+        2#1110_00001# =>    (ALU, VEC,  OP_VPACK,     VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpkuwum
+        2#1110_10001# =>    (ALU, VEC,  OP_VPACK,     VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpkudum
         others   => decode_rom_init
         );
 
@@ -630,7 +628,7 @@ begin
         variable vi : reg_internal_t;
         variable f : Decode1ToFetch1Type;
         variable majorop : major_opcode_t;
-        variable minor4op : std_ulogic_vector(10 downto 0);
+        variable minor4op : std_ulogic_vector(8 downto 0);
         variable op_19_bits: std_ulogic_vector(2 downto 0);
         variable sprn : spr_num_t;
         variable br_nia    : std_ulogic_vector(61 downto 0);
@@ -658,9 +656,12 @@ begin
         case to_integer(unsigned(majorop)) is
         when 4 =>
             -- major opcode 4, mostly VMX/VSX stuff but also some integer ops (madd*)
-            minor4op := f_in.insn(5 downto 0) & f_in.insn(10 downto 6);
-            vi.override := not decode_op_4_valid(to_integer(unsigned(minor4op)));
-            v.decode := decode_op_4_array(to_integer(unsigned(f_in.insn(5 downto 0))));
+            if f_in.insn(5 downto 4) = "00" then
+                minor4op := f_in.insn(3 downto 0) & f_in.insn(10 downto 6);
+                v.decode := decode_op_4l_array(to_integer(unsigned(minor4op)));
+            else
+                v.decode := decode_op_4h_array(to_integer(unsigned(f_in.insn(5 downto 0))));
+            end if;
 
         when 31 =>
             -- major opcode 31, lots of things

@@ -250,6 +250,7 @@ begin
         variable b    : std_ulogic;
         variable sum  : unsigned(7 downto 0);
         variable lvs_result : std_ulogic_vector(63 downto 0);
+        variable log_result : std_ulogic_vector(63 downto 0);
         variable all0, all1 : std_ulogic;
     begin
         v := vst;
@@ -472,13 +473,39 @@ begin
             k := i * 8;
             lvs_result(k + 7 downto k) := std_ulogic_vector(sum + to_unsigned(7 - i, 8));
         end loop;
-        if e_in.valid = '1' then
-            v.result := lvs_result;
-        end if;
 
         -- compute result for mfvscr
         vscr_result <= (16 => vst.ni and vst.part2,
                         0 => vst.sat and vst.part2, others => '0');
+
+        -- compute vector logical result
+        case e_in.insn(8 downto 6) is
+            when "000" =>
+                log_result := a_in and b_in;
+            when "001" =>
+                log_result := a_in and not b_in;
+            when "010" =>
+                log_result := a_in or b_in;
+            when "011" =>
+                log_result := a_in xor b_in;
+            when "100" =>
+                log_result := not (a_in or b_in);
+            when "101" =>
+                log_result := a_in or not b_in;
+            when "110" =>
+                log_result := not (a_in and b_in);
+            when others =>
+                log_result := a_in xnor b_in;
+        end case;
+
+        if e_in.valid = '1' then
+            case e_in.sub_select is
+                when "000" =>
+                    v.result := lvs_result;
+                when others =>
+                    v.result := log_result;
+            end case;
+        end if;
 
         -- execute mtvscr
         if e_in.valid = '1' and e_in.insn_type = OP_MTVSCR and e_in.second = '1' then

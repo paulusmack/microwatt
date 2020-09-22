@@ -310,6 +310,7 @@ architecture behaviour of decode2 is
         OP_VPACK    => "111",
         OP_VMERGE   => "111",
         OP_LVS      => "001",
+        OP_VLOG     => "001",
         OP_MFVSCR   => "000",
         others      => "000"            -- default to adder_result
         );
@@ -333,6 +334,9 @@ architecture behaviour of decode2 is
         OP_CROP    => "011",
         OP_MCRXRX  => "100",
         OP_MTCRF   => "101",
+        -- The following are used in the vector unit to select vst.result
+        OP_LVS     => "000",
+        OP_VLOG    => "001",
         others     => "000"
         );
 

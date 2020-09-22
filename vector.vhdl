@@ -54,6 +54,7 @@ begin
     vector_1: process(all)
         variable v            : vec_state;
         variable k, m, n      : integer;
+        variable b            : std_ulogic;
         variable data         : std_ulogic_vector(255 downto 0);
         variable sum          : unsigned(7 downto 0);
         variable vperm_result : std_ulogic_vector(63 downto 0);
@@ -66,7 +67,19 @@ begin
             v.b0 := b_in;
         end if;
         if e_in.valid = '1' then
-            if e_in.insn(5) = '1' then
+            if e_in.insn(31) = '1' then
+                -- OP_XPERM
+                if e_in.second = '0' then
+                    b := e_in.insn(9);
+                else
+                    b := e_in.insn(8);
+                end if;
+                for i in 0 to 7 loop
+                    k := i * 8;
+                    v.perm_sel(k + 7 downto k) := "000" & not e_in.second &
+                                                  not b & std_ulogic_vector(to_unsigned(i, 3));
+                end loop;
+            elsif e_in.insn(5) = '1' then
                 -- OP_VPERM
                 if e_in.insn(4) = '0' then
                     -- vperm

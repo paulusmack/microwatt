@@ -20,6 +20,7 @@ entity vector_unit is
         b_in            : in  std_ulogic_vector(63 downto 0);
         c_in            : in  std_ulogic_vector(63 downto 0);
         e_in            : in  Decode2ToExecute1Type;
+        vec_cr6         : out std_ulogic_vector(3 downto 0);
         vec_result      : out std_ulogic_vector(63 downto 0)
         );
 end entity vector_unit;
@@ -33,10 +34,15 @@ architecture behaviour of vector_unit is
         a0       : std_ulogic_vector(63 downto 0);
         b0       : std_ulogic_vector(63 downto 0);
         perm_sel : std_ulogic_vector(63 downto 0);
+        all0     : std_ulogic;
+        all1     : std_ulogic;
     end record;
-    constant vec_state_init : vec_state := (ni => '0', sat => '0', others => (others => '0'));
+    constant vec_state_init : vec_state := (ni => '0', sat => '0', all0 => '0', all1 => '0',
+                                            others => (others => '0'));
 
     signal vst, vst_in : vec_state;
+
+    type byte_comparison_t is array(0 to 7) of boolean;
 
 begin
 
@@ -60,6 +66,12 @@ begin
         variable vperm_result : std_ulogic_vector(63 downto 0);
         variable lvs_result   : std_ulogic_vector(63 downto 0);
         variable vscr_result  : std_ulogic_vector(63 downto 0);
+        variable cmp_result   : std_ulogic_vector(63 downto 0);
+        variable all0, all1   : std_ulogic;
+        variable cmpeq        : byte_comparison_t;
+        variable cmpgt        : byte_comparison_t;
+        variable cmpgtu       : byte_comparison_t;
+        variable bv           : boolean;
     begin
         v := vst;
         if e_in.valid = '1' and e_in.second = '0' then
@@ -232,6 +244,188 @@ begin
             vperm_result(k + 7 downto k) := data(n + 7 downto n);
         end loop;
 
+        -- do comparisons for vcmp*
+        for i in 0 to 7 loop
+            k := i * 8;
+            cmpeq(i) := unsigned(a_in(k + 7 downto k)) = unsigned(b_in(k + 7 downto k));
+            cmpgt(i) := signed(a_in(k + 7 downto k)) > signed(b_in(k + 7 downto k));
+            cmpgtu(i) := unsigned(a_in(k + 7 downto k)) > unsigned(b_in(k + 7 downto k));
+        end loop;
+        cmp_result := (others => '0');
+        if e_in.second = '0' then
+            all0 := '1';
+            all1 := '1';
+        else
+            all0 := vst.all0;
+            all1 := vst.all1;
+        end if;
+        case e_in.insn(9 downto 6) is
+            when "0000" =>
+                -- vcmpequb
+                for i in 0 to 7 loop
+                    k := i * 8;
+                    if cmpeq(i) then
+                        cmp_result(k + 7 downto k) := x"ff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "0001" =>
+                -- vcmpequh
+                for i in 0 to 3 loop
+                    k := i * 16;
+                    m := i * 2;
+                    if cmpeq(m) and cmpeq(m + 1) then
+                        cmp_result(k + 15 downto k) := x"ffff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "0010" =>
+                -- vcmpequw
+                for i in 0 to 1 loop
+                    k := i * 32;
+                    m := i * 4;
+                    if cmpeq(m) and cmpeq(m + 1) and cmpeq(m + 2) and cmpeq(m + 3) then
+                        cmp_result(k + 31 downto k) := x"ffffffff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "0011" =>
+                -- vcmpequd (and vcmpeqfp, but that isn't decoded yet)
+                if cmpeq(0) and cmpeq(1) and cmpeq(2) and cmpeq(3) and
+                    cmpeq(4) and cmpeq(5) and cmpeq(6) and cmpeq(7) then
+                    cmp_result := (others => '1');
+                    all0 := '0';
+                else
+                    all1 := '0';
+                end if;
+            when "1000" =>
+                -- vcmpgtub
+                for i in 0 to 7 loop
+                    k := i * 8;
+                    if cmpgtu(i) then
+                        cmp_result(k + 7 downto k) := x"ff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "1001" =>
+                -- vcmpgtuh
+                for i in 0 to 3 loop
+                    k := i * 16;
+                    m := i * 2;
+                    if cmpgtu(m + 1) or (cmpeq(m + 1) and cmpgtu(m)) then
+                        cmp_result(k + 15 downto k) := x"ffff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "1010" =>
+                -- vcmpgtuw
+                for i in 0 to 1 loop
+                    k := i * 32;
+                    for m in i * 4 + 3 downto i * 4 loop
+                        bv := cmpgtu(m);
+                        if not cmpeq(m) then
+                            exit;
+                        end if;
+                    end loop;
+                    if bv then
+                        cmp_result(k + 31 downto k) := x"ffffffff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "1011" =>
+                -- vcmpgtud (and vcmpgtfp, but that isn't decoded yet)
+                for m in 7 downto 0 loop
+                    bv := cmpgtu(m);
+                    if not cmpeq(m) then
+                        exit;
+                    end if;
+                end loop;
+                if bv then
+                    cmp_result := (others => '1');
+                    all0 := '0';
+                else
+                    all1 := '0';
+                end if;
+            when "1100" =>
+                -- vcmpgtsb
+                for i in 0 to 7 loop
+                    k := i * 8;
+                    if cmpgt(i) then
+                        cmp_result(k + 7 downto k) := x"ff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "1101" =>
+                -- vcmpgtsh
+                for i in 0 to 3 loop
+                    k := i * 16;
+                    m := i * 2;
+                    if cmpgt(m + 1) or (cmpeq(m + 1) and cmpgtu(m)) then
+                        cmp_result(k + 15 downto k) := x"ffff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "1110" =>
+                -- vcmpgtsw
+                for i in 0 to 1 loop
+                    k := i * 32;
+                    bv := cmpgt(i * 4 + 3);
+                    if cmpeq(i * 4 + 3) then
+                        for m in i * 4 + 2 downto i * 4 loop
+                            bv := cmpgtu(m);
+                            if not cmpeq(m) then
+                                exit;
+                            end if;
+                        end loop;
+                    end if;
+                    if bv then
+                        cmp_result(k + 31 downto k) := x"ffffffff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "1111" =>
+                -- vcmpgtsd (and vcmpbfp, but that isn't decoded yet)
+                bv := cmpgt(7);
+                if cmpeq(7) then
+                    for m in 6 downto 0 loop
+                        bv := cmpgtu(m);
+                        if not cmpeq(m) then
+                            exit;
+                        end if;
+                    end loop;
+                end if;
+                if bv then
+                    cmp_result := (others => '1');
+                    all0 := '0';
+                else
+                    all1 := '0';
+                end if;
+            when others =>
+        end case;
+        vec_cr6 <= all1 & '0' & all0 & '0';
+        if vec_valid = '1' then
+            v.all0 := all0;
+            v.all1 := all1;
+        end if;
+
         -- compute result for lvsl or lvsr
         sum := (others => '0');
         sum(3 downto 0) := unsigned(a_in(3 downto 0)) + unsigned(b_in(3 downto 0));
@@ -265,6 +459,8 @@ begin
                 vec_result <= vscr_result;
             when OP_LVS =>
                 vec_result <= lvs_result;
+            when OP_VCMP =>
+                vec_result <= cmp_result;
             when others =>
                 vec_result <= vperm_result;
         end case;

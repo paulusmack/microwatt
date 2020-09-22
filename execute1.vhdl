@@ -99,6 +99,7 @@ architecture behaviour of execute1 is
     signal countzero_result: std_ulogic_vector(63 downto 0);
     signal vec_result: std_ulogic_vector(63 downto 0);
     signal vec_valid: std_ulogic;
+    signal vec_cr6: std_ulogic_vector(3 downto 0);
 
     -- multiply signals
     signal x_to_multiply: MultiplyInputType;
@@ -279,6 +280,7 @@ begin
             b_in            => b_in,
             c_in            => c_in,
             e_in            => e_in,
+            vec_cr6         => vec_cr6,
             vec_result      => vec_result
             );
 
@@ -1125,6 +1127,17 @@ begin
                 vec_valid <= '1';
                 result := vec_result;
                 result_en := '1';
+
+            when OP_VCMP =>
+                vec_valid <= '1';
+                result := vec_result;
+                result_en := '1';
+                -- write back CR6 result on the second half
+                if insn_rc6(e_in.insn) = '1' and e_in.second = '1' then
+                    v.e.write_cr_enable := '1';
+                    v.e.write_cr_data := x"000000" & vec_cr6 & x"0";
+                    v.e.write_cr_mask := x"02";
+                end if;
 
             when OP_MTVSCR =>
                 vec_valid <= '1';

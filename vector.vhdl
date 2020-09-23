@@ -252,6 +252,7 @@ begin
         variable lvs_result : std_ulogic_vector(63 downto 0);
         variable log_result : std_ulogic_vector(63 downto 0);
         variable move_result: std_ulogic_vector(63 downto 0);
+        variable gather_res   : std_ulogic_vector(63 downto 0);
         variable all0, all1 : std_ulogic;
     begin
         v := vst;
@@ -522,6 +523,13 @@ begin
             end if;
         end if;
 
+        -- vgbbd result
+        for i in 0 to 7 loop
+            for j in 0 to 7 loop
+                gather_res(i * 8 + j) := b_in(j * 8 + i);
+            end loop;
+        end loop;
+
         -- Stash away result for ops which compute their result in the first cycle
         if e_in.valid = '1' then
             case e_in.sub_select is
@@ -529,8 +537,10 @@ begin
                     v.result := lvs_result;
                 when "001" =>
                     v.result := log_result;
-                when others =>
+                when "010" =>
                     v.result := move_result;
+                when others =>
+                    v.result := gather_res;
             end case;
         end if;
 

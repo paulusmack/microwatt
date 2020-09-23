@@ -188,6 +188,7 @@ architecture behaviour of decode1 is
         2#0111_10101# =>    (VSU, VEC,  OP_VCMP,      VRA,        VRB,         NONE, VRT,  '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vcmpnezh.
         2#0111_00110# =>    (VSU, VEC,  OP_VCMP,      VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vcmpnezw
         2#0111_10110# =>    (VSU, VEC,  OP_VCMP,      VRA,        VRB,         NONE, VRT,  '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vcmpnezw.
+        2#1100_10100# =>    (VSU, VEC,  OP_VGATHER,   VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vgbbd
         2#1100_00000# =>    (VSU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrghb
         2#1100_00100# =>    (VSU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrglb
         2#1100_00001# =>    (VSU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrghh

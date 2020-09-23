@@ -1307,7 +1307,9 @@ begin
         vv.instr_tag := e_in.instr_tag;
         vv.insn_type := e_in.insn_type;
         vv.is_32bit := e_in.is_32bit;
+        vv.is_signed := e_in.is_signed;
         vv.sign_extend := e_in.sign_extend;
+        vv.data_len := e_in.data_len;
         vv.result_sel := e_in.result_sel;
         vv.sub_select := e_in.sub_select;
         vv.nia := e_in.nia;

@@ -207,6 +207,26 @@ architecture behaviour of decode1 is
         2#1110_00000# =>    (VSU, VEC,  OP_VPACK,     VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpkuhum
         2#1110_00001# =>    (VSU, VEC,  OP_VPACK,     VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpkuwum
         2#1110_10001# =>    (VSU, VEC,  OP_VPACK,     VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpkudum
+        2#0100_00000# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vrlb
+        2#0100_00001# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vrlh
+        2#0100_00010# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vrlw
+        2#0100_00011# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vrld
+        2#0100_00100# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vslb
+        2#0100_00101# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vslh
+        2#0100_00110# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vslw
+        2#0100_10111# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsld
+        2#0100_00111# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vsl
+        2#0100_11101# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vslv
+        2#0100_01000# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsrb
+        2#0100_01001# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsrh
+        2#0100_01010# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsrw
+        2#0100_11011# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsrd
+        2#0100_01011# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsr
+        2#0100_11100# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsrv
+        2#0100_01100# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vsrab
+        2#0100_01101# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vsrah
+        2#0100_01110# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vsraw
+        2#0100_01111# =>    (VSU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vsrad
         others   => decode_rom_init
         );
 

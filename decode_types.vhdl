@@ -22,7 +22,7 @@ package decode_types is
                          OP_VSXLDS, OP_VSXLDV, OP_VSXLDSPLT, OP_VSXST,
                          OP_VSXLDLEN, OP_VSXSTLEN,
                          OP_VPERM, OP_VPACK, OP_VMERGE, OP_VCMP,
-                         OP_VLOG, OP_VMOVE, OP_MFROMV, OP_VGATHER,
+                         OP_VLOG, OP_VMOVE, OP_MFROMV, OP_VGATHER, OP_VSHIFT,
                          OP_MFVSCR, OP_MTVSCR,
                          OP_LVS,
                          OP_XPERM,
@@ -67,6 +67,7 @@ package decode_types is
                       DRT,       -- double RT
                       DRTE,      -- double RT, endian twist
                       DABCT,     -- double RA, RB, RC, RT
+                      DABTR,     -- double RA, RB, RT, ls then ms
                       DUPD);     -- update-form load
 
     type decode_rom_t is record

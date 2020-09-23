@@ -135,6 +135,7 @@ architecture behaviour of decode1 is
         2#110011#  =>       (ALU, NONE, OP_MUL_L64,   RA,         RB,          RCR,  RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0', NONE), -- maddld
         2#101011#  =>       (VSU, VEC,  OP_VPERM,     VRA,        VRB,         VRC,  VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vperm
         2#111011#  =>       (VSU, VEC,  OP_VPERM,     VRA,        VRB,         VRC,  VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpermr
+        2#101100#  =>       (VSU, VEC,  OP_VPERM,     VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsldoi
         others   => decode_rom_init
         );
 

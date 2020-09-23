@@ -985,6 +985,9 @@ begin
                     when SPR_PVR =>
                         spr_val(63 downto 32) := (others => '0');
                         spr_val(31 downto 0) := PVR_MICROWATT;
+                    when SPR_VRSAVE =>
+                        spr_val(63 downto 32) := (others => '0');
+                        spr_val(31 downto 0) := ctrl.vrsave;
                     when 724 =>     -- LOG_ADDR SPR
                         spr_val := log_wr_addr & r.log_addr_spr;
                     when 725 =>     -- LOG_DATA SPR
@@ -1067,6 +1070,8 @@ begin
 		    case decode_spr_num(e_in.insn) is
 		    when SPR_DEC =>
 			ctrl_tmp.dec <= c_in;
+                    when SPR_VRSAVE =>
+                        ctrl_tmp.vrsave <= c_in(31 downto 0);
                     when 724 =>     -- LOG_ADDR SPR
                         v.log_addr_spr := c_in(31 downto 0);
 		    when others =>

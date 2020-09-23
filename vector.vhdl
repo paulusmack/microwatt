@@ -70,11 +70,25 @@ begin
         variable log_result   : std_ulogic_vector(63 downto 0);
         variable move_result  : std_ulogic_vector(63 downto 0);
         variable gather_res   : std_ulogic_vector(63 downto 0);
+        variable shift_result : std_ulogic_vector(63 downto 0);
         variable all0, all1   : std_ulogic;
         variable cmpeq        : byte_comparison_t;
         variable cmpgt        : byte_comparison_t;
         variable cmpgtu       : byte_comparison_t;
         variable bv           : boolean;
+        variable bshift       : signed(3 downto 0);
+        variable bext         : std_ulogic_vector(22 downto 0);
+        variable bs1          : std_ulogic_vector(10 downto 0);
+        variable bs2          : std_ulogic_vector(7 downto 0);
+        variable hshift       : signed(4 downto 0);
+        variable hext         : std_ulogic_vector(46 downto 0);
+        variable hs1          : std_ulogic_vector(18 downto 0);
+        variable hs2          : std_ulogic_vector(15 downto 0);
+        variable wshift       : signed(5 downto 0);
+        variable wext         : std_ulogic_vector(94 downto 0);
+        variable ws1          : std_ulogic_vector(46 downto 0);
+        variable ws2          : std_ulogic_vector(34 downto 0);
+        variable ws3          : std_ulogic_vector(31 downto 0);
     begin
         v := vst;
         if e_in.valid = '1' and e_in.second = '0' then
@@ -517,6 +531,163 @@ begin
             end loop;
         end loop;
 
+        -- vector shifters (b,h,w,d)
+        case e_in.insn(7 downto 6) is
+            when "00" =>
+                -- byte shifts
+                for i in 0 to 7 loop
+                    k := i * 8;
+                    bshift := signed('0' & b_in(k + 2 downto k));
+                    bext := x"00" & a_in(k + 7 downto k) & "0000000";
+                    case e_in.insn(9 downto 8) is
+                        when "01" =>
+                            -- vslb
+                        when "10" =>
+                            -- vsrb
+                            bshift := - bshift;
+                        when "11" =>
+                            -- vsrab
+                            bshift := - bshift;
+                            bext(22 downto 15) := (others => a_in(k + 7));
+                        when others =>
+                            -- vrlb
+                            bext(6 downto 0) := a_in(k + 7 downto k + 1);
+                    end case;
+                    -- shift -8, -4, 0 or +4
+                    case bshift(3 downto 2) is
+                        when "00" =>
+                            bs1 := bext(14 downto 4);
+                        when "01" =>
+                            bs1 := bext(10 downto 0);
+                        when "10" =>
+                            bs1 := bext(22 downto 12);
+                        when others =>
+                            bs1 := bext(18 downto 8);
+                    end case;
+                    -- shift 0, +1, +2, +3
+                    case bshift(1 downto 0) is
+                        when "00" =>
+                            bs2 := bs1(10 downto 3);
+                        when "01" =>
+                            bs2 := bs1(9 downto 2);
+                        when "10" =>
+                            bs2 := bs1(8 downto 1);
+                        when others =>
+                            bs2 := bs1(7 downto 0);
+                    end case;
+                    shift_result(k + 7 downto k) := bs2;
+                end loop;
+            when "01" =>
+                -- halfword shifts
+                for i in 0 to 3 loop
+                    k := i * 16;
+                    hshift := signed('0' & b_in(k + 3 downto k));
+                    hext := x"0000" & a_in(k + 15 downto k) & 15x"0000";
+                    case e_in.insn(9 downto 8) is
+                        when "01" =>
+                            -- vslh
+                        when "10" =>
+                            -- vsrh
+                            hshift := - hshift;
+                        when "11" =>
+                            -- vsrah
+                            hshift := - hshift;
+                            hext(46 downto 31) := (others => a_in(k + 15));
+                        when others =>
+                            -- vrlh
+                            hext(14 downto 0) := a_in(k + 15 downto k + 1);
+                    end case;
+                    -- shift -16, -12, -8, -4, 0, +4, +8, +12
+                    case hshift(4 downto 2) is
+                        when "000" =>
+                            hs1 := hext(30 downto 12);
+                        when "001" =>
+                            hs1 := hext(26 downto 8);
+                        when "010" =>
+                            hs1 := hext(22 downto 4);
+                        when "011" =>
+                            hs1 := hext(18 downto 0);
+                        when "100" =>
+                            hs1 := hext(46 downto 28);
+                        when "101" =>
+                            hs1 := hext(42 downto 24);
+                        when "110" =>
+                            hs1 := hext(38 downto 20);
+                        when others =>
+                            hs1 := hext(34 downto 16);
+                    end case;
+                    -- shift 0, +1, +2, +3
+                    case hshift(1 downto 0) is
+                        when "00" =>
+                            hs2 := hs1(18 downto 3);
+                        when "01" =>
+                            hs2 := hs1(17 downto 2);
+                        when "10" =>
+                            hs2 := hs1(16 downto 1);
+                        when others =>
+                            hs2 := hs1(15 downto 0);
+                    end case;
+                    shift_result(k + 15 downto k) := hs2;
+                end loop;
+            when "10" =>
+                -- word shifts
+                for i in 0 to 1 loop
+                    k := i * 32;
+                    wshift := signed('0' & b_in(k + 4 downto k));
+                    wext := x"00000000" & a_in(k + 31 downto k) & 31x"00000000";
+                    case e_in.insn(9 downto 8) is
+                        when "01" =>
+                            -- vslw
+                        when "10" =>
+                            -- vsrw
+                            wshift := - wshift;
+                        when "11" =>
+                            -- vsraw
+                            wshift := - wshift;
+                            wext(94 downto 63) := (others => a_in(k + 31));
+                        when others =>
+                            -- vrlw
+                            wext(30 downto 0) := a_in(k + 31 downto k + 1);
+                    end case;
+                    -- shift -32, -16, 0, +16
+                    case wshift(5 downto 4) is
+                        when "00" =>
+                            ws1 := wext(62 downto 16);
+                        when "01" =>
+                            ws1 := wext(46 downto 0);
+                        when "10" =>
+                            ws1 := wext(94 downto 48);
+                        when others =>
+                            ws1 := wext(78 downto 32);
+                    end case;
+                    -- shift 0, +4, +8, +12
+                    case wshift(3 downto 2) is
+                        when "00" =>
+                            ws2 := ws1(46 downto 12);
+                        when "01" =>
+                            ws2 := ws1(42 downto 8);
+                        when "10" =>
+                            ws2 := ws1(38 downto 4);
+                        when others =>
+                            ws2 := ws1(34 downto 0);
+                    end case;
+                    -- shift 0, +1, +2, +3
+                    case wshift(1 downto 0) is
+                        when "00" =>
+                            ws3 := ws2(34 downto 3);
+                        when "01" =>
+                            ws3 := ws2(33 downto 2);
+                        when "10" =>
+                            ws3 := ws2(32 downto 1);
+                        when others =>
+                            ws3 := ws2(31 downto 0);
+                    end case;
+                    shift_result(k + 31 downto k) := ws3;
+                end loop;
+            when others =>
+                shift_result := (others => '0');
+        end case;
+
         -- execute mtvscr
         if vec_valid = '1' and e_in.insn_type = OP_MTVSCR and e_in.second = '1' then
             v.ni := b_in(16);
@@ -536,6 +707,8 @@ begin
                 vec_result <= move_result;
             when OP_VGATHER =>
                 vec_result <= gather_res;
+            when OP_VSHIFT =>
+                vec_result <= shift_result;
             when others =>
                 vec_result <= vperm_result;
         end case;

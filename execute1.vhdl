@@ -1128,7 +1128,7 @@ begin
                     result_en := '1';
                 end if;
 
-            when OP_LVS | OP_MFVSCR | OP_VLOG | OP_VMOVE | OP_VGATHER =>
+            when OP_LVS | OP_MFVSCR | OP_VLOG | OP_VMOVE | OP_VGATHER | OP_VSHIFT =>
                 vec_valid <= '1';
                 result := vec_result;
                 result_en := '1';

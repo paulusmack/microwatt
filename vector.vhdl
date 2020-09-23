@@ -96,7 +96,17 @@ begin
                 end loop;
             elsif e_in.insn(5) = '1' then
                 -- OP_VPERM
-                if e_in.insn(4) = '0' then
+                if e_in.insn(2) = '1' then
+                    -- vsldoi
+                    m := 16 - to_integer(unsigned(e_in.insn(9 downto 6)));
+                    if e_in.second = '0' then
+                        m := m + 8;
+                    end if;
+                    for i in 0 to 7 loop
+                        k := i * 8;
+                        v.perm_sel(k + 7 downto k) := "000" & std_ulogic_vector(to_unsigned(m, 5) + to_unsigned(i, 5));
+                    end loop;
+                elsif e_in.insn(4) = '0' then
                     -- vperm
                     v.perm_sel := not c_in;
                 else

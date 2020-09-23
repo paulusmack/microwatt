@@ -69,6 +69,7 @@ begin
         variable cmp_result   : std_ulogic_vector(63 downto 0);
         variable log_result   : std_ulogic_vector(63 downto 0);
         variable move_result  : std_ulogic_vector(63 downto 0);
+        variable gather_res   : std_ulogic_vector(63 downto 0);
         variable all0, all1   : std_ulogic;
         variable cmpeq        : byte_comparison_t;
         variable cmpgt        : byte_comparison_t;
@@ -499,6 +500,13 @@ begin
             end if;
         end if;
 
+        -- vgbbd result
+        for i in 0 to 7 loop
+            for j in 0 to 7 loop
+                gather_res(i * 8 + j) := b_in(j * 8 + i);
+            end loop;
+        end loop;
+
         -- execute mtvscr
         if vec_valid = '1' and e_in.insn_type = OP_MTVSCR and e_in.second = '1' then
             v.ni := b_in(16);
@@ -514,6 +522,10 @@ begin
                 vec_result <= cmp_result;
             when OP_VLOG =>
                 vec_result <= log_result;
+            when OP_VMOVE =>
+                vec_result <= move_result;
+            when OP_VGATHER =>
+                vec_result <= gather_res;
             when others =>
                 vec_result <= vperm_result;
         end case;

@@ -432,6 +432,11 @@ begin
                     decoded_reg_b.reg(0) := r.repeat;
                     decoded_reg_c.reg(0) := r.repeat;
                     decoded_reg_o.reg(0) := r.repeat;
+                when DABTR =>
+                    -- do RA|1,RA; RB|1,RB; RT|1,RT
+                    decoded_reg_a.reg(0) := not r.repeat;
+                    decoded_reg_b.reg(0) := not r.repeat;
+                    decoded_reg_o.reg(0) := not r.repeat;
                 when others =>
             end case;
         end if;

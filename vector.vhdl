@@ -36,8 +36,11 @@ architecture behaviour of vector_unit is
         perm_sel : std_ulogic_vector(63 downto 0);
         all0     : std_ulogic;
         all1     : std_ulogic;
+        vbpermq  : std_ulogic_vector(7 downto 0);
+        vbp_sel  : std_ulogic_vector(31 downto 0);
     end record;
     constant vec_state_init : vec_state := (ni => '0', sat => '0', all0 => '0', all1 => '0',
+                                            vbpermq => (others => '0'), vbp_sel => (others => '0'),
                                             others => (others => '0'));
 
     signal vst, vst_in : vec_state;
@@ -89,6 +92,8 @@ begin
         variable ws1          : std_ulogic_vector(46 downto 0);
         variable ws2          : std_ulogic_vector(34 downto 0);
         variable ws3          : std_ulogic_vector(31 downto 0);
+        variable vbperm_byte  : std_ulogic_vector(7 downto 0);
+        variable byte         : std_ulogic_vector(7 downto 0);
     begin
         v := vst;
         if e_in.valid = '1' and e_in.second = '0' then
@@ -165,7 +170,7 @@ begin
                     end loop;
                 end if;
             else
-                -- OP_VMERGE
+                -- OP_VMERGE and OP_VBPERM
                 case e_in.insn(10 downto 6) is
                     when "01000" =>
                         -- vspltb
@@ -257,6 +262,16 @@ begin
                         else
                             v.perm_sel := x"1312111003020100";
                         end if;
+                    when "10101" =>
+                        -- vbpermq
+                        -- note we do LS then MS (R|1 then R) for vbpermq
+                        -- because the result is in the MS half of VRT
+                        for i in 0 to 7 loop
+                            k := i * 8;
+                            m := i * 4;
+                            v.perm_sel(k + 7 downto k) := "0001" & b_in(k + 6) & not b_in(k + 5 downto k + 3);
+                            v.vbp_sel(m + 3 downto m) := b_in(k + 7) & b_in(k + 2 downto k);
+                        end loop;
                     when others =>
                         v.perm_sel := (others => '0');
                 end case;
@@ -524,12 +539,31 @@ begin
             end if;
         end if;
 
-        -- vgbbd result
-        for i in 0 to 7 loop
-            for j in 0 to 7 loop
-                gather_res(i * 8 + j) := b_in(j * 8 + i);
+        if e_in.insn(6) = '0' then
+            -- vgbbd result
+            for i in 0 to 7 loop
+                for j in 0 to 7 loop
+                    gather_res(i * 8 + j) := b_in(j * 8 + i);
+                end loop;
             end loop;
-        end loop;
+        else
+            -- vbpermq result
+            for i in 0 to 7 loop
+                k := i * 8;
+                m := i * 4;
+                byte := vperm_result(k + 7 downto k);
+                vbperm_byte(i) := byte(to_integer(unsigned(not vst.vbp_sel(m + 2 downto m)))) and
+                                  not vst.vbp_sel(m + 3);
+            end loop;
+            gather_res := (others => '0');
+            if vec_in_progress = '0' then
+                gather_res(7 downto 0) := vst.vbpermq;
+                gather_res(15 downto 8) := vbperm_byte;
+            end if;
+            if e_in.valid = '1' then
+                v.vbpermq := vbperm_byte;
+            end if;
+        end if;
 
         -- vector shifters (b,h,w,d)
         case e_in.insn(7 downto 6) is
@@ -705,7 +739,7 @@ begin
                 vec_result <= log_result;
             when OP_VMOVE =>
                 vec_result <= move_result;
-            when OP_VGATHER =>
+            when OP_VGATHER | OP_VBPERM =>
                 vec_result <= gather_res;
             when OP_VSHIFT =>
                 vec_result <= shift_result;

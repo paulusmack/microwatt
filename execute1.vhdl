@@ -1117,7 +1117,7 @@ begin
 		v.busy := '1';
 		x_to_divider.valid <= '1';
 
-            when OP_VPERM | OP_VPACK | OP_VMERGE | OP_XPERM =>
+            when OP_VPERM | OP_VPACK | OP_VMERGE | OP_XPERM | OP_VBPERM =>
                 vec_valid <= '1';
                 if e_in.second = '0' then
                     v.e.valid := '0';
@@ -1217,6 +1217,7 @@ begin
             -- wait for the second half to be presented
             if e_in.valid = '0' then
                 v.vec_in_progress := '1';
+                v.busy := '1';
             else
                 result := vec_result;
                 result_en := '1';

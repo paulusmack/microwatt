@@ -22,7 +22,7 @@ package decode_types is
                          OP_VSXLDS, OP_VSXLDV, OP_VSXLDSPLT, OP_VSXST,
                          OP_VSXLDLEN, OP_VSXSTLEN,
                          OP_VPERM, OP_VPACK, OP_VMERGE, OP_VCMP,
-                         OP_VLOG, OP_VMOVE, OP_VGATHER, OP_VSHIFT,
+                         OP_VLOG, OP_VMOVE, OP_VGATHER, OP_VBPERM, OP_VSHIFT,
                          OP_MFVSCR, OP_MTVSCR,
                          OP_LVS,
                          OP_XPERM,
@@ -66,7 +66,8 @@ package decode_types is
                       DRSE,      -- double RS, endian twist
                       DRT,       -- double RT
                       DRTE,      -- double RT, endian twist
-                      DABCT);    -- double RA, RB, RC, RT
+                      DABCT,     -- double RA, RB, RC, RT
+                      DABTR);    -- double RA, RB, RT, ls then ms
 
     type decode_rom_t is record
 	unit         : unit_t;

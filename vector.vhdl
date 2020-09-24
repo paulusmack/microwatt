@@ -45,6 +45,8 @@ architecture behaviour of vector_unit is
         all1     : std_ulogic;
         vs_ext_l : std_ulogic_vector(7 downto 0);
         vs_ext_r : std_ulogic_vector(7 downto 0);
+        vbpermq  : std_ulogic_vector(7 downto 0);
+        vbp_sel  : std_ulogic_vector(31 downto 0);
         e        : VectorToExecute1Type;
         w        : VectorToWritebackType;
     end record;
@@ -54,6 +56,7 @@ architecture behaviour of vector_unit is
                                             part1 => '0', part2 => '0', ni => '0', sat => '0',
                                             cmp_bits => x"00", all0 => '0', all1 => '0',
                                             vs_ext_l => x"00", vs_ext_r => x"00",
+                                            vbpermq => x"00", vbp_sel => (others => '0'),
                                             others => (others => '0'));
 
     signal vst, vst_in : vec_state;
@@ -66,6 +69,8 @@ architecture behaviour of vector_unit is
     signal vperm_result : std_ulogic_vector(63 downto 0);
     signal vscr_result  : std_ulogic_vector(63 downto 0);
     signal vcmp_result  : std_ulogic_vector(63 downto 0);
+    signal vbpermq_res  : std_ulogic_vector(63 downto 0);
+    signal vbperm_byte  : std_ulogic_vector(7 downto 0);
     signal perm_data    : std_ulogic_vector(255 downto 0);
     signal vec_result   : std_ulogic_vector(63 downto 0);
     signal vec_cr6      : std_ulogic_vector(3 downto 0);
@@ -230,10 +235,19 @@ begin
                       to_integer(unsigned(vst.perm_sel(i*8 + 4 downto i*8))) * 8);
     end generate;
 
+    -- vbpermq
+    vbpermq: for i in 0 to 7 generate
+        vbperm_byte(i) <= vperm_result(i*8 + to_integer(unsigned(not vst.vbp_sel(i*4 + 2 downto i*4)))) and
+                          not vst.vbp_sel(i*4 + 3);
+    end generate;
+    vbpermq_res <= 48x"0" & vbperm_byte & vst.vbpermq when vst.part2 = '1'
+                   else 64x"0";
+
     with vst.rsel select vec_result <=
         vscr_result  when "000",
         vst.result   when "001",
         vcmp_result  when "010",
+        vbpermq_res  when "011",
         vperm_result when others;
 
     vector_0: process(clk)
@@ -278,6 +292,7 @@ begin
         variable right_sel    : std_ulogic_vector(1 downto 0);
         variable leftmost     : std_ulogic;
         variable rightmost    : std_ulogic;
+        variable byte         : std_ulogic_vector(7 downto 0);
     begin
         v := vst;
         v.e.busy := '0';
@@ -464,6 +479,16 @@ begin
                         when others =>
                             v.perm_sel := (others => '0');
                     end case;
+                when OP_VBPERM =>
+                    -- vbpermq
+                    -- note we do LS then MS (R|1 then R) for vbpermq
+                    -- because the result is in the MS half of VRT
+                    for i in 0 to 7 loop
+                        k := i * 8;
+                        m := i * 4;
+                        v.perm_sel(k + 7 downto k) := "0001" & b_in(k + 6) & not b_in(k + 5 downto k + 3);
+                        v.vbp_sel(m + 3 downto m) := b_in(k + 7) & b_in(k + 2 downto k);
+                    end loop;
                 when OP_XPERM =>
                     if e_in.second = '0' then
                         b := e_in.insn(9);
@@ -721,6 +746,8 @@ begin
             v.ni := b_in(16);
             v.sat := b_in(0);
         end if;
+
+        v.vbpermq := vbperm_byte;
 
         -- Set up outputs to writeback
         v.w.valid := (vst.part1 and e_in.valid) or vst.part2;

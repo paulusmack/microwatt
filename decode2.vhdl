@@ -320,7 +320,8 @@ architecture behaviour of decode2 is
         OP_VGATHER  => "110",
         OP_VSHIFT   => "110",
         OP_VCMP     => "110",
-        OP_ISEL     => "111",           -- misc_result
+        OP_ADDG6S   => "111",           -- misc_result
+        OP_ISEL     => "111",
         OP_DARN     => "111",
         OP_MFMSR    => "111",
         OP_MFCR     => "111",
@@ -347,6 +348,12 @@ architecture behaviour of decode2 is
         OP_VGATHER => "101",
         OP_VSHIFT  => "110",
         OP_VCMP    => "010",
+        OP_ADDG6S  => "001",            -- misc_result
+        OP_ISEL    => "010",
+        OP_DARN    => "011",
+        OP_MFMSR   => "100",
+        OP_MFCR    => "101",
+        OP_SETB    => "110",
         others     => "000"
         );
 
@@ -545,6 +552,7 @@ begin
         v.e.read_data3 := decoded_reg_c.data;
         v.e.bypass_data3 := gpr_c_bypass;
         v.e.write_reg := decoded_reg_o.reg;
+        v.e.write_reg_enable := decoded_reg_o.reg_valid;
         v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
         if not (d_in.decode.insn_type = OP_MUL_H32 or d_in.decode.insn_type = OP_MUL_H64) then
             v.e.oe := decode_oe(d_in.decode.rc, d_in.insn);
@@ -555,7 +563,13 @@ begin
         v.e.invert_a := d_in.decode.invert_a;
         v.e.addm1 := '0';
         if d_in.decode.insn_type = OP_BC or d_in.decode.insn_type = OP_BCREG then
+            -- add -1 to CTR
             v.e.addm1 := '1';
+            if d_in.insn(23) = '1' or
+                (d_in.decode.insn_type = OP_BCREG and d_in.insn(10) = '0') then
+                -- don't write decremented CTR if BO(2) = 1 or bcctr
+                v.e.write_reg_enable := '0';
+            end if;
         end if;
         v.e.invert_out := d_in.decode.invert_out;
         v.e.input_carry := d_in.decode.input_carry;
@@ -579,7 +593,7 @@ begin
         control_valid_in <= d_in.valid;
         control_sgl_pipe <= d_in.decode.sgl_pipe;
 
-        gpr_write_valid <= decoded_reg_o.reg_valid;
+        gpr_write_valid <= v.e.write_reg_enable;
         gpr_write <= decoded_reg_o.reg;
         gpr_bypassable <= '0';
         if EX1_BYPASS and d_in.decode.unit = ALU then

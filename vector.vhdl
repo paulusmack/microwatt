@@ -16,6 +16,7 @@ entity vector_unit is
         rst             : in  std_ulogic;
         vec_valid       : in  std_ulogic;
         vec_in_progress : in  std_ulogic;
+        sub_select      : in  std_ulogic_vector(2 downto 0);
         a_in            : in  std_ulogic_vector(63 downto 0);
         b_in            : in  std_ulogic_vector(63 downto 0);
         c_in            : in  std_ulogic_vector(63 downto 0);
@@ -728,20 +729,20 @@ begin
             v.sat := b_in(0);
         end if;
 
-        case e_in.insn_type is
-            when OP_MFVSCR =>
+        case sub_select is
+            when "000" =>
                 vec_result <= vscr_result;
-            when OP_LVS =>
+            when "001" =>
                 vec_result <= lvs_result;
-            when OP_VCMP =>
+            when "010" =>
                 vec_result <= cmp_result;
-            when OP_VLOG =>
+            when "011" =>
                 vec_result <= log_result;
-            when OP_VMOVE =>
+            when "100" =>
                 vec_result <= move_result;
-            when OP_VGATHER | OP_VBPERM =>
+            when "101" =>
                 vec_result <= gather_res;
-            when OP_VSHIFT =>
+            when "110" =>
                 vec_result <= shift_result;
             when others =>
                 vec_result <= vperm_result;

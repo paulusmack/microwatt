@@ -62,6 +62,8 @@ architecture behaviour of execute1 is
         prev_op : insn_type_t;
 	lr_update : std_ulogic;
 	next_lr : std_ulogic_vector(63 downto 0);
+        resmux : std_ulogic_vector(2 downto 0);
+        submux : std_ulogic_vector(2 downto 0);
         vec_in_progress : std_ulogic;
 	mul_in_progress : std_ulogic;
         mul_finish : std_ulogic;
@@ -100,6 +102,13 @@ architecture behaviour of execute1 is
     signal vec_result: std_ulogic_vector(63 downto 0);
     signal vec_valid: std_ulogic;
     signal vec_cr6: std_ulogic_vector(3 downto 0);
+    signal alu_result: std_ulogic_vector(63 downto 0);
+    signal adder_result: std_ulogic_vector(63 downto 0);
+    signal misc_result: std_ulogic_vector(63 downto 0);
+    signal muldiv_result: std_ulogic_vector(63 downto 0);
+    signal spr_result: std_ulogic_vector(63 downto 0);
+    signal result_mux_sel: std_ulogic_vector(2 downto 0);
+    signal sub_mux_sel: std_ulogic_vector(2 downto 0);
 
     -- multiply signals
     signal x_to_multiply: MultiplyInputType;
@@ -276,6 +285,7 @@ begin
             rst             => rst,
             vec_valid       => vec_valid,
             vec_in_progress => r.vec_in_progress,
+            sub_select      => sub_mux_sel,
             a_in            => a_in,
             b_in            => b_in,
             c_in            => c_in,
@@ -295,6 +305,19 @@ begin
     valid_in <= e_in.valid and not busy_out;
 
     terminate_out <= r.terminate;
+
+    -- Result mux
+    result_mux_sel <= e_in.result_sel when r.busy = '0' else r.resmux;
+    sub_mux_sel <= e_in.sub_select when r.busy = '0' else r.submux;
+    with result_mux_sel select alu_result <=
+        adder_result       when "000",
+        logical_result     when "001",
+        rotator_result     when "010",
+        muldiv_result      when "011",
+        countzero_result   when "100",
+        spr_result         when "101",
+        vec_result         when "110",
+        misc_result        when others;
 
     execute1_0: process(clk)
     begin
@@ -319,7 +342,8 @@ begin
     execute1_1: process(all)
 	variable v : reg_type;
 	variable a_inv : std_ulogic_vector(63 downto 0);
-	variable result : std_ulogic_vector(63 downto 0);
+	variable b_or_m1 : std_ulogic_vector(63 downto 0);
+	variable addg6s : std_ulogic_vector(63 downto 0);
 	variable newcrf : std_ulogic_vector(3 downto 0);
 	variable sum_with_carry : std_ulogic_vector(64 downto 0);
 	variable result_en : std_ulogic;
@@ -357,15 +381,16 @@ begin
         variable spr_val : std_ulogic_vector(63 downto 0);
         variable addend : std_ulogic_vector(127 downto 0);
         variable do_trace : std_ulogic;
+        variable hold_wr_data : std_ulogic;
         variable fv : Execute1ToFPUType;
     begin
-	result := (others => '0');
 	sum_with_carry := (others => '0');
 	result_en := '0';
 	newcrf := (others => '0');
         is_branch := '0';
         taken_branch := '0';
         abs_branch := '0';
+        hold_wr_data := '0';
         vec_valid <= '0';
 
 	v := r;
@@ -426,14 +451,23 @@ begin
         v.cntz_in_progress := '0';
         v.mul_finish := '0';
 
+        misc_result <= (others => '0');
+        spr_result <= (others => '0');
+
         -- Main adder
         if e_in.invert_a = '0' then
             a_inv := a_in;
         else
             a_inv := not a_in;
         end if;
-        sum_with_carry := ppc_adde(a_inv, b_in,
+        if e_in.addm1 = '0' then
+            b_or_m1 := b_in;
+        else
+            b_or_m1 := (others => '1');
+        end if;
+        sum_with_carry := ppc_adde(a_inv, b_or_m1,
                                    decode_input_carry(e_in.input_carry, v.e.xerc));
+        adder_result <= sum_with_carry(63 downto 0);
 
         -- signals to multiply and divide units
         sign1 := '0';
@@ -459,6 +493,7 @@ begin
             abs2 := - signed(b_in);
         end if;
 
+        -- Interface to multiply and divide units
 	x_to_multiply <= MultiplyInputInit;
 	x_to_multiply.is_32bit <= e_in.is_32bit;
 
@@ -505,6 +540,18 @@ begin
             end if;
             x_to_divider.divisor <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
         end if;
+
+        case sub_mux_sel(1 downto 0) is
+            when "00" =>
+                muldiv_result <= multiply_to_x.result(63 downto 0);
+            when "01" =>
+                muldiv_result <= multiply_to_x.result(127 downto 64);
+            when "10" =>
+                muldiv_result <= multiply_to_x.result(63 downto 32) &
+                                 multiply_to_x.result(63 downto 32);
+            when others =>
+                muldiv_result <= divider_to_x.write_reg_data;
+        end case;
 
 	ctrl_tmp <= ctrl;
 	-- FIXME: run at 512MHz not core freq
@@ -665,6 +712,8 @@ begin
 	    v.slow_op_rc := e_in.rc;
 	    v.slow_op_oe := e_in.oe;
 	    v.slow_op_xerc := v.e.xerc;
+            v.resmux := e_in.result_sel;
+            v.submux := e_in.sub_select;
 
 	    case_0: case e_in.insn_type is
 
@@ -696,8 +745,7 @@ begin
 	    when OP_NOP | OP_DCBF | OP_DCBST | OP_DCBT | OP_DCBTST | OP_ICBT =>
 		-- Do nothing
 	    when OP_ADD | OP_CMP | OP_TRAP =>
-		result := sum_with_carry(63 downto 0);
-                carry_32 := result(32) xor a_inv(32) xor b_in(32);
+                carry_32 := sum_with_carry(32) xor a_inv(32) xor b_in(32);
                 carry_64 := sum_with_carry(64);
                 if e_in.insn_type = OP_ADD then
                     if e_in.output_carry = '1' then
@@ -778,17 +826,18 @@ begin
                     end if;
                 end if;
             when OP_ADDG6S =>
-                result := (others => '0');
+                addg6s := (others => '0');
                 for i in 0 to 14 loop
                     lo := i * 4;
                     hi := (i + 1) * 4;
                     if (a_in(hi) xor b_in(hi) xor sum_with_carry(hi)) = '0' then
-                        result(lo + 3 downto lo) := "0110";
+                        addg6s(lo + 3 downto lo) := "0110";
                     end if;
                 end loop;
                 if sum_with_carry(64) = '0' then
-                    result(63 downto 60) := "0110";
+                    addg6s(63 downto 60) := "0110";
                 end if;
+                misc_result <= addg6s;
                 result_en := '1';
             when OP_CMPRB =>
                 newcrf := ppc_cmprb(a_in, b_in, insn_l(e_in.insn));
@@ -808,7 +857,6 @@ begin
                                      newcrf & newcrf & newcrf & newcrf;
             when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS |
                     OP_BPERM | OP_BCD =>
-		result := logical_result;
 		result_en := '1';
 	    when OP_B =>
                 is_branch := '1';
@@ -819,12 +867,11 @@ begin
                 end if;
 	    when OP_BC =>
 		-- read_data1 is CTR
+                v.e.write_reg := fast_spr_num(SPR_CTR);
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
 		if bo(4-2) = '0' then
-		    result := std_ulogic_vector(unsigned(a_in) - 1);
 		    result_en := '1';
-		    v.e.write_reg := fast_spr_num(SPR_CTR);
 		end if;
                 is_branch := '1';
 		taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
@@ -835,12 +882,11 @@ begin
 	    when OP_BCREG =>
 		-- read_data1 is CTR
 		-- read_data2 is target register (CTR, LR or TAR)
+                v.e.write_reg := fast_spr_num(SPR_CTR);
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
 		if bo(4-2) = '0' and e_in.insn(10) = '0' then
-		    result := std_ulogic_vector(unsigned(a_in) - 1);
 		    result_en := '1';
-		    v.e.write_reg := fast_spr_num(SPR_CTR);
 		end if;
                 is_branch := '1';
 		taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
@@ -881,9 +927,9 @@ begin
 	    when OP_ISEL =>
 		crbit := to_integer(unsigned(insn_bc(e_in.insn)));
 		if cr_in(31-crbit) = '1' then
-		    result := a_in;
+		    misc_result <= a_in;
 		else
-		    result := b_in;
+		    misc_result <= b_in;
 		end if;
 		result_en := '1';
 	    when OP_CROP =>
@@ -941,38 +987,38 @@ begin
                 if random_err = '0' then
                     case e_in.insn(17 downto 16) is
                         when "00" =>
-                            result := x"00000000" & random_cond(31 downto 0);
+                            misc_result <= x"00000000" & random_cond(31 downto 0);
                         when "10" =>
-                            result := random_raw;
+                            misc_result <= random_raw;
                         when others =>
-                            result := random_cond;
+                            misc_result <= random_cond;
                     end case;
                 else
-                    result := (others => '1');
+                    misc_result <= (others => '1');
                 end if;
                 result_en := '1';
 	    when OP_MFMSR =>
-		result := ctrl.msr;
+		misc_result <= ctrl.msr;
 		result_en := '1';
 	    when OP_MFSPR =>
 		report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(a_in);
 		result_en := '1';
 		if is_fast_spr(e_in.read_reg1) then
-		    result := a_in;
-		    if decode_spr_num(e_in.insn) = SPR_XER then
-			-- bits 0:31 and 35:43 are treated as reserved and return 0s when read using mfxer
-			result(63 downto 32) := (others => '0');
-			result(63-32) := v.e.xerc.so;
-			result(63-33) := v.e.xerc.ov;
-			result(63-34) := v.e.xerc.ca;
-			result(63-35 downto 63-43) := "000000000";
-			result(63-44) := v.e.xerc.ov32;
-			result(63-45) := v.e.xerc.ca32;
-		    end if;
+		    spr_val := a_in;
 		else
                     spr_val := c_in;
-		    case decode_spr_num(e_in.insn) is
+                end if;
+                case decode_spr_num(e_in.insn) is
+		    when SPR_XER =>
+			-- bits 0:31 and 35:43 are treated as reserved and return 0s when read using mfxer
+			spr_val(63 downto 32) := (others => '0');
+			spr_val(63-32) := v.e.xerc.so;
+			spr_val(63-33) := v.e.xerc.ov;
+			spr_val(63-34) := v.e.xerc.ca;
+			spr_val(63-35 downto 63-43) := "000000000";
+			spr_val(63-44) := v.e.xerc.ov32;
+			spr_val(63-45) := v.e.xerc.ca32;
 		    when SPR_TB =>
 			spr_val := ctrl.tb;
 		    when SPR_TBU =>
@@ -999,22 +1045,22 @@ begin
                         if ctrl.msr(MSR_PR) = '1' then
                             illegal := '1';
                         end if;
-		    end case;
-                    result := spr_val;
-		end if;
+                end case;
+                spr_result <= spr_val;
+
 	    when OP_MFCR =>
 		if e_in.insn(20) = '0' then
 		    -- mfcr
-		    result := x"00000000" & cr_in;
+		    misc_result <= x"00000000" & cr_in;
 		else
 		    -- mfocrf
 		    crnum := fxm_to_num(insn_fxm(e_in.insn));
-		    result := (others => '0');
+		    misc_result <= (others => '0');
 		    for i in 0 to 7 loop
 			lo := (7-i)*4;
 			hi := lo + 3;
 			if crnum = i then
-			    result(hi downto lo) := cr_in(hi downto lo);
+			    misc_result(hi downto lo) <= cr_in(hi downto lo);
 			end if;
 		    end loop;
 		end if;
@@ -1055,7 +1101,6 @@ begin
 		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(c_in);
 		if is_fast_spr(e_in.write_reg) then
-		    result := c_in;
 		    result_en := '1';
 		    if decode_spr_num(e_in.insn) = SPR_XER then
 			v.e.xerc.so := c_in(63-32);
@@ -1083,7 +1128,6 @@ begin
 		    end case;
 		end if;
 	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR | OP_EXTSWSLI =>
-		result := rotator_result;
 		if e_in.output_carry = '1' then
 		    set_carry(v.e, rotator_carry, rotator_carry);
 		end if;
@@ -1091,11 +1135,11 @@ begin
             when OP_SETB =>
                 bfa := insn_bfa(e_in.insn);
                 crbit := to_integer(unsigned(bfa)) * 4;
-                result := (others => '0');
+                misc_result <= (others => '0');
                 if cr_in(31 - crbit) = '1' then
-                    result := (others => '1');
+                    misc_result <= (others => '1');
                 elsif cr_in(30 - crbit) = '1' then
-                    result(0) := '1';
+                    misc_result(0) <= '1';
                 end if;
 
 	    when OP_ISYNC =>
@@ -1124,18 +1168,15 @@ begin
                     v.busy := '1';
                     v.vec_in_progress := '1';
                 else
-                    result := vec_result;
                     result_en := '1';
                 end if;
 
             when OP_LVS | OP_MFVSCR | OP_VLOG | OP_VMOVE | OP_VGATHER | OP_VSHIFT =>
                 vec_valid <= '1';
-                result := vec_result;
                 result_en := '1';
 
             when OP_VCMP =>
                 vec_valid <= '1';
-                result := vec_result;
                 result_en := '1';
                 -- write back CR6 result on the second half
                 if insn_rc6(e_in.insn) = '1' and e_in.second = '1' then
@@ -1219,14 +1260,12 @@ begin
                 v.vec_in_progress := '1';
                 v.busy := '1';
             else
-                result := vec_result;
                 result_en := '1';
                 v.e.write_reg := r.slow_op_dest;
                 v.e.valid := '1';
             end if;
         elsif r.cntz_in_progress = '1' then
             -- cnt[lt]z always takes two cycles
-            result := countzero_result;
             result_en := '1';
             v.e.write_reg := r.slow_op_dest;
             v.e.rc := r.slow_op_rc;
@@ -1237,18 +1276,7 @@ begin
 	       (r.div_in_progress = '1' and divider_to_x.valid = '1') then
 		if r.mul_in_progress = '1' then
                     overflow := '0';
-                    case r.slow_op_insn is
-                        when OP_MUL_H32 =>
-                            result := multiply_to_x.result(63 downto 32) &
-                                      multiply_to_x.result(63 downto 32);
-                        when OP_MUL_H64 =>
-                            result := multiply_to_x.result(127 downto 64);
-                        when others =>
-                            -- i.e. OP_MUL_L64
-                            result := multiply_to_x.result(63 downto 0);
-                    end case;
 		else
-		    result := divider_to_x.write_reg_data;
 		    overflow := divider_to_x.overflow;
 		end if;
                 if r.mul_in_progress = '1' and r.slow_op_oe = '1' then
@@ -1277,7 +1305,7 @@ begin
 		v.div_in_progress := r.div_in_progress;
 	    end if;
         elsif r.mul_finish = '1' then
-            result := r.e.write_data;
+            hold_wr_data := '1';
             result_en := '1';
             v.e.write_reg := r.slow_op_dest;
             v.e.rc := r.slow_op_rc;
@@ -1318,7 +1346,11 @@ begin
             v.trace_next := '1';
         end if;
 
-	v.e.write_data := result;
+        if hold_wr_data = '0' then
+            v.e.write_data := alu_result;
+        else
+            v.e.write_data := r.e.write_data;
+        end if;
 	v.e.write_enable := result_en and not exception;
 
         -- generate DSI or DSegI for load/store exceptions

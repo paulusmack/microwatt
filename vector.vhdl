@@ -101,6 +101,13 @@ begin
             v.a0 := a_in;
             v.b0 := b_in;
         end if;
+        -- do comparisons for vcmp*, vmin* and vmax*
+        for i in 0 to 7 loop
+            k := i * 8;
+            cmpeq(i) := unsigned(a_in(k + 7 downto k)) = unsigned(b_in(k + 7 downto k));
+            cmpgt(i) := signed(a_in(k + 7 downto k)) > signed(b_in(k + 7 downto k));
+            cmpgtu(i) := unsigned(a_in(k + 7 downto k)) > unsigned(b_in(k + 7 downto k));
+        end loop;
         if e_in.valid = '1' then
             if e_in.insn(31) = '1' then
                 -- OP_XPERM
@@ -115,7 +122,7 @@ begin
                                                   not b & std_ulogic_vector(to_unsigned(i, 3));
                 end loop;
             elsif e_in.insn(5) = '1' then
-                -- OP_VPERM
+                -- OP_VPERM, columns 2b, 2c, 3b
                 if e_in.insn(2) = '1' then
                     -- vsldoi
                     m := 16 - to_integer(unsigned(e_in.insn(9 downto 6)));
@@ -133,8 +140,145 @@ begin
                     -- vpermr
                     v.perm_sel := c_in;
                 end if;
+            elsif e_in.insn(2) = '0' then
+                -- OP_VMINMAX, column 02
+                -- e_in.insn(9) is 1 for vmin, 0 for vmax
+                case e_in.insn(8 downto 6) is
+                    when "100" =>
+                        -- vmaxsb, vminsb
+                        for i in 0 to 7 loop
+                            k := i * 8;
+                            b := '0';
+                            if cmpgt(i) then
+                                b := '1';
+                            end if;
+                            v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                                                          not e_in.second & std_ulogic_vector(to_unsigned(i, 3));
+                        end loop;
+                    when "000" =>
+                        -- vmaxub, vminub
+                        for i in 0 to 7 loop
+                            k := i * 8;
+                            b := '0';
+                            if cmpgtu(i) then
+                                b := '1';
+                            end if;
+                            v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                                                          not e_in.second & std_ulogic_vector(to_unsigned(i, 3));
+                        end loop;
+                    when "101" =>
+                        -- vmaxsh, vminsh
+                        for i in 0 to 3 loop
+                            k := i * 16;
+                            m := i * 2;
+                            b := '0';
+                            if cmpgt(m + 1) or (cmpeq(m + 1) and cmpgtu(m)) then
+                                b := '1';
+                            end if;
+                            v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                                                          not e_in.second & std_ulogic_vector(to_unsigned(i, 2)) & '0';
+                            v.perm_sel(k + 15 downto k + 8) := "000" & (b xor e_in.insn(9)) &
+                                                               not e_in.second & std_ulogic_vector(to_unsigned(i, 2)) & '1';
+                        end loop;
+                    when "001" =>
+                        -- vmaxuh, vminuh
+                        for i in 0 to 3 loop
+                            k := i * 16;
+                            m := i * 2;
+                            b := '0';
+                            if cmpgtu(m + 1) or (cmpeq(m + 1) and cmpgtu(m)) then
+                                b := '1';
+                            end if;
+                            v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                                                          not e_in.second & std_ulogic_vector(to_unsigned(i, 2)) & '0';
+                            v.perm_sel(k + 15 downto k + 8) := "000" & (b xor e_in.insn(9)) &
+                                                               not e_in.second & std_ulogic_vector(to_unsigned(i, 2)) & '1';
+                        end loop;
+                    when "110" =>
+                        -- vmaxsw, vminsw
+                        for i in 0 to 1 loop
+                            bv := cmpgt(i * 4 + 3);
+                            if cmpeq(i * 4 + 3) then
+                                for m in i * 4 + 2 downto i * 4 loop
+                                    bv := cmpgtu(m);
+                                    if not cmpeq(m) then
+                                        exit;
+                                    end if;
+                                end loop;
+                            end if;
+                            b := '0';
+                            if bv then
+                                b := '1';
+                            end if;
+                            for m in i * 4 to i * 4 + 3 loop
+                                k := m * 8;
+                                v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                                                              not e_in.second &
+                                                              std_ulogic_vector(to_unsigned(m, 3));
+                            end loop;
+                        end loop;
+                    when "010" =>
+                        -- vmaxuw, vminuw
+                        for i in 0 to 1 loop
+                            for m in i * 4 + 3 downto i * 4 loop
+                                bv := cmpgtu(m);
+                                if not cmpeq(m) then
+                                    exit;
+                                end if;
+                            end loop;
+                            b := '0';
+                            if bv then
+                                b := '1';
+                            end if;
+                            for m in i * 4 to i * 4 + 3 loop
+                                k := m * 8;
+                                v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                                                              not e_in.second &
+                                                              std_ulogic_vector(to_unsigned(m, 3));
+                            end loop;
+                        end loop;
+                    when "111" =>
+                        -- vmaxsd, vminsd
+                        bv := cmpgt(7);
+                        if cmpeq(7) then
+                            for m in 6 downto 0 loop
+                                bv := cmpgtu(m);
+                                if not cmpeq(m) then
+                                    exit;
+                                end if;
+                            end loop;
+                        end if;
+                        b := '0';
+                        if bv then
+                            b := '1';
+                        end if;
+                        for m in 0 to 7 loop
+                            k := m * 8;
+                            v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                                                          not e_in.second &
+                                                          std_ulogic_vector(to_unsigned(m, 3));
+                        end loop;
+                    when others =>
+                        -- vmaxud, vminud
+                        for m in 7 downto 0 loop
+                            bv := cmpgtu(m);
+                            if not cmpeq(m) then
+                                exit;
+                            end if;
+                        end loop;
+                        b := '0';
+                        if bv then
+                            b := '1';
+                        end if;
+                        for m in 0 to 7 loop
+                            k := m * 8;
+                            v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                                                          not e_in.second &
+                                                          std_ulogic_vector(to_unsigned(m, 3));
+                        end loop;
+                end case;
             elsif e_in.insn(1) = '1' then
-                -- OP_VPACK
+                -- OP_VPACK, column 0e
                 if e_in.insn(6) = '0' then
                     -- vpkuhum
                     for i in 0 to 7 loop
@@ -171,7 +315,7 @@ begin
                     end loop;
                 end if;
             else
-                -- OP_VMERGE and OP_VBPERM
+                -- OP_VMERGE and OP_VBPERM, column 0c
                 case e_in.insn(10 downto 6) is
                     when "01000" =>
                         -- vspltb
@@ -287,13 +431,6 @@ begin
             vperm_result(k + 7 downto k) := data(n + 7 downto n);
         end loop;
 
-        -- do comparisons for vcmp*
-        for i in 0 to 7 loop
-            k := i * 8;
-            cmpeq(i) := unsigned(a_in(k + 7 downto k)) = unsigned(b_in(k + 7 downto k));
-            cmpgt(i) := signed(a_in(k + 7 downto k)) > signed(b_in(k + 7 downto k));
-            cmpgtu(i) := unsigned(a_in(k + 7 downto k)) > unsigned(b_in(k + 7 downto k));
-        end loop;
         cmp_result := (others => '0');
         if e_in.second = '0' then
             all0 := '1';

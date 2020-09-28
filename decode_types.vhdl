@@ -21,7 +21,7 @@ package decode_types is
                          OP_VRLOAD, OP_VRSTORE,
                          OP_VSXLDS, OP_VSXLDV, OP_VSXLDSPLT, OP_VSXST,
                          OP_VSXLDLEN, OP_VSXSTLEN,
-                         OP_VPERM, OP_VPACK, OP_VMERGE, OP_VCMP,
+                         OP_VPERM, OP_VPACK, OP_VMERGE, OP_VCMP, OP_VMINMAX,
                          OP_VLOG, OP_VMOVE, OP_VGATHER, OP_VBPERM, OP_VSHIFT,
                          OP_MFVSCR, OP_MTVSCR,
                          OP_LVS,

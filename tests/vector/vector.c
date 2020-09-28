@@ -351,6 +351,457 @@ int vector_test_3(void)
 	return 0;
 }
 
+unsigned char d1[16] __attribute__((__aligned__(16))) =
+	{ 0x01, 0x80, 0x10, 0x60, 0x11, 0x12, 0xff, 0xff, 0x19, 0xaa, 0x69, 0x1a, 0xfa, 0xfa, 0xee, 0xed };
+unsigned char d2[16] __attribute__((__aligned__(16))) =
+	{ 0xe7, 0x80, 0x10, 0xd0, 0x11, 0x99, 0x00, 0xff, 0x26, 0x25, 0x24, 0xbb, 0x77, 0x66, 0x55, 0x44 };
+
+unsigned long test4(unsigned long size, unsigned long t)
+{
+	switch (size) {
+	case 0x1:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vmaxsb 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x2:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vmaxsh 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x4:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vmaxsw 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x8:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vmaxsd 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x11:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vmaxub 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x12:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vmaxuh 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x14:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vmaxuw 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x18:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vmaxud 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x21:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vminsb 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x22:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vminsh 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x24:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vminsw 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x28:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vminsd 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x31:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vminub 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x32:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vminuh 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x34:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vminuw 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	case 0x38:
+		asm("lvx 5,0,%1; lvx 6,0,%2; vminud 7,5,6; stvx 7,0,%0" : :
+		    "r" (result), "r" (d1), "r" (d2) : "memory");
+		break;
+	default:
+		return size | 0xff000;
+	}
+	return 0;
+}
+
+#define max(a, b)	(a > b? a : b)
+#define min(a, b)	(a < b? a : b)
+
+int vector_test_4(void)
+{
+	unsigned long ret, i;
+	signed long v;
+	union u {
+		signed char sb[16];
+		signed short sh[8];
+		signed int sw[4];
+		signed long sd[2];
+		unsigned char ub[16];
+		unsigned short uh[8];
+		unsigned int uw[4];
+		unsigned long ud[2];
+	} *a, *b, *r;
+
+	a = (union u *)d1;
+	b = (union u *)d2;
+	r = (union u *)result;
+
+	enable_vec();
+
+	ret = callit(1, 0, test4);
+	if (ret)
+		return ret | 0x1000;
+	for (i = 0; i < 16; ++i) {
+		v = max(a->sb[i], b->sb[i]);
+		if (v != r->sb[i])
+			return 1;
+	}
+	ret = callit(2, 0, test4);
+	if (ret)
+		return ret | 0x2000;
+	for (i = 0; i < 8; ++i) {
+		v = max(a->sh[i], b->sh[i]);
+		if (v != r->sh[i])
+			return 2;
+	}
+	ret = callit(4, 0, test4);
+	if (ret)
+		return ret | 0x3000;
+	for (i = 0; i < 4; ++i) {
+		v = max(a->sw[i], b->sw[i]);
+		if (v != r->sw[i])
+			return 3;
+	}
+	ret = callit(8, 0, test4);
+	if (ret)
+		return ret | 0x4000;
+	for (i = 0; i < 2; ++i) {
+		v = max(a->sd[i], b->sd[i]);
+		if (v != r->sd[i])
+			return 4;
+	}
+	ret = callit(0x11, 0, test4);
+	if (ret)
+		return ret | 0x5000;
+	for (i = 0; i < 16; ++i) {
+		v = max(a->ub[i], b->ub[i]);
+		if (v != r->ub[i])
+			return 5;
+	}
+	ret = callit(0x12, 0, test4);
+	if (ret)
+		return ret | 0x6000;
+	for (i = 0; i < 8; ++i) {
+		v = max(a->uh[i], b->uh[i]);
+		if (v != r->uh[i])
+			return 6;
+	}
+	ret = callit(0x14, 0, test4);
+	if (ret)
+		return ret | 0x7000;
+	for (i = 0; i < 4; ++i) {
+		v = max(a->uw[i], b->uw[i]);
+		if (v != r->uw[i])
+			return 7;
+	}
+	ret = callit(0x18, 0, test4);
+	if (ret)
+		return ret | 0x8000;
+	for (i = 0; i < 2; ++i) {
+		v = max(a->ud[i], b->ud[i]);
+		if (v != r->ud[i])
+			return 8;
+	}
+	ret = callit(0x21, 0, test4);
+	if (ret)
+		return ret | 0x9000;
+	for (i = 0; i < 16; ++i) {
+		v = min(a->sb[i], b->sb[i]);
+		if (v != r->sb[i])
+			return 9;
+	}
+	ret = callit(0x22, 0, test4);
+	if (ret)
+		return ret | 0xa000;
+	for (i = 0; i < 8; ++i) {
+		v = min(a->sh[i], b->sh[i]);
+		if (v != r->sh[i])
+			return 10;
+	}
+	ret = callit(0x24, 0, test4);
+	if (ret)
+		return ret | 0xb000;
+	for (i = 0; i < 4; ++i) {
+		v = min(a->sw[i], b->sw[i]);
+		if (v != r->sw[i])
+			return 11;
+	}
+	ret = callit(0x28, 0, test4);
+	if (ret)
+		return ret | 0xc000;
+	for (i = 0; i < 2; ++i) {
+		v = min(a->sd[i], b->sd[i]);
+		if (v != r->sd[i])
+			return 12;
+	}
+	ret = callit(0x31, 0, test4);
+	if (ret)
+		return ret | 0xd000;
+	for (i = 0; i < 16; ++i) {
+		v = min(a->ub[i], b->ub[i]);
+		if (v != r->ub[i])
+			return 13;
+	}
+	ret = callit(0x32, 0, test4);
+	if (ret)
+		return ret | 0xe000;
+	for (i = 0; i < 8; ++i) {
+		v = min(a->uh[i], b->uh[i]);
+		if (v != r->uh[i])
+			return 14;
+	}
+	ret = callit(0x34, 0, test4);
+	if (ret)
+		return ret | 0xf000;
+	for (i = 0; i < 4; ++i) {
+		v = min(a->uw[i], b->uw[i]);
+		if (v != r->uw[i])
+			return 15;
+	}
+	ret = callit(0x38, 0, test4);
+	if (ret)
+		return ret | 0x10000;
+	for (i = 0; i < 2; ++i) {
+		v = min(a->ud[i], b->ud[i]);
+		if (v != r->ud[i])
+			return 16;
+	}
+	return 0;
+}
+
+unsigned char c1[16] __attribute__((__aligned__(16))) =
+	{ 0x00, 0x00, 0x10, 0x60, 0x11, 0x12, 0xff, 0xff, 0x19, 0xaa, 0x69, 0x1a, 0x77, 0x66, 0x55, 0x44 };
+unsigned char c2[16] __attribute__((__aligned__(16))) =
+	{ 0x00, 0x00, 0x10, 0xd0, 0x11, 0x99, 0x00, 0xff, 0x26, 0x25, 0x24, 0xbb, 0x77, 0x66, 0x55, 0x44 };
+
+unsigned long test5(unsigned long size, unsigned long t)
+{
+	switch (size) {
+	case 0x1:
+		asm("lvx 7,0,%1; lvx 4,0,%2; vcmpequb 8,7,4; stvx 8,0,%0" : :
+		    "r" (result), "r" (c1), "r" (c2) : "memory");
+		break;
+	case 0x2:
+		asm("lvx 7,0,%1; lvx 4,0,%2; vcmpequh 8,7,4; stvx 8,0,%0" : :
+		    "r" (result), "r" (c1), "r" (c2) : "memory");
+		break;
+	case 0x4:
+		asm("lvx 7,0,%1; lvx 4,0,%2; vcmpequw 8,7,4; stvx 8,0,%0" : :
+		    "r" (result), "r" (c1), "r" (c2) : "memory");
+		break;
+	case 0x8:
+		asm("lvx 7,0,%1; lvx 4,0,%2; vcmpequd 8,7,4; stvx 8,0,%0" : :
+		    "r" (result), "r" (c1), "r" (c2) : "memory");
+		break;
+	case 0x11:
+		asm("lvx 7,0,%1; lvx 4,0,%2; vcmpgtsb 8,7,4; stvx 8,0,%0" : :
+		    "r" (result), "r" (c1), "r" (c2) : "memory");
+		break;
+	case 0x12:
+		asm("lvx 7,0,%1; lvx 4,0,%2; vcmpgtsh 8,7,4; stvx 8,0,%0" : :
+		    "r" (result), "r" (c1), "r" (c2) : "memory");
+		break;
+	case 0x14:
+		asm("lvx 7,0,%1; lvx 4,0,%2; vcmpgtsw 8,7,4; stvx 8,0,%0" : :
+		    "r" (result), "r" (c1), "r" (c2) : "memory");
+		break;
+	case 0x18:
+		asm("lvx 7,0,%1; lvx 4,0,%2; vcmpgtsd 8,7,4; stvx 8,0,%0" : :
+		    "r" (result), "r" (c1), "r" (c2) : "memory");
+		break;
+	case 0x21:
+		asm("lvx 7,0,%1; lvx 4,0,%2; vcmpgtub 8,7,4; stvx 8,0,%0" : :
+		    "r" (result), "r" (c1), "r" (c2) : "memory");
+		break;
+	case 0x22:
+		asm("lvx 7,0,%1; lvx 4,0,%2; vcmpgtuh 8,7,4; stvx 8,0,%0" : :
+		    "r" (result), "r" (c1), "r" (c2) : "memory");
+		break;
+	case 0x24:
+		asm("lvx 7,0,%1; lvx 4,0,%2; vcmpgtuw 8,7,4; stvx 8,0,%0" : :
+		    "r" (result), "r" (c1), "r" (c2) : "memory");
+		break;
+	case 0x28:
+		asm("lvx 7,0,%1; lvx 4,0,%2; vcmpgtud 8,7,4; stvx 8,0,%0" : :
+		    "r" (result), "r" (c1), "r" (c2) : "memory");
+		break;
+	default:
+		return size | 0xff000;
+	}
+	return 0;
+}
+
+int vector_test_5(void)
+{
+	unsigned long ret, i;
+	signed long v;
+	union u {
+		signed char sb[16];
+		signed short sh[8];
+		signed int sw[4];
+		signed long sd[2];
+		unsigned char ub[16];
+		unsigned short uh[8];
+		unsigned int uw[4];
+		unsigned long ud[2];
+	} *a, *b, *r;
+
+	a = (union u *)c1;
+	b = (union u *)c2;
+	r = (union u *)result;
+
+	enable_vec();
+
+	ret = callit(1, 0, test5);
+	if (ret)
+		return ret | 0x1000;
+	for (i = 0; i < 16; ++i) {
+		v = a->ub[i] == b->ub[i]? 0xff: 0;
+		if (v != r->ub[i])
+			return 1;
+	}
+	ret = callit(2, 0, test5);
+	if (ret)
+		return ret | 0x2000;
+	for (i = 0; i < 8; ++i) {
+		v = a->uh[i] == b->uh[i]? 0xffff: 0;
+		if (v != r->uh[i])
+			return 2;
+	}
+	ret = callit(4, 0, test5);
+	if (ret)
+		return ret | 0x3000;
+	for (i = 0; i < 4; ++i) {
+		v = a->uw[i] == b->uw[i]? 0xffffffff: 0;
+		if (v != r->uw[i])
+			return 3;
+	}
+	ret = callit(8, 0, test5);
+	if (ret)
+		return ret | 0x4000;
+	for (i = 0; i < 2; ++i) {
+		v = a->ud[i] == b->ud[i]? ~0ul: 0;
+		if (v != r->ud[i])
+			return 4;
+	}
+	ret = callit(0x11, 0, test5);
+	if (ret)
+		return ret | 0x5000;
+	for (i = 0; i < 16; ++i) {
+		v = a->sb[i] > b->sb[i]? 0xff: 0;
+		if (v != r->ub[i])
+			return 5;
+	}
+	ret = callit(0x12, 0, test5);
+	if (ret)
+		return ret | 0x6000;
+	for (i = 0; i < 8; ++i) {
+		v = a->sh[i] > b->sh[i]? 0xffff: 0;
+		if (v != r->uh[i])
+			return 6;
+	}
+	ret = callit(0x14, 0, test5);
+	if (ret)
+		return ret | 0x7000;
+	for (i = 0; i < 4; ++i) {
+		v = a->sw[i] > b->sw[i]? 0xffffffff: 0;
+		if (v != r->uw[i])
+			return 7;
+	}
+	ret = callit(0x18, 0, test5);
+	if (ret)
+		return ret | 0x8000;
+	for (i = 0; i < 2; ++i) {
+		v = a->sd[i] > b->sd[i]? ~0ul: 0;
+		if (v != r->ud[i])
+			return 8;
+	}
+	ret = callit(0x21, 0, test5);
+	if (ret)
+		return ret | 0x9000;
+	for (i = 0; i < 16; ++i) {
+		v = a->ub[i] > b->ub[i]? 0xff: 0;
+		if (v != r->ub[i])
+			return 9;
+	}
+	ret = callit(0x22, 0, test5);
+	if (ret)
+		return ret | 0xa000;
+	for (i = 0; i < 8; ++i) {
+		v = a->uh[i] > b->uh[i]? 0xffff: 0;
+		if (v != r->uh[i])
+			return 10;
+	}
+	ret = callit(0x24, 0, test5);
+	if (ret)
+		return ret | 0xb000;
+	for (i = 0; i < 4; ++i) {
+		v = a->uw[i] > b->uw[i]? 0xffffffff: 0;
+		if (v != r->uw[i])
+			return 11;
+	}
+	ret = callit(0x28, 0, test5);
+	if (ret)
+		return ret | 0xc000;
+	for (i = 0; i < 2; ++i) {
+		v = a->ud[i] > b->ud[i]? ~0ul: 0;
+		if (v != r->ud[i])
+			return 12;
+	}
+	return 0;
+}
+
+unsigned char p1[16] __attribute__((__aligned__(16))) =
+	{ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xdb, 0x7f };
+unsigned char p2[16] __attribute__((__aligned__(16))) =
+	{ 0x6d, 0x70, 0x7c, 0x65, 0x6d, 0x65, 0x6e, 0x74, 0x65, 0x64, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
+unsigned long test6(unsigned long size, unsigned long t)
+{
+	switch (size) {
+	case 0x1:
+		asm("lvx 7,0,%1; lvx 4,0,%2; vbpermq 8,7,4; stvx 8,0,%0" : :
+		    "r" (result), "r" (p1), "r" (p2) : "memory");
+		break;
+	default:
+		return size | 0xff000;
+	}
+	return 0;
+}
+
+int vector_test_6(void)
+{
+	unsigned long ret, i;
+
+	enable_vec();
+
+	ret = callit(1, 0, test6);
+	if (ret)
+		return ret | 0x1000;
+	if (result[8] != 0xff || result[9] != 0x03)
+		return 1;
+	for (i = 0; i < 16; ++i) {
+		if (i != 8 && i != 9 && result[i])
+			return 2;
+	}
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -376,6 +827,9 @@ int main(void)
 	do_test(1, vector_test_1);
 	do_test(2, vector_test_2);
 	do_test(3, vector_test_3);
+	do_test(4, vector_test_4);
+	do_test(5, vector_test_5);
+	do_test(6, vector_test_6);
 
 	return fail;
 }

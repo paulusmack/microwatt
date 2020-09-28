@@ -75,6 +75,7 @@ architecture behaviour of vector_unit is
     signal vec_result   : std_ulogic_vector(63 downto 0);
     signal vec_cr6      : std_ulogic_vector(3 downto 0);
     signal cmp_bits     : std_ulogic_vector(7 downto 0);
+    signal maxbits      : std_ulogic_vector(7 downto 0);
 
     signal cmpeq        : std_ulogic_vector(7 downto 0);
     signal cmpgt        : std_ulogic_vector(7 downto 0);
@@ -223,6 +224,25 @@ begin
         (others => dcmpgt) when "11111",
         (others => '0') when others;
 
+    -- vmin/vmax selection
+    with e_in.insn(8 downto 6) select maxbits <=
+        -- vmaxub, vminub
+        cmpgtu when "000",
+        -- vmaxuh, vimnuh
+        vexpand2(hcmpgtu) when "001",
+        -- vmaxuw, vminuw
+        vexpand4(wcmpgtu) when "010",
+        -- vmaxud, vminud
+        (others => dcmpgtu) when "011",
+        -- vmaxsb, vminsb
+        cmpgt when "100",
+        -- vmaxsh, vminsh
+        vexpand2(hcmpgt) when "101",
+        -- vmaxsw, vminsw
+        vexpand4(wcmpgt) when "110",
+        -- vmaxsd, vminsd
+        (others => dcmpgt) when others;
+
     vcmp_expand: for i in 0 to 7 generate
         vcmp_result(i*8 + 7 downto i*8) <= (others => vst.cmp_bits(i));
     end generate;
@@ -348,6 +368,14 @@ begin
                         -- vpermr
                         v.perm_sel := c_in;
                     end if;
+                when OP_VMINMAX =>
+                    -- OP_VMINMAX, column 02
+                    -- e_in.insn(9) is 1 for vmin, 0 for vmax
+                    for i in 0 to 7 loop
+                        k := i * 8;
+                        v.perm_sel(k + 7 downto k) := "000" & (maxbits(i) xor e_in.insn(9)) &
+                                                      not e_in.second & std_ulogic_vector(to_unsigned(i, 3));
+                    end loop;
                 when OP_VPACK =>
                     if e_in.insn(6) = '0' then
                         -- vpkuhum

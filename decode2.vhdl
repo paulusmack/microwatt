@@ -312,6 +312,7 @@ architecture behaviour of decode2 is
         OP_VPACK    => "111",
         OP_VMERGE   => "111",
         OP_VSHIFT   => "111",
+        OP_VMINMAX  => "111",
         OP_LVS      => "001",
         OP_VLOG     => "001",
         OP_VMOVE    => "001",

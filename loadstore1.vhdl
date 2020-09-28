@@ -64,7 +64,6 @@ architecture behave of loadstore1 is
         load         : std_ulogic;
         tlbie        : std_ulogic;
         dcbz         : std_ulogic;
-        mfspr        : std_ulogic;
 	addr         : std_ulogic_vector(63 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
 	load_data    : std_ulogic_vector(63 downto 0);
@@ -109,10 +108,11 @@ architecture behave of loadstore1 is
         ld_sp_nz     : std_ulogic;
         ld_sp_lz     : std_ulogic_vector(5 downto 0);
         st_sp_data   : std_ulogic_vector(31 downto 0);
-        do_wr_zero   : std_ulogic;
+        do_wr_splat  : std_ulogic;
         do_splat     : std_ulogic;
         word_splat   : std_ulogic;
         splat_data   : std_ulogic_vector(63 downto 0);
+        wr_sel       : std_ulogic_vector(1 downto 0);
     end record;
 
     signal r, rin : reg_stage_t;
@@ -317,7 +317,6 @@ begin
         variable itlb_fault : std_ulogic;
         variable misaligned : std_ulogic;
         variable fp_reg_conv : std_ulogic;
-        variable lfs_done : std_ulogic;
         variable is_vector : std_ulogic;
         variable is_vsx_len : std_ulogic;
         variable addr_mask : std_ulogic_vector(2 downto 0);
@@ -325,7 +324,6 @@ begin
     begin
         v := r;
         req := '0';
-        v.mfspr := '0';
         mmu_mtspr := '0';
         itlb_fault := '0';
         sprn := std_ulogic_vector(to_unsigned(decode_spr_num(l_in.insn), 10));
@@ -333,12 +331,11 @@ begin
         mmureq := '0';
         fp_reg_conv := '0';
         is_vector := '0';
-        v.do_wr_zero := '0';
-        v.do_splat := '0';
+        v.do_wr_splat := '0';
         is_vsx_len := '0';
+        v.wr_sel := "11";
 
         write_enable := '0';
-        lfs_done := '0';
 
         do_update := r.do_update;
         v.do_update := '0';
@@ -376,7 +373,7 @@ begin
                 when "01" =>
                     data_trimmed(i * 8 + 7 downto i * 8) := (others => negative);
                 when others =>
-                    data_trimmed(i * 8 + 7 downto i * 8) := x"00";
+                    data_trimmed(i * 8 + 7 downto i * 8) := r.splat_data(i * 8 + 7 downto i * 8);
             end case;
         end loop;
 
@@ -481,6 +478,11 @@ begin
             v.last_dword := '0';
 
         when ACK_WAIT =>
+            -- r.wr_sel gets set one cycle after we come into ACK_WAIT state,
+            -- which is OK because the dcache always takes at least two cycles.
+            if r.update = '1' and (r.load = '0' or (HAS_FPU and r.load_sp = '1')) then
+                v.wr_sel := "01";
+            end if;
             if d_in.error = '1' then
                 -- dcache will discard the second request if it
                 -- gets an error on the 1st of two requests
@@ -511,9 +513,11 @@ begin
                         -- SP to DP conversion takes a cycle
                         -- Write back rA update in this cycle if needed
                         do_update := r.update;
+                        v.wr_sel := "10";
                         v.state := FINISH_LFS;
                     elsif r.extra_cycle = '1' then
                         -- loads with rA update need an extra cycle
+                        v.wr_sel := "01";
                         v.state := COMPLETE;
                         v.do_update := r.update;
                     else
@@ -551,12 +555,11 @@ begin
         when TLBIE_WAIT =>
 
         when FINISH_LFS =>
-            lfs_done := '1';
 
         when COMPLETE =>
             exception := r.align_intr;
             -- with r.length = 0, write 0s to destination
-            write_enable := r.do_wr_zero;
+            write_enable := r.do_wr_splat;
 
         end case;
 
@@ -595,6 +598,7 @@ begin
             v.extra_cycle := '0';
             v.is_vsx := '0';
             v.word_splat := '0';
+            v.do_splat := '0';
             v.left_justify := '0';
 
             if HAS_VECVSX and (l_in.op = OP_VRLOAD or l_in.op = OP_VRSTORE) then
@@ -612,10 +616,18 @@ begin
                 end if;
             end if;
             if HAS_VECVSX and l_in.op = OP_VSXLDSPLT then
-                v.length := "1000";
                 if l_in.length(3) = '0' then
                     v.word_splat := '1';
                 end if;
+                -- for second half set length to 0 to get splat data
+                if l_in.second = '1' then
+                    v.length := "0000";
+                else
+                    v.length := "1000";
+                    v.do_splat := '1';
+                end if;
+            else
+                v.splat_data := (others => '0');
             end if;
 
             if HAS_VECVSX and (l_in.op = OP_VSXLDLEN or l_in.op = OP_VSXSTLEN) then
@@ -731,7 +743,7 @@ begin
                             v.load_sp := l_in.is_32bit;
                             v.extra_cycle := l_in.is_32bit;
                         else
-                            v.do_wr_zero := '1';
+                            v.do_wr_splat := '1';
                             v.state := COMPLETE;
                         end if;
                     end if;
@@ -741,7 +753,7 @@ begin
                         if l_in.second = '0' then
                             req := '1';
                         else
-                            v.do_splat := '1';
+                            v.do_wr_splat := '1';
                             v.state := COMPLETE;
                         end if;
                     end if;
@@ -759,7 +771,7 @@ begin
                         if v.length /= "0000" then
                             req := '1';
                         else
-                            v.do_wr_zero := '1';
+                            v.do_wr_splat := '1';
                             v.state := COMPLETE;
                         end if;
                     end if;
@@ -773,7 +785,7 @@ begin
                     v.state := TLBIE_WAIT;
                     v.wait_mmu := '1';
                 when OP_MFSPR =>
-                    v.mfspr := '1';
+                    v.wr_sel := "00";
                     -- partial decode on SPR number should be adequate given
                     -- the restricted set that get sent down this path
                     if sprn(9) = '0' and sprn(5) = '0' then
@@ -879,7 +891,7 @@ begin
             end if;
         end loop;
 
-        if write_enable = '1' then
+        if write_enable = '1' and r.do_splat = '1' then
             v.splat_data := data_trimmed;
         end if;
 
@@ -913,27 +925,24 @@ begin
         -- Multiplex either cache data to the destination GPR or
         -- the address for the rA update.
         l_out.valid <= done;
-        if r.mfspr = '1' then
+        case r.wr_sel is
+        when "00" =>
             l_out.write_enable <= '1';
             l_out.write_reg <= r.write_reg;
             l_out.write_data <= r.sprval;
-        elsif do_update = '1' then
-            l_out.write_enable <= '1';
+        when "01" =>
+            l_out.write_enable <= do_update;
             l_out.write_reg <= gpr_to_gspr(r.update_reg);
             l_out.write_data <= r.addr;
-        elsif lfs_done = '1' then
+        when "10" =>
             l_out.write_enable <= '1';
             l_out.write_reg <= r.write_reg;
             l_out.write_data <= load_dp_data;
-        elsif r.do_splat = '1' then
-            l_out.write_enable <= '1';
-            l_out.write_reg <= r.write_reg;
-            l_out.write_data <= r.splat_data;
-        else
+        when others =>
             l_out.write_enable <= write_enable;
             l_out.write_reg <= r.write_reg;
             l_out.write_data <= data_trimmed;
-        end if;
+        end case;
         l_out.xerc <= r.xerc;
         l_out.rc <= r.rc and done;
         l_out.store_done <= d_in.store_done;

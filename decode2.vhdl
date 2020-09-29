@@ -317,6 +317,7 @@ architecture behaviour of decode2 is
         OP_VLOG     => "001",
         OP_VMOVE    => "001",
         OP_VGATHER  => "001",
+        OP_VSEL     => "001",
         OP_MFVSCR   => "000",
         others      => "000"            -- default to adder_result
         );
@@ -346,6 +347,7 @@ architecture behaviour of decode2 is
         OP_VLOG    => "001",
         OP_VMOVE   => "010",
         OP_VGATHER => "011",
+        OP_VSEL    => "100",
         others     => "000"
         );
 

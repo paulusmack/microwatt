@@ -294,6 +294,7 @@ begin
         variable log_result   : std_ulogic_vector(63 downto 0);
         variable move_result  : std_ulogic_vector(63 downto 0);
         variable gather_res   : std_ulogic_vector(63 downto 0);
+        variable vsel_result  : std_ulogic_vector(63 downto 0);
         variable all0, all1   : std_ulogic;
         variable lenm1        : std_ulogic_vector(2 downto 0);
         variable shift        : std_ulogic_vector(5 downto 0);
@@ -725,6 +726,9 @@ begin
                 log_result := a_in xnor b_in;
         end case;
 
+        -- compute vsel result
+        vsel_result := (a_in and not c_in) or (b_in and c_in);
+
         -- mtvsr* result (mfvsr* is done in execute1)
         if e_in.second = '0' then
             move_result := a_in;
@@ -764,8 +768,10 @@ begin
                     v.result := log_result;
                 when "010" =>
                     v.result := move_result;
-                when others =>
+                when "011" =>
                     v.result := gather_res;
+                when others =>
+                    v.result := vsel_result;
             end case;
         end if;
 

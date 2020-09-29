@@ -629,24 +629,29 @@ begin
         end if;
 
         -- compute vector logical result
-        case e_in.insn(8 downto 6) is
-            when "000" =>
-                log_result := a_in and b_in;
-            when "001" =>
-                log_result := a_in and not b_in;
-            when "010" =>
-                log_result := a_in or b_in;
-            when "011" =>
-                log_result := a_in xor b_in;
-            when "100" =>
-                log_result := not (a_in or b_in);
-            when "101" =>
-                log_result := a_in or not b_in;
-            when "110" =>
-                log_result := not (a_in and b_in);
-            when others =>
-                log_result := a_in xnor b_in;
-        end case;
+        if e_in.insn(5) = '1' then
+            -- vsel
+            log_result := (a_in and not c_in) or (b_in and c_in);
+        else
+            case e_in.insn(8 downto 6) is
+                when "000" =>
+                    log_result := a_in and b_in;
+                when "001" =>
+                    log_result := a_in and not b_in;
+                when "010" =>
+                    log_result := a_in or b_in;
+                when "011" =>
+                    log_result := a_in xor b_in;
+                when "100" =>
+                    log_result := not (a_in or b_in);
+                when "101" =>
+                    log_result := a_in or not b_in;
+                when "110" =>
+                    log_result := not (a_in and b_in);
+                when others =>
+                    log_result := a_in xnor b_in;
+            end case;
+        end if;
 
         -- compute mfvsr*/mtvsr* result
         if e_in.insn(8) = '0' then

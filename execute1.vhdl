@@ -1147,7 +1147,7 @@ begin
                     v.vec_in_progress := '1';
                 end if;
 
-            when OP_LVS | OP_MFVSCR | OP_VLOG | OP_VMOVE | OP_VGATHER | OP_VSHIFT =>
+            when OP_LVS | OP_VLOG | OP_VMOVE | OP_VGATHER | OP_VSHIFT | OP_VARITH =>
                 vec_valid <= '1';
 
             when OP_VCMP =>

@@ -137,7 +137,7 @@ architecture behaviour of decode1 is
         --                   unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
         --                                   op                                            in   out   A   out  in    out  len        ext                                 pipe
         2#0100_11001# =>    (ALU, VEC,  OP_MTVSCR,    NONE,       VRB,         NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- mtvscr
-        2#0100_11000# =>    (ALU, VEC,  OP_MFVSCR,    NONE,       NONE,        NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- mfvscr
+        2#0100_11000# =>    (ALU, VEC,  OP_VMOVE,     NONE,       NONE,        NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- mfvscr
         2#0100_10000# =>    (ALU, VEC,  OP_VLOG,      VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vand
         2#0100_10001# =>    (ALU, VEC,  OP_VLOG,      VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vandc
         2#0100_10010# =>    (ALU, VEC,  OP_VLOG,      VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vor
@@ -216,6 +216,14 @@ architecture behaviour of decode1 is
         2#0100_01100# =>    (ALU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsrab
         2#0100_01101# =>    (ALU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsrah
         2#0100_01110# =>    (ALU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsraw
+        2#0000_00000# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vaddubm
+        2#0000_00001# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vadduhm
+        2#0000_00010# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vadduwm
+        2#0000_00011# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vaddudm
+        2#0000_10000# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsububm
+        2#0000_10001# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubuhm
+        2#0000_10010# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubuwm
+        2#0000_10011# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubudm
         others   => decode_rom_init
         );
 

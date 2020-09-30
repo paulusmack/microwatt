@@ -69,7 +69,7 @@ begin
         variable sum          : unsigned(7 downto 0);
         variable vperm_result : std_ulogic_vector(63 downto 0);
         variable lvs_result   : std_ulogic_vector(63 downto 0);
-        variable vscr_result  : std_ulogic_vector(63 downto 0);
+        variable varith_res   : std_ulogic_vector(63 downto 0);
         variable cmp_result   : std_ulogic_vector(63 downto 0);
         variable log_result   : std_ulogic_vector(63 downto 0);
         variable move_result  : std_ulogic_vector(63 downto 0);
@@ -95,6 +95,11 @@ begin
         variable ws3          : std_ulogic_vector(31 downto 0);
         variable vbperm_byte  : std_ulogic_vector(7 downto 0);
         variable byte         : std_ulogic_vector(7 downto 0);
+        variable vop_a        : std_ulogic_vector(71 downto 0);
+        variable vop_b        : std_ulogic_vector(71 downto 0);
+        variable vsum         : std_ulogic_vector(71 downto 0);
+        variable cin          : std_ulogic;
+        variable size         : integer;
     begin
         v := vst;
         if e_in.valid = '1' and e_in.second = '0' then
@@ -621,13 +626,6 @@ begin
             lvs_result(k + 7 downto k) := std_ulogic_vector(sum + to_unsigned(7 - i, 8));
         end loop;
 
-        -- compute result for mfvscr
-        vscr_result := (others => '0');
-        if e_in.second = '1' then
-            vscr_result(16) := vst.ni;
-            vscr_result(0) := vst.sat;
-        end if;
-
         -- compute vector logical result
         if e_in.insn(5) = '1' then
             -- vsel
@@ -653,8 +651,15 @@ begin
             end case;
         end if;
 
-        -- compute mfvsr*/mtvsr* result
-        if e_in.insn(8) = '0' then
+        -- compute mfvscr/mfvsr*/mtvsr* result
+        if e_in.insn(26) = '0' then
+            -- mfvscr
+            move_result := (others => '0');
+            if e_in.second = '1' then
+                move_result(16) := vst.ni;
+                move_result(0) := vst.sat;
+            end if;
+        elsif e_in.insn(8) = '0' then
             -- mfvsr*
             move_result := c_in;
         else
@@ -871,9 +876,47 @@ begin
             v.sat := b_in(0);
         end if;
 
+        -- vector arithmetic
+        case e_in.insn(7 downto 6) is
+            when "00" =>        -- vadd*b*/vsub*b*
+                size := 1;
+            when "01" =>        -- vadd*h*/vsub*h*
+                size := 2;
+            when "10" =>        -- vadd*w*/vsub*w*
+                size := 4;
+            when others =>      -- vadd*d*/vsub*d*
+                size := 8;
+        end case;
+        cin := e_in.insn(10);           -- 1 for vsub, 0 for vadd
+        for i in 0 to 7 loop
+            k := i * 8;
+            m := i * 9;
+            vop_a(m + 7 downto m) := a_in(k + 7 downto k);
+            if e_in.insn(10) = '0' then
+                vop_b(m + 7 downto m) := b_in(k + 7 downto k);
+            else
+                vop_b(m + 7 downto m) := not b_in(k + 7 downto k);
+            end if;
+            if (i + 1) mod size = 0 then
+                -- segment the adder here
+                vop_a(m + 8) := cin;
+                vop_b(m + 8) := cin;
+            else
+                -- propagate the carry
+                vop_a(m + 8) := '1';
+                vop_b(m + 8) := '0';
+            end if;
+        end loop;
+        vsum := std_ulogic_vector(unsigned(vop_a) + unsigned(vop_b) + cin);
+        for i in 0 to 7 loop
+            k := i * 8;
+            m := i * 9;
+            varith_res(k + 7 downto k) := vsum(m + 7 downto m);
+        end loop;
+
         case sub_select is
             when "000" =>
-                vec_result <= vscr_result;
+                vec_result <= varith_res;
             when "001" =>
                 vec_result <= lvs_result;
             when "010" =>

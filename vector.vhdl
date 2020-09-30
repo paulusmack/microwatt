@@ -291,6 +291,7 @@ begin
         variable store_ab0    : std_ulogic;
         variable store_ab1    : std_ulogic;
         variable lvs_result   : std_ulogic_vector(63 downto 0);
+        variable varith_res   : std_ulogic_vector(63 downto 0);
         variable log_result   : std_ulogic_vector(63 downto 0);
         variable move_result  : std_ulogic_vector(63 downto 0);
         variable gather_res   : std_ulogic_vector(63 downto 0);
@@ -314,6 +315,10 @@ begin
         variable leftmost     : std_ulogic;
         variable rightmost    : std_ulogic;
         variable byte         : std_ulogic_vector(7 downto 0);
+        variable vop_a        : std_ulogic_vector(71 downto 0);
+        variable vop_b        : std_ulogic_vector(71 downto 0);
+        variable vsum         : std_ulogic_vector(71 downto 0);
+        variable cin          : std_ulogic;
     begin
         v := vst;
         v.e.busy := '0';
@@ -759,6 +764,35 @@ begin
             end loop;
         end loop;
 
+        -- vector arithmetic
+        cin := e_in.insn(10);           -- 1 for vsub, 0 for vadd
+        for i in 0 to 7 loop
+            k := i * 8;
+            m := i * 9;
+            vop_a(m + 7 downto m) := a_in(k + 7 downto k);
+            if e_in.insn(10) = '0' then
+                vop_b(m + 7 downto m) := b_in(k + 7 downto k);
+            else
+                vop_b(m + 7 downto m) := not b_in(k + 7 downto k);
+            end if;
+            -- test if (i + 1) mod size = 0
+            if (std_ulogic_vector(to_unsigned(i + 1, 3)) and lenm1) = "000" then
+                -- segment the adder here
+                vop_a(m + 8) := cin;
+                vop_b(m + 8) := cin;
+            else
+                -- propagate the carry
+                vop_a(m + 8) := '1';
+                vop_b(m + 8) := '0';
+            end if;
+        end loop;
+        vsum := std_ulogic_vector(unsigned(vop_a) + unsigned(vop_b) + cin);
+        for i in 0 to 7 loop
+            k := i * 8;
+            m := i * 9;
+            varith_res(k + 7 downto k) := vsum(m + 7 downto m);
+        end loop;
+
         -- Stash away result for ops which compute their result in the first cycle
         if e_in.valid = '1' then
             case e_in.sub_select is
@@ -770,8 +804,10 @@ begin
                     v.result := move_result;
                 when "011" =>
                     v.result := gather_res;
-                when others =>
+                when "100" =>
                     v.result := vsel_result;
+                when others =>
+                    v.result := varith_res;
             end case;
         end if;
 

@@ -464,7 +464,10 @@ begin
             end if;
         end if;
 
-        if l_in.second = '1' then
+        -- Hack to make dcbz clear 128 bytes
+        if l_in.op = OP_DCBZ then
+            addr(6) := l_in.second;
+        elsif l_in.second = '1' then
             if l_in.update = '0' then
                 -- for the second half of a 16-byte transfer,
                 -- use the previous address plus 8.

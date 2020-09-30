@@ -79,6 +79,8 @@ begin
         variable cmpeq        : byte_comparison_t;
         variable cmpgt        : byte_comparison_t;
         variable cmpgtu       : byte_comparison_t;
+        variable cmpaz        : byte_comparison_t;
+        variable cmpbz        : byte_comparison_t;
         variable bv           : boolean;
         variable bshift       : signed(3 downto 0);
         variable bext         : std_ulogic_vector(22 downto 0);
@@ -112,6 +114,8 @@ begin
             cmpeq(i) := unsigned(a_in(k + 7 downto k)) = unsigned(b_in(k + 7 downto k));
             cmpgt(i) := signed(a_in(k + 7 downto k)) > signed(b_in(k + 7 downto k));
             cmpgtu(i) := unsigned(a_in(k + 7 downto k)) > unsigned(b_in(k + 7 downto k));
+            cmpaz(i) := a_in(k + 7 downto k) = x"00";
+            cmpbz(i) := b_in(k + 7 downto k) = x"00";
         end loop;
         if e_in.valid = '1' then
             if e_in.insn(31) = '1' then
@@ -444,8 +448,8 @@ begin
             all0 := vst.all0;
             all1 := vst.all1;
         end if;
-        case e_in.insn(9 downto 6) is
-            when "0000" =>
+        case e_in.insn(9 downto 6) & e_in.insn(0) is
+            when "00000" =>
                 -- vcmpequb
                 for i in 0 to 7 loop
                     k := i * 8;
@@ -456,7 +460,29 @@ begin
                         all1 := '0';
                     end if;
                 end loop;
-            when "0001" =>
+            when "00001" =>
+                -- vcmpneb
+                for i in 0 to 7 loop
+                    k := i * 8;
+                    if not cmpeq(i) then
+                        cmp_result(k + 7 downto k) := x"ff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "01001" =>
+                -- vcmpnezb
+                for i in 0 to 7 loop
+                    k := i * 8;
+                    if not cmpeq(i) or cmpaz(i) or cmpbz(i) then
+                        cmp_result(k + 7 downto k) := x"ff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "00010" =>
                 -- vcmpequh
                 for i in 0 to 3 loop
                     k := i * 16;
@@ -468,7 +494,32 @@ begin
                         all1 := '0';
                     end if;
                 end loop;
-            when "0010" =>
+            when "00011" =>
+                -- vcmpneh
+                for i in 0 to 3 loop
+                    k := i * 16;
+                    m := i * 2;
+                    if not (cmpeq(m) and cmpeq(m + 1)) then
+                        cmp_result(k + 15 downto k) := x"ffff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "01011" =>
+                -- vcmpnezh
+                for i in 0 to 3 loop
+                    k := i * 16;
+                    m := i * 2;
+                    if not (cmpeq(m) and cmpeq(m + 1)) or
+                        (cmpaz(m) and cmpaz(m + 1)) or (cmpbz(m) and cmpbz(m + 1)) then
+                        cmp_result(k + 15 downto k) := x"ffff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "00100" =>
                 -- vcmpequw
                 for i in 0 to 1 loop
                     k := i * 32;
@@ -480,8 +531,34 @@ begin
                         all1 := '0';
                     end if;
                 end loop;
-            when "0011" =>
-                -- vcmpequd (and vcmpeqfp, but that isn't decoded yet)
+            when "00101" =>
+                -- vcmpnew
+                for i in 0 to 1 loop
+                    k := i * 32;
+                    m := i * 4;
+                    if not (cmpeq(m) and cmpeq(m + 1) and cmpeq(m + 2) and cmpeq(m + 3)) then
+                        cmp_result(k + 31 downto k) := x"ffffffff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "01101" =>
+                -- vcmpnezw
+                for i in 0 to 1 loop
+                    k := i * 32;
+                    m := i * 4;
+                    if not (cmpeq(m) and cmpeq(m + 1) and cmpeq(m + 2) and cmpeq(m + 3)) or
+                        (cmpaz(m) and cmpaz(m + 1) and cmpaz(m + 2) and cmpaz(m + 3)) or
+                        (cmpbz(m) and cmpbz(m + 1) and cmpbz(m + 2) and cmpbz(m + 3)) then
+                        cmp_result(k + 31 downto k) := x"ffffffff";
+                        all0 := '0';
+                    else
+                        all1 := '0';
+                    end if;
+                end loop;
+            when "00111" =>
+                -- vcmpequd
                 if cmpeq(0) and cmpeq(1) and cmpeq(2) and cmpeq(3) and
                     cmpeq(4) and cmpeq(5) and cmpeq(6) and cmpeq(7) then
                     cmp_result := (others => '1');
@@ -489,7 +566,7 @@ begin
                 else
                     all1 := '0';
                 end if;
-            when "1000" =>
+            when "10000" =>
                 -- vcmpgtub
                 for i in 0 to 7 loop
                     k := i * 8;
@@ -500,7 +577,7 @@ begin
                         all1 := '0';
                     end if;
                 end loop;
-            when "1001" =>
+            when "10010" =>
                 -- vcmpgtuh
                 for i in 0 to 3 loop
                     k := i * 16;
@@ -512,7 +589,7 @@ begin
                         all1 := '0';
                     end if;
                 end loop;
-            when "1010" =>
+            when "10100" =>
                 -- vcmpgtuw
                 for i in 0 to 1 loop
                     k := i * 32;
@@ -529,8 +606,8 @@ begin
                         all1 := '0';
                     end if;
                 end loop;
-            when "1011" =>
-                -- vcmpgtud (and vcmpgtfp, but that isn't decoded yet)
+            when "10111" =>
+                -- vcmpgtud
                 for m in 7 downto 0 loop
                     bv := cmpgtu(m);
                     if not cmpeq(m) then
@@ -543,7 +620,7 @@ begin
                 else
                     all1 := '0';
                 end if;
-            when "1100" =>
+            when "11000" =>
                 -- vcmpgtsb
                 for i in 0 to 7 loop
                     k := i * 8;
@@ -554,7 +631,7 @@ begin
                         all1 := '0';
                     end if;
                 end loop;
-            when "1101" =>
+            when "11010" =>
                 -- vcmpgtsh
                 for i in 0 to 3 loop
                     k := i * 16;
@@ -566,7 +643,7 @@ begin
                         all1 := '0';
                     end if;
                 end loop;
-            when "1110" =>
+            when "11100" =>
                 -- vcmpgtsw
                 for i in 0 to 1 loop
                     k := i * 32;
@@ -586,8 +663,8 @@ begin
                         all1 := '0';
                     end if;
                 end loop;
-            when "1111" =>
-                -- vcmpgtsd (and vcmpbfp, but that isn't decoded yet)
+            when "11111" =>
+                -- vcmpgtsd
                 bv := cmpgt(7);
                 if cmpeq(7) then
                     for m in 6 downto 0 loop

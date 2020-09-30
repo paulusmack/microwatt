@@ -657,7 +657,10 @@ begin
                 end if;
             end if;
 
-            if l_in.second = '1' then
+            -- Hack to make dcbz clear 128 bytes
+            if l_in.op = OP_DCBZ then
+                addr(6) := l_in.second;
+            elsif l_in.second = '1' then
                 -- for the second half of a 16-byte transfer, use next_addr
                 -- but preserve the 3 low-order bits
                 addr := next_addr(63 downto 3) & r.addr(2 downto 0);

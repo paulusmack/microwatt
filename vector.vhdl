@@ -47,6 +47,7 @@ architecture behaviour of vector_unit is
         vs_ext_r : std_ulogic_vector(7 downto 0);
         vbpermq  : std_ulogic_vector(7 downto 0);
         vbp_sel  : std_ulogic_vector(31 downto 0);
+        carry    : std_ulogic;
         e        : VectorToExecute1Type;
         w        : VectorToWritebackType;
     end record;
@@ -57,7 +58,7 @@ architecture behaviour of vector_unit is
                                             cmp_bits => x"00", all0 => '0', all1 => '0',
                                             vs_ext_l => x"00", vs_ext_r => x"00",
                                             vbpermq => x"00", vbp_sel => (others => '0'),
-                                            others => (others => '0'));
+                                            carry => '0', others => (others => '0'));
 
     signal vst, vst_in : vec_state;
 
@@ -766,6 +767,10 @@ begin
 
         -- vector arithmetic
         cin := e_in.insn(10);           -- 1 for vsub, 0 for vadd
+        if e_in.second = '1' and e_in.insn(8) = '1' then
+            -- vadduqm, vsubuqm; note these are done LS then MS
+            cin := vst.carry;
+        end if;
         for i in 0 to 7 loop
             k := i * 8;
             m := i * 9;
@@ -792,6 +797,7 @@ begin
             m := i * 9;
             varith_res(k + 7 downto k) := vsum(m + 7 downto m);
         end loop;
+        v.carry := vsum(71);
 
         -- Stash away result for ops which compute their result in the first cycle
         if e_in.valid = '1' then

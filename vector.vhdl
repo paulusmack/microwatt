@@ -95,6 +95,7 @@ begin
         variable ws1          : std_ulogic_vector(46 downto 0);
         variable ws2          : std_ulogic_vector(34 downto 0);
         variable ws3          : std_ulogic_vector(31 downto 0);
+        variable dext         : std_ulogic_vector(78 downto 0);
         variable vbperm_byte  : std_ulogic_vector(7 downto 0);
         variable byte         : std_ulogic_vector(7 downto 0);
         variable vop_a        : std_ulogic_vector(71 downto 0);
@@ -944,7 +945,47 @@ begin
                     shift_result(k + 31 downto k) := ws3;
                 end loop;
             when others =>
-                shift_result := (others => '0');
+                -- vsl and vsr, done as per-byte shifts because P9's behaviour
+                -- is to shift each byte of VRA by the shift count in the
+                -- corresponding byte of VRB.  The arch requires all bytes of
+                -- VRB to have the same value in the bottom 3 bits.
+                -- Note vsl is done LS half then MS, but vsr is done MS, LS.
+                dext := x"00" & a_in & 7x"00";
+                if e_in.second = '1' then
+                    dext(78 downto 71) := vst.a0(7 downto 0);
+                    dext(6 downto 0) := vst.a0(63 downto 57);
+                end if;
+                for i in 0 to 7 loop
+                    k := i * 8;
+                    bshift := signed('0' & b_in(k + 2 downto k));
+                    if e_in.insn(9) = '1' then
+                        bshift := - bshift;
+                    end if;
+                    bext := dext(k + 22 downto k);
+                    -- shift -8, -4, 0 or +4
+                    case bshift(3 downto 2) is
+                        when "00" =>
+                            bs1 := bext(14 downto 4);
+                        when "01" =>
+                            bs1 := bext(10 downto 0);
+                        when "10" =>
+                            bs1 := bext(22 downto 12);
+                        when others =>
+                            bs1 := bext(18 downto 8);
+                    end case;
+                    -- shift 0, +1, +2, +3
+                    case bshift(1 downto 0) is
+                        when "00" =>
+                            bs2 := bs1(10 downto 3);
+                        when "01" =>
+                            bs2 := bs1(9 downto 2);
+                        when "10" =>
+                            bs2 := bs1(8 downto 1);
+                        when others =>
+                            bs2 := bs1(7 downto 0);
+                    end case;
+                    shift_result(k + 7 downto k) := bs2;
+                end loop;
         end case;
 
         -- execute mtvscr

@@ -29,6 +29,9 @@ architecture behaviour of logical is
     subtype fourbit is unsigned(3 downto 0);
     type fourbit8 is array(0 to 7) of fourbit;
     signal pc8      : fourbit8;
+    subtype fivebit is unsigned(4 downto 0);
+    type fivebit4 is array(0 to 3) of fivebit;
+    signal pc16     : fivebit4;
     subtype sixbit is unsigned(5 downto 0);
     type sixbit2 is array(0 to 1) of sixbit;
     signal pc32     : sixbit2;
@@ -119,23 +122,32 @@ begin
         for i in 0 to 7 loop
             pc8(i) <= ('0' & pc4(i * 2)) + ('0' & pc4(i * 2 + 1));
         end loop;
+        for i in 0 to 3 loop
+            pc16(i) <= ('0' & pc8(i * 2)) + ('0' & pc8(i * 2 + 1));
+        end loop;
         for i in 0 to 1 loop
             pc32(i) <= ("00" & pc8(i * 4)) + ("00" & pc8(i * 4 + 1)) +
                        ("00" & pc8(i * 4 + 2)) + ("00" & pc8(i * 4 + 3));
         end loop;
         popcnt <= (others => '0');
-        if datalen(3 downto 2) = "00" then
-            -- popcntb
-            for i in 0 to 7 loop
-                popcnt(i * 8 + 3 downto i * 8) <= std_ulogic_vector(pc8(i));
-            end loop;
-        elsif datalen(3) = '0' then
-            -- popcntw
+        if datalen(3) = '1' then
+            -- [v]popcntd
+            popcnt(6 downto 0) <= std_ulogic_vector(('0' & pc32(0)) + ('0' & pc32(1)));
+        elsif datalen(2) = '1' then
+            -- [v]popcntw
             for i in 0 to 1 loop
                 popcnt(i * 32 + 5 downto i * 32) <= std_ulogic_vector(pc32(i));
             end loop;
+        elsif datalen(1) = '1' then
+            -- vpopcnth
+            for i in 0 to 3 loop
+                popcnt(i * 16 + 4 downto i * 16) <= std_ulogic_vector(pc16(i));
+            end loop;
         else
-            popcnt(6 downto 0) <= std_ulogic_vector(('0' & pc32(0)) + ('0' & pc32(1)));
+            -- [v]popcntb
+            for i in 0 to 7 loop
+                popcnt(i * 8 + 3 downto i * 8) <= std_ulogic_vector(pc8(i));
+            end loop;
         end if;
 
         -- parity calculations

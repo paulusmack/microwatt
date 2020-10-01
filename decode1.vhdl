@@ -240,6 +240,10 @@ architecture behaviour of decode1 is
         2#0000_10010# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubuwm
         2#0000_10011# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubudm
         2#0000_10100# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vsubuqm
+        2#0011_11100# =>    (ALU, VEC,  OP_POPCNT,    NONE,       NONE,        VRB,  VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpopcntb
+        2#0011_11101# =>    (ALU, VEC,  OP_POPCNT,    NONE,       NONE,        VRB,  VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpopcnth
+        2#0011_11110# =>    (ALU, VEC,  OP_POPCNT,    NONE,       NONE,        VRB,  VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpopcntw
+        2#0011_11111# =>    (ALU, VEC,  OP_POPCNT,    NONE,       NONE,        VRB,  VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpopcntd
         others   => decode_rom_init
         );
 

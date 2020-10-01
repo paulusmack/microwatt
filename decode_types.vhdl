@@ -34,7 +34,7 @@ package decode_types is
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR, CIA, FRA, VRA, XA);
     type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
                            CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, SPR, FRB, VRB, XB);
-    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRC, VRS, XS, XS2);
+    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRC, VRS, VRB, XS, XS2);
     type output_reg_a_t is (NONE, RT, RA, SPR, FRT, VRT, XT, XT2);
     type rc_t is (NONE, ONE, RC);
     type carry_in_t is (ZERO, CA, OV, ONE);

@@ -197,6 +197,8 @@ architecture behaviour of decode1 is
         2#0010_01010# =>    (ALU, VEC,  OP_VMINMAX,   VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vminuw
         2#0010_01111# =>    (ALU, VEC,  OP_VMINMAX,   VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vminsd
         2#0010_01011# =>    (ALU, VEC,  OP_VMINMAX,   VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vminud
+        2#1100_10000# =>    (ALU, VEC,  OP_VSHOCT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vslo
+        2#1100_10001# =>    (ALU, VEC,  OP_VSHOCT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vsro
         2#1100_10100# =>    (ALU, VEC,  OP_VGATHER,   VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vgbbd
         2#1100_10101# =>    (ALU, VEC,  OP_VBPERM,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vbpermq
         2#1100_00000# =>    (ALU, VEC,  OP_VMERGE,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vmrghb

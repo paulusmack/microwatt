@@ -40,10 +40,11 @@ architecture behaviour of vector_unit is
         vbpermq  : std_ulogic_vector(7 downto 0);
         vbp_sel  : std_ulogic_vector(31 downto 0);
         carry    : std_ulogic;
+        oshift   : unsigned(3 downto 0);
     end record;
     constant vec_state_init : vec_state := (ni => '0', sat => '0', all0 => '0', all1 => '0',
                                             vbpermq => (others => '0'), vbp_sel => (others => '0'),
-                                            carry => '0', others => (others => '0'));
+                                            oshift => "0000", carry => '0', others => (others => '0'));
 
     signal vst, vst_in : vec_state;
 
@@ -104,11 +105,16 @@ begin
         variable vsum         : std_ulogic_vector(71 downto 0);
         variable cin          : std_ulogic;
         variable lenm1        : std_ulogic_vector(2 downto 0);
+        variable oshift       : unsigned(3 downto 0);
+        variable index        : std_ulogic_vector(4 downto 0);
     begin
         v := vst;
         if e_in.valid = '1' and e_in.second = '0' then
             v.a0 := a_in;
             v.b0 := b_in;
+            if e_in.insn_type = OP_VSHOCT then
+                v.b0 := (others => '0');
+            end if;
         end if;
         -- do comparisons for vcmp*, vmin* and vmax*
         for i in 0 to 7 loop
@@ -427,6 +433,49 @@ begin
                             m := i * 4;
                             v.perm_sel(k + 7 downto k) := "0001" & b_in(k + 6) & not b_in(k + 5 downto k + 3);
                             v.vbp_sel(m + 3 downto m) := b_in(k + 7) & b_in(k + 2 downto k);
+                        end loop;
+                    when "10000" =>
+                        -- vslo
+                        -- we do LS then MS because the shift count is in the
+                        -- LS half of VRB
+                        if e_in.second = '0' then
+                            oshift := unsigned(b_in(6 downto 3));
+                            v.oshift := oshift;
+                        else
+                            oshift := vst.oshift;
+                        end if;
+                        for i in 0 to 7 loop
+                            k := i * 8;
+                            index := '1' & e_in.second & std_ulogic_vector(to_unsigned(i, 3));
+                            index := std_ulogic_vector(unsigned(index) - resize(oshift, 5));
+                            if index(4) = '0' then
+                                -- need a zero byte; only vst.b0 is known to be
+                                -- zero, not b_in, so select byte f
+                                v.perm_sel(k + 7 downto k) := x"0f";
+                            else
+                                -- bit 3 is inverted because the logic below
+                                -- does vst.a0 & a_in, but we have LS then MS
+                                v.perm_sel(k + 7 downto k) := "0001" & not index(3) & index(2 downto 0);
+                            end if;
+                        end loop;
+                    when "10001" =>
+                        -- vsro, also LS then MS
+                        if e_in.second = '0' then
+                            oshift := unsigned(b_in(6 downto 3));
+                            v.oshift := oshift;
+                        else
+                            oshift := vst.oshift;
+                        end if;
+                        for i in 0 to 7 loop
+                            k := i * 8;
+                            index := '0' & e_in.second & std_ulogic_vector(to_unsigned(i, 3));
+                            index := std_ulogic_vector(unsigned(index) + resize(oshift, 5));
+                            if index(4) = '1' then
+                                -- need a zero byte, use index 0f
+                                v.perm_sel(k + 7 downto k) := x"0f";
+                            else
+                                v.perm_sel(k + 7 downto k) := "0001" & not index(3) & index(2 downto 0);
+                            end if;
                         end loop;
                     when others =>
                         v.perm_sel := (others => '0');

@@ -48,6 +48,7 @@ architecture behaviour of vector_unit is
         vbpermq  : std_ulogic_vector(7 downto 0);
         vbp_sel  : std_ulogic_vector(31 downto 0);
         carry    : std_ulogic;
+        oshift   : unsigned(3 downto 0);
         e        : VectorToExecute1Type;
         w        : VectorToWritebackType;
     end record;
@@ -58,7 +59,7 @@ architecture behaviour of vector_unit is
                                             cmp_bits => x"00", all0 => '0', all1 => '0',
                                             vs_ext_l => x"00", vs_ext_r => x"00",
                                             vbpermq => x"00", vbp_sel => (others => '0'),
-                                            carry => '0', others => (others => '0'));
+                                            carry => '0', oshift => "0000", others => (others => '0'));
 
     signal vst, vst_in : vec_state;
 
@@ -320,6 +321,8 @@ begin
         variable vop_b        : std_ulogic_vector(71 downto 0);
         variable vsum         : std_ulogic_vector(71 downto 0);
         variable cin          : std_ulogic;
+        variable oshift       : unsigned(3 downto 0);
+        variable index        : std_ulogic_vector(4 downto 0);
     begin
         v := vst;
         v.e.busy := '0';
@@ -667,6 +670,45 @@ begin
                             a_sh(k + 7 downto k) := shift_in(15 - n downto 8 - n);
                         end if;
                     end loop;
+                when OP_VSHOCT =>
+                    -- we do LS then MS because the shift count is in the
+                    -- LS half of VRB
+                    if e_in.second = '0' then
+                        oshift := unsigned(b_in(6 downto 3));
+                        v.oshift := oshift;
+                    else
+                        oshift := vst.oshift;
+                    end if;
+                    if e_in.insn(6) = '0' then
+                        -- vslo
+                        for i in 0 to 7 loop
+                            k := i * 8;
+                            index := '1' & e_in.second & std_ulogic_vector(to_unsigned(i, 3));
+                            index := std_ulogic_vector(unsigned(index) - resize(oshift, 5));
+                            if index(4) = '0' then
+                                -- need a zero byte; only vst.b0 is known to be
+                                -- zero, not b_in, so select byte f
+                                v.perm_sel(k + 7 downto k) := x"0f";
+                            else
+                                -- bit 3 is inverted because the logic below
+                                -- does vst.a0 & a_in, but we have LS then MS
+                                v.perm_sel(k + 7 downto k) := "0001" & not index(3) & index(2 downto 0);
+                            end if;
+                        end loop;
+                    else
+                        -- vsro
+                        for i in 0 to 7 loop
+                            k := i * 8;
+                            index := '0' & e_in.second & std_ulogic_vector(to_unsigned(i, 3));
+                            index := std_ulogic_vector(unsigned(index) + resize(oshift, 5));
+                            if index(4) = '1' then
+                                -- need a zero byte, use index 0f
+                                v.perm_sel(k + 7 downto k) := x"0f";
+                            else
+                                v.perm_sel(k + 7 downto k) := "0001" & not index(3) & index(2 downto 0);
+                            end if;
+                        end loop;
+                    end if;
                 when others =>
                     v.perm_sel := (others => '0');
             end case;
@@ -675,6 +717,9 @@ begin
         if store_ab0 = '1' then
             v.a0 := a_sh;
             v.b0 := b_sh;
+            if e_in.insn_type = OP_VSHOCT then
+                v.b0 := (others => '0');
+            end if;
         end if;
         if store_ab1 = '1' then
             v.a1 := a_in;

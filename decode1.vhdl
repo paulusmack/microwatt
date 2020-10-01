@@ -230,14 +230,16 @@ architecture behaviour of decode1 is
         2#0100_01100# =>    (ALU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsrab
         2#0100_01101# =>    (ALU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsrah
         2#0100_01110# =>    (ALU, VEC,  OP_VSHIFT,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsraw
-        2#0000_00000# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vaddubm
-        2#0000_00001# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vadduhm
-        2#0000_00010# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vadduwm
-        2#0000_00011# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vaddudm
-        2#0000_10000# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsububm
-        2#0000_10001# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubuhm
-        2#0000_10010# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubuwm
-        2#0000_10011# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubudm
+        2#0000_00000# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vaddubm
+        2#0000_00001# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vadduhm
+        2#0000_00010# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vadduwm
+        2#0000_00011# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vaddudm
+        2#0000_00100# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vadduqm
+        2#0000_10000# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsububm
+        2#0000_10001# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubuhm
+        2#0000_10010# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubuwm
+        2#0000_10011# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubudm
+        2#0000_10100# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vsubuqm
         others   => decode_rom_init
         );
 

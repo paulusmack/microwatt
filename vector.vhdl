@@ -39,10 +39,11 @@ architecture behaviour of vector_unit is
         all1     : std_ulogic;
         vbpermq  : std_ulogic_vector(7 downto 0);
         vbp_sel  : std_ulogic_vector(31 downto 0);
+        carry    : std_ulogic;
     end record;
     constant vec_state_init : vec_state := (ni => '0', sat => '0', all0 => '0', all1 => '0',
                                             vbpermq => (others => '0'), vbp_sel => (others => '0'),
-                                            others => (others => '0'));
+                                            carry => '0', others => (others => '0'));
 
     signal vst, vst_in : vec_state;
 
@@ -102,7 +103,7 @@ begin
         variable vop_b        : std_ulogic_vector(71 downto 0);
         variable vsum         : std_ulogic_vector(71 downto 0);
         variable cin          : std_ulogic;
-        variable size         : integer;
+        variable lenm1        : std_ulogic_vector(2 downto 0);
     begin
         v := vst;
         if e_in.valid = '1' and e_in.second = '0' then
@@ -995,17 +996,12 @@ begin
         end if;
 
         -- vector arithmetic
-        case e_in.insn(7 downto 6) is
-            when "00" =>        -- vadd*b*/vsub*b*
-                size := 1;
-            when "01" =>        -- vadd*h*/vsub*h*
-                size := 2;
-            when "10" =>        -- vadd*w*/vsub*w*
-                size := 4;
-            when others =>      -- vadd*d*/vsub*d*
-                size := 8;
-        end case;
+        lenm1 := std_ulogic_vector(unsigned(e_in.data_len(2 downto 0)) - 1);
         cin := e_in.insn(10);           -- 1 for vsub, 0 for vadd
+        if e_in.second = '1' and e_in.insn(8) = '1' then
+            -- vadduqm, vsubuqm; note these are done LS then MS
+            cin := vst.carry;
+        end if;
         for i in 0 to 7 loop
             k := i * 8;
             m := i * 9;
@@ -1015,7 +1011,8 @@ begin
             else
                 vop_b(m + 7 downto m) := not b_in(k + 7 downto k);
             end if;
-            if (i + 1) mod size = 0 then
+            -- this tests (i + 1) mod data_len = 0
+            if (lenm1 and not std_ulogic_vector(to_unsigned(i, 3))) = "000" then
                 -- segment the adder here
                 vop_a(m + 8) := cin;
                 vop_b(m + 8) := cin;
@@ -1031,6 +1028,7 @@ begin
             m := i * 9;
             varith_res(k + 7 downto k) := vsum(m + 7 downto m);
         end loop;
+        v.carry := vsum(71);
 
         case sub_select is
             when "000" =>

@@ -41,10 +41,12 @@ architecture behaviour of vector_unit is
         vbp_sel  : std_ulogic_vector(31 downto 0);
         carry    : std_ulogic;
         oshift   : unsigned(3 downto 0);
+        vs_ext   : std_ulogic_vector(7 downto 0);
     end record;
     constant vec_state_init : vec_state := (ni => '0', sat => '0', all0 => '0', all1 => '0',
                                             vbpermq => (others => '0'), vbp_sel => (others => '0'),
-                                            oshift => "0000", carry => '0', others => (others => '0'));
+                                            oshift => "0000", carry => '0', vs_ext => x"00",
+                                            others => (others => '0'));
 
     signal vst, vst_in : vec_state;
 
@@ -69,6 +71,9 @@ begin
         variable b            : std_ulogic;
         variable data         : std_ulogic_vector(255 downto 0);
         variable sum          : unsigned(7 downto 0);
+        variable a_sh         : std_ulogic_vector(63 downto 0);
+        variable b_sh         : std_ulogic_vector(63 downto 0);
+        variable store_ab     : std_ulogic;
         variable vperm_result : std_ulogic_vector(63 downto 0);
         variable lvs_result   : std_ulogic_vector(63 downto 0);
         variable varith_res   : std_ulogic_vector(63 downto 0);
@@ -84,20 +89,6 @@ begin
         variable cmpaz        : byte_comparison_t;
         variable cmpbz        : byte_comparison_t;
         variable bv           : boolean;
-        variable bshift       : signed(3 downto 0);
-        variable bext         : std_ulogic_vector(22 downto 0);
-        variable bs1          : std_ulogic_vector(10 downto 0);
-        variable bs2          : std_ulogic_vector(7 downto 0);
-        variable hshift       : signed(4 downto 0);
-        variable hext         : std_ulogic_vector(46 downto 0);
-        variable hs1          : std_ulogic_vector(18 downto 0);
-        variable hs2          : std_ulogic_vector(15 downto 0);
-        variable wshift       : signed(5 downto 0);
-        variable wext         : std_ulogic_vector(94 downto 0);
-        variable ws1          : std_ulogic_vector(46 downto 0);
-        variable ws2          : std_ulogic_vector(34 downto 0);
-        variable ws3          : std_ulogic_vector(31 downto 0);
-        variable dext         : std_ulogic_vector(78 downto 0);
         variable vbperm_byte  : std_ulogic_vector(7 downto 0);
         variable byte         : std_ulogic_vector(7 downto 0);
         variable vop_a        : std_ulogic_vector(71 downto 0);
@@ -107,15 +98,24 @@ begin
         variable lenm1        : std_ulogic_vector(2 downto 0);
         variable oshift       : unsigned(3 downto 0);
         variable index        : std_ulogic_vector(4 downto 0);
+        variable shift        : std_ulogic_vector(5 downto 0);
+        variable shift_col    : std_ulogic_vector(2 downto 0);
+        variable bsh          : std_ulogic_vector(2 downto 0);
+        variable src_byte     : std_ulogic_vector(2 downto 0);
+        variable byte_in_elt  : std_ulogic_vector(2 downto 0);
+        variable elt_sign     : std_ulogic;
+        variable shift_in     : std_ulogic_vector(15 downto 0);
+        variable is_rotate    : std_ulogic;
+        variable is_right_sh  : std_ulogic;
+        variable shift_whole  : std_ulogic;
+        variable is_empty     : std_ulogic;
     begin
         v := vst;
-        if e_in.valid = '1' and e_in.second = '0' then
-            v.a0 := a_in;
-            v.b0 := b_in;
-            if e_in.insn_type = OP_VSHOCT then
-                v.b0 := (others => '0');
-            end if;
-        end if;
+
+        a_sh := a_in;
+        b_sh := b_in;
+        store_ab := not e_in.second;
+
         -- do comparisons for vcmp*, vmin* and vmax*
         for i in 0 to 7 loop
             k := i * 8;
@@ -125,6 +125,10 @@ begin
             cmpaz(i) := a_in(k + 7 downto k) = x"00";
             cmpbz(i) := b_in(k + 7 downto k) = x"00";
         end loop;
+
+        lenm1 := std_ulogic_vector(unsigned(e_in.data_len(2 downto 0)) - 1);
+
+        -- Compute permutation vector v.perm_sel
         if e_in.valid = '1' then
             if e_in.insn(31) = '1' then
                 -- OP_XPERM
@@ -331,7 +335,7 @@ begin
                         v.perm_sel(k + 31 downto k + 24) := std_ulogic_vector(to_unsigned(m + 3, 8));
                     end loop;
                 end if;
-            else
+            elsif e_in.insn(3) = '1' then
                 -- OP_VMERGE and OP_VBPERM, column 0c
                 case e_in.insn(10 downto 6) is
                     when "01000" =>
@@ -358,15 +362,15 @@ begin
                         end loop;
                     when "01100" =>
                         -- vspltisb
-                        v.b0 := std_ulogic_vector(resize(signed(e_in.insn(20 downto 16)), 64));
+                        b_sh := std_ulogic_vector(resize(signed(e_in.insn(20 downto 16)), 64));
                         v.perm_sel := x"0808080808080808";
                     when "01101" =>
                         -- vspltish
-                        v.b0 := std_ulogic_vector(resize(signed(e_in.insn(20 downto 16)), 64));
+                        b_sh := std_ulogic_vector(resize(signed(e_in.insn(20 downto 16)), 64));
                         v.perm_sel := x"0908090809080908";
                     when "01110" =>
                         -- vspltisw
-                        v.b0 := std_ulogic_vector(resize(signed(e_in.insn(20 downto 16)), 64));
+                        b_sh := std_ulogic_vector(resize(signed(e_in.insn(20 downto 16)), 64));
                         v.perm_sel := x"0b0a09080b0a0908";
                     when "00000" =>
                         -- vmrghb
@@ -438,6 +442,7 @@ begin
                         -- vslo
                         -- we do LS then MS because the shift count is in the
                         -- LS half of VRB
+                        b_sh := (others => '0');
                         if e_in.second = '0' then
                             oshift := unsigned(b_in(6 downto 3));
                             v.oshift := oshift;
@@ -460,6 +465,7 @@ begin
                         end loop;
                     when "10001" =>
                         -- vsro, also LS then MS
+                        b_sh := (others => '0');
                         if e_in.second = '0' then
                             oshift := unsigned(b_in(6 downto 3));
                             v.oshift := oshift;
@@ -480,7 +486,116 @@ begin
                     when others =>
                         v.perm_sel := (others => '0');
                 end case;
+            else
+                -- OP_VSHIFT, column 4
+                store_ab := '1';
+                is_rotate := '0';
+                if e_in.insn(9 downto 8) = "00" then
+                    is_rotate := '1';
+                end if;
+                is_right_sh := e_in.insn(9);
+                shift_whole := '0';
+                if e_in.insn(10 downto 6) = "00111" or e_in.insn(10 downto 6) = "01011" or
+                    e_in.insn(10 downto 7) = "1110" then
+                    -- vsl, vsr, vslv and vsrv
+                    -- Note that vsl and vsr are done as per-byte shifts (like
+                    -- vslv/vsrv) because P9's behaviour is to shift each byte
+                    -- of VRA by the shift count in the corresponding byte of
+                    -- VRB.  The arch requires all bytes of VRB to have the
+                    -- same value in the bottom 3 bits.
+                    shift_whole := '1';
+                    -- vslv breaks the encoding pattern of left vs right shifts
+                    if e_in.insn(10) = '1' then
+                        is_right_sh := not e_in.insn(6);
+                    end if;
+                    if is_right_sh = '1' then
+                        v.vs_ext := a_in(7 downto 0);
+                    else
+                        v.vs_ext := a_in(63 downto 56);
+                    end if;
+                end if;
+                for i in 0 to 7 loop
+                    k := i * 8;
+                    shift_col := std_ulogic_vector(to_unsigned(i, 3)) and not lenm1;
+                    -- Calculate permutation vector for rotating the bytes of
+                    -- this element
+                    if shift_whole = '1' then
+                        shift := "000" & b_in(k + 2 downto k);
+                    else
+                        m := to_integer(unsigned(shift_col)) * 8;
+                        shift := (b_in(m + 5 downto m + 3) and lenm1) & b_in(m + 2 downto m);
+                    end if;
+                    -- Compute where this byte of the output comes from
+                    if is_right_sh = '1' then
+                        -- right shifts
+                        src_byte := std_ulogic_vector(to_unsigned(i, 3) + unsigned(shift(5 downto 3))) and lenm1;
+                    else
+                        -- left shifts
+                        src_byte := std_ulogic_vector(to_unsigned(i, 3) - unsigned(shift(5 downto 3))) and lenm1;
+                    end if;
+                    v.perm_sel(k + 7 downto k) := "00011" & (src_byte or shift_col);
+                    -- Does this byte of the input get shifted out of existence?
+                    is_empty := '0';
+                    byte_in_elt := std_ulogic_vector(to_unsigned(i, 3)) and lenm1;
+                    if is_right_sh = '1' then
+                        if unsigned(byte_in_elt) < unsigned(shift(5 downto 3)) then
+                            is_empty := '1';
+                        end if;
+                    elsif is_rotate = '0' then
+                        if unsigned(byte_in_elt) > unsigned(shift(5 downto 3) xor lenm1) then
+                            is_empty := '1';
+                        end if;
+                    end if;
+                    -- For vsra*, work out the sign of this element
+                    elt_sign := '0';
+                    if e_in.is_signed = '1' then
+                        m := to_integer(unsigned(shift_col or lenm1)) * 8;
+                        elt_sign := a_in(m + 7);
+                    end if;
+                    -- Shift this byte left or right, or replace it with 0 or -1
+                    bsh := shift(2 downto 0);
+                    if is_right_sh = '1' and bsh /= "000" then
+                        bsh := std_ulogic_vector(- signed(bsh));
+                        if (std_ulogic_vector(to_unsigned(i + 1, 3)) and lenm1) = "000" then
+                            -- leftmost byte of element
+                            if shift_whole = '1' and e_in.second = '1' then
+                                shift_in(15 downto 8) := vst.vs_ext;
+                            else
+                                shift_in(15 downto 8) := (others => elt_sign);
+                            end if;
+                        else
+                            shift_in(15 downto 8) := a_in(k + 15 downto k + 8);
+                        end if;
+                        shift_in(7 downto 0) := a_in(k + 7 downto k);
+                    else
+                        if (std_ulogic_vector(to_unsigned(i, 3)) and lenm1) = "000" then
+                            -- rightmost byte of element
+                            if shift_whole = '1' and e_in.second = '1' then
+                                shift_in(7 downto 0) := vst.vs_ext;
+                            elsif is_rotate = '1' then
+                                m := to_integer(unsigned(std_ulogic_vector(to_unsigned(i, 3)) or lenm1)) * 8;
+                                shift_in(7 downto 0) := a_in(m + 7 downto m);
+                            else
+                                shift_in(7 downto 0) := (others => '0');
+                            end if;
+                        else
+                            shift_in(7 downto 0) := a_in(k - 1 downto k - 8);
+                        end if;
+                        shift_in(15 downto 8) := a_in(k + 7 downto k);
+                    end if;
+                    if is_empty = '0' then
+                        n := to_integer(unsigned(bsh));
+                        a_sh(k + 7 downto k) := shift_in(15 - n downto 8 - n);
+                    else
+                        a_sh(k + 7 downto k) := (others => elt_sign);
+                    end if;
+                end loop;
             end if;
+        end if;
+
+        if e_in.valid = '1' and store_ab = '1' then
+            v.a0 := a_sh;
+            v.b0 := b_sh;
         end if;
 
         data := vst.a0 & a_in & vst.b0 & b_in;
@@ -841,203 +956,6 @@ begin
             end if;
         end if;
 
-        -- vector shifters (b,h,w,d)
-        case e_in.insn(7 downto 6) is
-            when "00" =>
-                -- byte shifts
-                for i in 0 to 7 loop
-                    k := i * 8;
-                    bshift := signed('0' & b_in(k + 2 downto k));
-                    bext := x"00" & a_in(k + 7 downto k) & "0000000";
-                    case e_in.insn(9 downto 8) is
-                        when "01" =>
-                            -- vslb
-                        when "10" =>
-                            -- vsrb
-                            bshift := - bshift;
-                        when "11" =>
-                            -- vsrab
-                            bshift := - bshift;
-                            bext(22 downto 15) := (others => a_in(k + 7));
-                        when others =>
-                            -- vrlb
-                            bext(6 downto 0) := a_in(k + 7 downto k + 1);
-                    end case;
-                    -- shift -8, -4, 0 or +4
-                    case bshift(3 downto 2) is
-                        when "00" =>
-                            bs1 := bext(14 downto 4);
-                        when "01" =>
-                            bs1 := bext(10 downto 0);
-                        when "10" =>
-                            bs1 := bext(22 downto 12);
-                        when others =>
-                            bs1 := bext(18 downto 8);
-                    end case;
-                    -- shift 0, +1, +2, +3
-                    case bshift(1 downto 0) is
-                        when "00" =>
-                            bs2 := bs1(10 downto 3);
-                        when "01" =>
-                            bs2 := bs1(9 downto 2);
-                        when "10" =>
-                            bs2 := bs1(8 downto 1);
-                        when others =>
-                            bs2 := bs1(7 downto 0);
-                    end case;
-                    shift_result(k + 7 downto k) := bs2;
-                end loop;
-            when "01" =>
-                -- halfword shifts
-                for i in 0 to 3 loop
-                    k := i * 16;
-                    hshift := signed('0' & b_in(k + 3 downto k));
-                    hext := x"0000" & a_in(k + 15 downto k) & 15x"0000";
-                    case e_in.insn(9 downto 8) is
-                        when "01" =>
-                            -- vslh
-                        when "10" =>
-                            -- vsrh
-                            hshift := - hshift;
-                        when "11" =>
-                            -- vsrah
-                            hshift := - hshift;
-                            hext(46 downto 31) := (others => a_in(k + 15));
-                        when others =>
-                            -- vrlh
-                            hext(14 downto 0) := a_in(k + 15 downto k + 1);
-                    end case;
-                    -- shift -16, -12, -8, -4, 0, +4, +8, +12
-                    case hshift(4 downto 2) is
-                        when "000" =>
-                            hs1 := hext(30 downto 12);
-                        when "001" =>
-                            hs1 := hext(26 downto 8);
-                        when "010" =>
-                            hs1 := hext(22 downto 4);
-                        when "011" =>
-                            hs1 := hext(18 downto 0);
-                        when "100" =>
-                            hs1 := hext(46 downto 28);
-                        when "101" =>
-                            hs1 := hext(42 downto 24);
-                        when "110" =>
-                            hs1 := hext(38 downto 20);
-                        when others =>
-                            hs1 := hext(34 downto 16);
-                    end case;
-                    -- shift 0, +1, +2, +3
-                    case hshift(1 downto 0) is
-                        when "00" =>
-                            hs2 := hs1(18 downto 3);
-                        when "01" =>
-                            hs2 := hs1(17 downto 2);
-                        when "10" =>
-                            hs2 := hs1(16 downto 1);
-                        when others =>
-                            hs2 := hs1(15 downto 0);
-                    end case;
-                    shift_result(k + 15 downto k) := hs2;
-                end loop;
-            when "10" =>
-                -- word shifts
-                for i in 0 to 1 loop
-                    k := i * 32;
-                    wshift := signed('0' & b_in(k + 4 downto k));
-                    wext := x"00000000" & a_in(k + 31 downto k) & 31x"00000000";
-                    case e_in.insn(9 downto 8) is
-                        when "01" =>
-                            -- vslw
-                        when "10" =>
-                            -- vsrw
-                            wshift := - wshift;
-                        when "11" =>
-                            -- vsraw
-                            wshift := - wshift;
-                            wext(94 downto 63) := (others => a_in(k + 31));
-                        when others =>
-                            -- vrlw
-                            wext(30 downto 0) := a_in(k + 31 downto k + 1);
-                    end case;
-                    -- shift -32, -16, 0, +16
-                    case wshift(5 downto 4) is
-                        when "00" =>
-                            ws1 := wext(62 downto 16);
-                        when "01" =>
-                            ws1 := wext(46 downto 0);
-                        when "10" =>
-                            ws1 := wext(94 downto 48);
-                        when others =>
-                            ws1 := wext(78 downto 32);
-                    end case;
-                    -- shift 0, +4, +8, +12
-                    case wshift(3 downto 2) is
-                        when "00" =>
-                            ws2 := ws1(46 downto 12);
-                        when "01" =>
-                            ws2 := ws1(42 downto 8);
-                        when "10" =>
-                            ws2 := ws1(38 downto 4);
-                        when others =>
-                            ws2 := ws1(34 downto 0);
-                    end case;
-                    -- shift 0, +1, +2, +3
-                    case wshift(1 downto 0) is
-                        when "00" =>
-                            ws3 := ws2(34 downto 3);
-                        when "01" =>
-                            ws3 := ws2(33 downto 2);
-                        when "10" =>
-                            ws3 := ws2(32 downto 1);
-                        when others =>
-                            ws3 := ws2(31 downto 0);
-                    end case;
-                    shift_result(k + 31 downto k) := ws3;
-                end loop;
-            when others =>
-                -- vsl and vsr, done as per-byte shifts because P9's behaviour
-                -- is to shift each byte of VRA by the shift count in the
-                -- corresponding byte of VRB.  The arch requires all bytes of
-                -- VRB to have the same value in the bottom 3 bits.
-                -- Note vsl is done LS half then MS, but vsr is done MS, LS.
-                dext := x"00" & a_in & 7x"00";
-                if e_in.second = '1' then
-                    dext(78 downto 71) := vst.a0(7 downto 0);
-                    dext(6 downto 0) := vst.a0(63 downto 57);
-                end if;
-                for i in 0 to 7 loop
-                    k := i * 8;
-                    bshift := signed('0' & b_in(k + 2 downto k));
-                    if e_in.insn(9) = '1' then
-                        bshift := - bshift;
-                    end if;
-                    bext := dext(k + 22 downto k);
-                    -- shift -8, -4, 0 or +4
-                    case bshift(3 downto 2) is
-                        when "00" =>
-                            bs1 := bext(14 downto 4);
-                        when "01" =>
-                            bs1 := bext(10 downto 0);
-                        when "10" =>
-                            bs1 := bext(22 downto 12);
-                        when others =>
-                            bs1 := bext(18 downto 8);
-                    end case;
-                    -- shift 0, +1, +2, +3
-                    case bshift(1 downto 0) is
-                        when "00" =>
-                            bs2 := bs1(10 downto 3);
-                        when "01" =>
-                            bs2 := bs1(9 downto 2);
-                        when "10" =>
-                            bs2 := bs1(8 downto 1);
-                        when others =>
-                            bs2 := bs1(7 downto 0);
-                    end case;
-                    shift_result(k + 7 downto k) := bs2;
-                end loop;
-        end case;
-
         -- execute mtvscr
         if vec_valid = '1' and e_in.insn_type = OP_MTVSCR and e_in.second = '1' then
             v.ni := b_in(16);
@@ -1045,7 +963,6 @@ begin
         end if;
 
         -- vector arithmetic
-        lenm1 := std_ulogic_vector(unsigned(e_in.data_len(2 downto 0)) - 1);
         cin := e_in.insn(10);           -- 1 for vsub, 0 for vadd
         if e_in.second = '1' and e_in.insn(8) = '1' then
             -- vadduqm, vsubuqm; note these are done LS then MS
@@ -1093,7 +1010,7 @@ begin
             when "101" =>
                 vec_result <= gather_res;
             when "110" =>
-                vec_result <= shift_result;
+                vec_result <= (others => '0');  -- unused for now
             when others =>
                 vec_result <= vperm_result;
         end case;

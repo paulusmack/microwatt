@@ -353,7 +353,7 @@ architecture behaviour of decode2 is
         OP_VLOG    => "011",
         OP_VMOVE   => "100",
         OP_VGATHER => "101",
-        OP_VSHIFT  => "110",
+        OP_VSHIFT  => "111",
         OP_VCMP    => "010",
         OP_VMINMAX => "111",
         OP_VARITH  => "000",

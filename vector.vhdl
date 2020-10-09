@@ -130,7 +130,8 @@ begin
 
         -- Compute permutation vector v.perm_sel
         if e_in.valid = '1' then
-            if e_in.insn(31) = '1' then
+            case e_in.insn_type is
+            when OP_XPERM =>
                 -- OP_XPERM
                 if e_in.second = '0' then
                     b := e_in.insn(9);
@@ -142,7 +143,7 @@ begin
                     v.perm_sel(k + 7 downto k) := "000" & not e_in.second &
                                                   not b & std_ulogic_vector(to_unsigned(i, 3));
                 end loop;
-            elsif e_in.insn(5) = '1' then
+            when OP_VPERM =>
                 -- OP_VPERM, columns 2b, 2c, 3b
                 if e_in.insn(2) = '1' then
                     -- vsldoi
@@ -161,7 +162,7 @@ begin
                     -- vpermr
                     v.perm_sel := c_in;
                 end if;
-            elsif e_in.insn(2) = '0' then
+            when OP_VMINMAX =>
                 -- OP_VMINMAX, column 02
                 -- e_in.insn(9) is 1 for vmin, 0 for vmax
                 case e_in.insn(8 downto 6) is
@@ -298,7 +299,7 @@ begin
                                                           std_ulogic_vector(to_unsigned(m, 3));
                         end loop;
                 end case;
-            elsif e_in.insn(1) = '1' then
+            when OP_VPACK =>
                 -- OP_VPACK, column 0e
                 if e_in.insn(6) = '0' then
                     -- vpkuhum
@@ -335,8 +336,8 @@ begin
                         v.perm_sel(k + 31 downto k + 24) := std_ulogic_vector(to_unsigned(m + 3, 8));
                     end loop;
                 end if;
-            elsif e_in.insn(3) = '1' then
-                -- OP_VMERGE and OP_VBPERM, column 0c
+            when OP_VMERGE =>
+                -- OP_VMERGE, column 0c
                 case e_in.insn(10 downto 6) is
                     when "01000" =>
                         -- vspltb
@@ -428,65 +429,66 @@ begin
                         else
                             v.perm_sel := x"1312111003020100";
                         end if;
-                    when "10101" =>
-                        -- vbpermq
-                        -- note we do LS then MS (R|1 then R) for vbpermq
-                        -- because the result is in the MS half of VRT
-                        for i in 0 to 7 loop
-                            k := i * 8;
-                            m := i * 4;
-                            v.perm_sel(k + 7 downto k) := "0001" & b_in(k + 6) & not b_in(k + 5 downto k + 3);
-                            v.vbp_sel(m + 3 downto m) := b_in(k + 7) & b_in(k + 2 downto k);
-                        end loop;
-                    when "10000" =>
-                        -- vslo
-                        -- we do LS then MS because the shift count is in the
-                        -- LS half of VRB
-                        b_sh := (others => '0');
-                        if e_in.second = '0' then
-                            oshift := unsigned(b_in(6 downto 3));
-                            v.oshift := oshift;
-                        else
-                            oshift := vst.oshift;
-                        end if;
-                        for i in 0 to 7 loop
-                            k := i * 8;
-                            index := '1' & e_in.second & std_ulogic_vector(to_unsigned(i, 3));
-                            index := std_ulogic_vector(unsigned(index) - resize(oshift, 5));
-                            if index(4) = '0' then
-                                -- need a zero byte; only vst.b0 is known to be
-                                -- zero, not b_in, so select byte f
-                                v.perm_sel(k + 7 downto k) := x"0f";
-                            else
-                                -- bit 3 is inverted because the logic below
-                                -- does vst.a0 & a_in, but we have LS then MS
-                                v.perm_sel(k + 7 downto k) := "0001" & not index(3) & index(2 downto 0);
-                            end if;
-                        end loop;
-                    when "10001" =>
-                        -- vsro, also LS then MS
-                        b_sh := (others => '0');
-                        if e_in.second = '0' then
-                            oshift := unsigned(b_in(6 downto 3));
-                            v.oshift := oshift;
-                        else
-                            oshift := vst.oshift;
-                        end if;
-                        for i in 0 to 7 loop
-                            k := i * 8;
-                            index := '0' & e_in.second & std_ulogic_vector(to_unsigned(i, 3));
-                            index := std_ulogic_vector(unsigned(index) + resize(oshift, 5));
-                            if index(4) = '1' then
-                                -- need a zero byte, use index 0f
-                                v.perm_sel(k + 7 downto k) := x"0f";
-                            else
-                                v.perm_sel(k + 7 downto k) := "0001" & not index(3) & index(2 downto 0);
-                            end if;
-                        end loop;
                     when others =>
                         v.perm_sel := (others => '0');
                 end case;
-            else
+            when OP_VBPERM =>
+                -- vbpermq
+                -- note we do LS then MS (R|1 then R) for vbpermq
+                -- because the result is in the MS half of VRT
+                for i in 0 to 7 loop
+                    k := i * 8;
+                    m := i * 4;
+                    v.perm_sel(k + 7 downto k) := "0001" & b_in(k + 6) & not b_in(k + 5 downto k + 3);
+                    v.vbp_sel(m + 3 downto m) := b_in(k + 7) & b_in(k + 2 downto k);
+                end loop;
+            when OP_VSHOCT =>
+                b_sh := (others => '0');
+                if e_in.insn(6) = '0' then
+                    -- vslo
+                    -- we do LS then MS because the shift count is in the
+                    -- LS half of VRB
+                    if e_in.second = '0' then
+                        oshift := unsigned(b_in(6 downto 3));
+                        v.oshift := oshift;
+                    else
+                        oshift := vst.oshift;
+                    end if;
+                    for i in 0 to 7 loop
+                        k := i * 8;
+                        index := '1' & e_in.second & std_ulogic_vector(to_unsigned(i, 3));
+                        index := std_ulogic_vector(unsigned(index) - resize(oshift, 5));
+                        if index(4) = '0' then
+                            -- need a zero byte; only vst.b0 is known to be
+                            -- zero, not b_in, so select byte f
+                            v.perm_sel(k + 7 downto k) := x"0f";
+                        else
+                            -- bit 3 is inverted because the logic below
+                            -- does vst.a0 & a_in, but we have LS then MS
+                            v.perm_sel(k + 7 downto k) := "0001" & not index(3) & index(2 downto 0);
+                        end if;
+                    end loop;
+                else
+                    -- vsro, also LS then MS
+                    if e_in.second = '0' then
+                        oshift := unsigned(b_in(6 downto 3));
+                        v.oshift := oshift;
+                    else
+                        oshift := vst.oshift;
+                    end if;
+                    for i in 0 to 7 loop
+                        k := i * 8;
+                        index := '0' & e_in.second & std_ulogic_vector(to_unsigned(i, 3));
+                        index := std_ulogic_vector(unsigned(index) + resize(oshift, 5));
+                        if index(4) = '1' then
+                            -- need a zero byte, use index 0f
+                            v.perm_sel(k + 7 downto k) := x"0f";
+                        else
+                            v.perm_sel(k + 7 downto k) := "0001" & not index(3) & index(2 downto 0);
+                        end if;
+                    end loop;
+                end if;
+            when OP_VSHIFT =>
                 -- OP_VSHIFT, column 4
                 store_ab := '1';
                 is_rotate := '0';
@@ -590,7 +592,9 @@ begin
                         a_sh(k + 7 downto k) := (others => elt_sign);
                     end if;
                 end loop;
-            end if;
+            when others =>
+                v.perm_sel := (others => '0');
+            end case;
         end if;
 
         if e_in.valid = '1' and store_ab = '1' then

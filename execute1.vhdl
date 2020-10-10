@@ -1150,7 +1150,7 @@ begin
                     v.vec_in_progress := '1';
                 end if;
 
-            when OP_LVS | OP_VLOG | OP_VMOVE | OP_VGATHER | OP_VARITH =>
+            when OP_LVS | OP_VLOG | OP_VMOVE | OP_VGATHER | OP_VARITH | OP_VSUM =>
                 vec_valid <= '1';
 
             when OP_VCMP =>

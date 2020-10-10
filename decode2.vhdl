@@ -328,6 +328,7 @@ architecture behaviour of decode2 is
         OP_VMINMAX  => "110",
         OP_VARITH   => "110",
         OP_VSHOCT   => "110",
+        OP_VSUM     => "110",
         OP_ADDG6S   => "111",           -- misc_result
         OP_ISEL     => "111",
         OP_DARN     => "111",
@@ -358,6 +359,7 @@ architecture behaviour of decode2 is
         OP_VMINMAX => "111",
         OP_VARITH  => "000",
         OP_VSHOCT  => "111",
+        OP_VSUM    => "110",
         OP_ADDG6S  => "001",            -- misc_result
         OP_ISEL    => "010",
         OP_DARN    => "011",

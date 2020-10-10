@@ -314,6 +314,7 @@ architecture behaviour of decode2 is
         -- The following are used in the vector unit to select vec_result
         OP_VCMP     => "010",
         OP_VBPERM   => "011",
+        OP_VSUM     => "100",
         OP_VPERM    => "111",
         OP_VPACK    => "111",
         OP_VMERGE   => "111",

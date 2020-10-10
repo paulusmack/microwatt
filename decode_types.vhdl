@@ -24,7 +24,7 @@ package decode_types is
                          OP_VPERM, OP_VPACK, OP_VMERGE, OP_VCMP, OP_VMINMAX,
                          OP_VLOG, OP_VSEL, OP_VMOVE, OP_MFROMV,
                          OP_VGATHER, OP_VBPERM, OP_VSHIFT,
-                         OP_VARITH, OP_VSHOCT,
+                         OP_VARITH, OP_VSHOCT, OP_VSUM,
                          OP_MFVSCR, OP_MTVSCR,
                          OP_LVS,
                          OP_XPERM,

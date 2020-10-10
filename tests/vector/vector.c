@@ -802,6 +802,56 @@ int vector_test_6(void)
 	return 0;
 }
 
+unsigned long test7(unsigned long n, unsigned long t)
+{
+	unsigned long ret = 0;
+
+	switch (n) {
+	case 1:
+		asm("mtvsrws 55,%1; mtvscr 23; mfvscr 0; mfvsrld %0,32" :
+		    "=r" (ret) : "r" (t));
+		break;
+	case 2:
+		asm("mtvsrws 55,%1; mtvscr 23; vor 0,1,2; mfvscr 0; mfvsrld %0,32" :
+		    "=r" (ret) : "r" (t));
+		break;
+	case 3:
+		asm("mtvsrws 55,%1; vspltisw 1,0; mtvscr 1; vsumsws 2,23,23; mfvscr 0; mfvsrld %0,32" :
+		    "=r" (ret) : "r" (t));
+		break;
+	default:
+		return n | 0xff000;
+	}
+	return ret;
+}
+
+int vector_test_7(void)
+{
+	unsigned long ret;
+
+	enable_vec();
+
+	ret = callit(1, 0, test7);
+	if (ret)
+		return ret | 0x1000;
+	ret = callit(1, 0x10001, test7);
+	if (ret != 0x10001)
+		return ret | 0x2000;
+	ret = callit(2, 0x10000, test7);
+	if (ret != 0x10000)
+		return ret | 0x3000;
+	ret = callit(2, 1, test7);
+	if (ret != 1)
+		return ret | 0x4000;
+	ret = callit(3, 1, test7);
+	if (ret)
+		return ret | 0x5000;
+	ret = callit(3, 0x7fffffff, test7);
+	if (ret != 1)
+		return ret | 0x6000;
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -830,6 +880,7 @@ int main(void)
 	do_test(4, vector_test_4);
 	do_test(5, vector_test_5);
 	do_test(6, vector_test_6);
+	do_test(7, vector_test_7);
 
 	return fail;
 }

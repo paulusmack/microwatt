@@ -24,34 +24,41 @@ architecture behaviour of vector_unit is
     
     -- State for vector instructions
     type vec_state is record
-        a0       : std_ulogic_vector(63 downto 0);
-        b0       : std_ulogic_vector(63 downto 0);
-        a1       : std_ulogic_vector(63 downto 0);
-        b1       : std_ulogic_vector(63 downto 0);
-        perm_sel : std_ulogic_vector(63 downto 0);
-        result   : std_ulogic_vector(63 downto 0);
-        writes   : std_ulogic;
-        wr_reg   : gspr_index_t;
-        wr_cr    : std_ulogic;
-        op       : insn_type_t;
-        rsel     : std_ulogic_vector(2 downto 0);
-        itag     : instr_tag_t;
-        part1    : std_ulogic;
-        part2    : std_ulogic;
-        ni       : std_ulogic;          -- non-IEEE mode
-        sat      : std_ulogic;          -- saturation flag
-        cmp_bits : std_ulogic_vector(7 downto 0);
-        all0     : std_ulogic;
-        all1     : std_ulogic;
-        vs_ext_l : std_ulogic_vector(7 downto 0);
-        vs_ext_r : std_ulogic_vector(7 downto 0);
-        vbpermq  : std_ulogic_vector(7 downto 0);
-        vbp_sel  : std_ulogic_vector(31 downto 0);
-        carry    : std_ulogic;
-        oshift   : unsigned(3 downto 0);
-        isum     : std_ulogic_vector(33 downto 0);
-        e        : VectorToExecute1Type;
-        w        : VectorToWritebackType;
+        a0           : std_ulogic_vector(63 downto 0);
+        b0           : std_ulogic_vector(63 downto 0);
+        a1           : std_ulogic_vector(63 downto 0);
+        b1           : std_ulogic_vector(63 downto 0);
+        perm_sel     : std_ulogic_vector(63 downto 0);
+        result       : std_ulogic_vector(63 downto 0);
+        writes       : std_ulogic;
+        wr_reg       : gspr_index_t;
+        wr_cr        : std_ulogic;
+        op           : insn_type_t;
+        rsel         : std_ulogic_vector(2 downto 0);
+        itag         : instr_tag_t;
+        part1        : std_ulogic;
+        part2        : std_ulogic;
+        ni           : std_ulogic;          -- non-IEEE mode
+        sat          : std_ulogic;          -- saturation flag
+        cmp_bits     : std_ulogic_vector(7 downto 0);
+        all0         : std_ulogic;
+        all1         : std_ulogic;
+        vs_ext_l     : std_ulogic_vector(7 downto 0);
+        vs_ext_r     : std_ulogic_vector(7 downto 0);
+        vbpermq      : std_ulogic_vector(7 downto 0);
+        vbp_sel      : std_ulogic_vector(31 downto 0);
+        carry        : std_ulogic;
+        oshift       : unsigned(3 downto 0);
+        isum         : std_ulogic_vector(33 downto 0);
+        vsum         : std_ulogic_vector(71 downto 0);
+        is_signed    : std_ulogic;
+        is_subtract  : std_ulogic;
+        is_sat       : std_ulogic;
+        vop_sign_a   : std_ulogic_vector(7 downto 0);
+        vop_sign_b   : std_ulogic_vector(7 downto 0);
+        log_len      : std_ulogic_vector(1 downto 0);
+        e            : VectorToExecute1Type;
+        w            : VectorToWritebackType;
     end record;
     constant vec_state_init : vec_state := (e => VectorToExecute1Init, w => VectorToWritebackInit,
                                             writes => '0', wr_reg => (others => '0'), wr_cr => '0',
@@ -61,6 +68,9 @@ architecture behaviour of vector_unit is
                                             vs_ext_l => x"00", vs_ext_r => x"00",
                                             vbpermq => x"00", vbp_sel => (others => '0'),
                                             carry => '0', oshift => "0000", isum => (others => '0'),
+                                            vsum => (others => '0'),
+                                            is_signed => '0', is_subtract => '0', is_sat => '0',
+                                            vop_sign_a => x"00", vop_sign_b => x"00", log_len => "00",
                                             others => (others => '0'));
 
     signal vst, vst_in : vec_state;
@@ -74,6 +84,7 @@ architecture behaviour of vector_unit is
     signal vscr_result  : std_ulogic_vector(63 downto 0);
     signal vcmp_result  : std_ulogic_vector(63 downto 0);
     signal vsum_result  : std_ulogic_vector(63 downto 0);
+    signal sat_result   : std_ulogic_vector(63 downto 0);
     signal vbpermq_res  : std_ulogic_vector(63 downto 0);
     signal vbperm_byte  : std_ulogic_vector(7 downto 0);
     signal perm_data    : std_ulogic_vector(255 downto 0);
@@ -103,7 +114,35 @@ architecture behaviour of vector_unit is
     signal dcmpaz       : std_ulogic;
     signal dcmpbz       : std_ulogic;
 
-    type byte_comparison_t is array(0 to 7) of boolean;
+    signal byte_ovf     : std_ulogic_vector(7 downto 0);
+    signal sovf_lo      : std_ulogic_vector(7 downto 0);
+    signal sovf_hi      : std_ulogic_vector(7 downto 0);
+    signal uovf_lo      : std_ulogic_vector(7 downto 0);
+    signal uovf_hi      : std_ulogic_vector(7 downto 0);
+    signal arith_ovf    : std_ulogic_vector(7 downto 0);
+    signal arith_satm   : std_ulogic_vector(7 downto 0);
+    signal arith_satl   : std_ulogic_vector(7 downto 0);
+    signal satb0        : std_ulogic_vector(7 downto 0);
+    signal satb7        : std_ulogic_vector(7 downto 0);
+
+    -- Spread out bits from the MSB of each element down to other bytes of the
+    -- element, based on the element length encoded in sel.
+    function spreadbits(sel: std_ulogic_vector(1 downto 0); d: std_ulogic_vector; e: std_ulogic_vector)
+        return std_ulogic_vector is
+        variable result: std_ulogic_vector(7 downto 0);
+    begin
+        case sel is
+            when "00" =>
+                result := d;
+            when "01" =>
+                result := d(7) & e(7) & d(5) & e(5) & d(3) & e(3) & d(1) & e(1);
+            when "10" =>
+                result := d(7) & e(7) & e(7) & e(7) & d(3) & e(3) & e(3) & e(3);
+            when others =>
+                result := (7 => d(7), others => e(7));
+        end case;
+        return result;
+    end;
 
     -- 2x comparison reduction functions
     function reduce_eq(eq: std_ulogic_vector) return std_ulogic_vector is
@@ -268,12 +307,36 @@ begin
     vbpermq_res <= 48x"0" & vbperm_byte & vst.vbpermq when vst.part2 = '1'
                    else 64x"0";
 
+    -- Detect overflow in segmented adder result
+    ovf_detect: for i in 0 to 7 generate
+        -- unsigned overflow: carry=1 for add, carry=0 for sub
+        uovf_hi(i) <= not vst.is_subtract and vst.vsum(i*9 + 8) and not vst.is_signed and vst.is_sat;
+        uovf_lo(i) <= vst.is_subtract and not vst.vsum(i*9 + 8) and not vst.is_signed and vst.is_sat;
+        -- signed overflow: if result sign /= both operand signs
+        sovf_hi(i) <= not vst.vop_sign_a(i) and not vst.vop_sign_b(i) and vst.vsum(i*9 + 7) and
+                      vst.is_signed and vst.is_sat;
+        sovf_lo(i) <= vst.vop_sign_a(i) and vst.vop_sign_b(i) and not vst.vsum(i*9 + 7) and
+                      vst.is_signed and vst.is_sat;
+    end generate;
+    byte_ovf <= uovf_hi or uovf_lo or sovf_hi or sovf_lo;
+    satb0 <= sovf_hi or uovf_hi;
+    satb7 <= sovf_lo or uovf_hi;
+    arith_ovf <= spreadbits(vst.log_len, byte_ovf, byte_ovf) and (7 downto 0 => vst.is_sat);
+    arith_satm <= spreadbits(vst.log_len, satb7, satb0);
+    arith_satl <= spreadbits(vst.log_len, satb0, satb0);
+
+    sat_output: for i in 0 to 7 generate
+        sat_result(i*8 + 7 downto i*8) <= vst.vsum(i*9 + 7 downto i*9) when arith_ovf(i) = '0' else
+                                          arith_satm(i) & (6 downto 0 => arith_satl(i));
+    end generate;
+
     with vst.rsel select vec_result <=
         vscr_result  when "000",
         vst.result   when "001",
         vcmp_result  when "010",
         vbpermq_res  when "011",
         vsum_result  when "100",
+        sat_result   when "101",
         vperm_result when others;
 
     vector_0: process(clk)
@@ -297,7 +360,6 @@ begin
         variable store_ab0    : std_ulogic;
         variable store_ab1    : std_ulogic;
         variable lvs_result   : std_ulogic_vector(63 downto 0);
-        variable varith_res   : std_ulogic_vector(63 downto 0);
         variable log_result   : std_ulogic_vector(63 downto 0);
         variable move_result  : std_ulogic_vector(63 downto 0);
         variable gather_res   : std_ulogic_vector(63 downto 0);
@@ -341,6 +403,12 @@ begin
         variable signbit      : std_ulogic;
         variable sum1         : std_ulogic_vector(32 downto 0);
         variable sum2         : std_ulogic_vector(32 downto 0);
+        variable saturate     : std_ulogic_vector(7 downto 0);
+        variable sat_msb      : std_ulogic_vector(7 downto 0);
+        variable sat_lsb      : std_ulogic_vector(7 downto 0);
+        variable overflow     : std_ulogic;
+        variable ovf_hi       : std_ulogic;
+        variable ovf_lo       : std_ulogic;
     begin
         v := vst;
         v.e.busy := '0';
@@ -373,6 +441,9 @@ begin
         store_ab1 := e_in.valid and e_in.second;
 
         lenm1 := std_ulogic_vector(unsigned(e_in.data_len(2 downto 0)) - 1);
+        -- compute log_2(data_len), knowing data_len is one-hot
+        log_len(1) := e_in.data_len(3) or e_in.data_len(2);
+        log_len(0) := e_in.data_len(3) or e_in.data_len(1);
 
         -- Compute permutation vector v.perm_sel
         if e_in.valid = '1' then
@@ -558,9 +629,6 @@ begin
                     end loop;
                 when OP_VSHIFT =>
                     store_ab0 := '1';
-                    -- compute log_2(data_len), knowing data_len is one-hot
-                    log_len(1) := e_in.data_len(3) or e_in.data_len(2);
-                    log_len(0) := e_in.data_len(3) or e_in.data_len(1);
                     is_rotate := '0';
                     if e_in.insn(9 downto 8) = "00" then
                         is_rotate := '1';
@@ -829,8 +897,14 @@ begin
         end loop;
 
         -- vector arithmetic
+        if e_in.valid = '1' then
+            v.is_subtract := e_in.insn(10);
+            v.is_signed := e_in.is_signed;
+            v.is_sat := e_in.sign_extend;
+            v.log_len := log_len;
+        end if;
         cin := e_in.insn(10);           -- 1 for vsub, 0 for vadd
-        if e_in.second = '1' and e_in.insn(8) = '1' then
+        if e_in.second = '1' and e_in.insn(9 downto 6) = "0100" then
             -- vadduqm, vsubuqm; note these are done LS then MS
             cin := vst.carry;
         end if;
@@ -855,12 +929,15 @@ begin
             end if;
         end loop;
         vsum := std_ulogic_vector(unsigned(vop_a) + unsigned(vop_b) + cin);
-        for i in 0 to 7 loop
-            k := i * 8;
-            m := i * 9;
-            varith_res(k + 7 downto k) := vsum(m + 7 downto m);
-        end loop;
-        v.carry := vsum(71);
+        if e_in.valid = '1' then
+            v.carry := vsum(71);
+            -- save full sum and input sign bits for overflow detection
+            v.vsum := vsum;
+            for i in 0 to 7 loop
+                v.vop_sign_a(i) := vop_a(m + 7);
+                v.vop_sign_b(i) := vop_b(m + 7);
+            end loop;
+        end if;
 
         -- Sum-across logic
         word0 := a_in(31) & a_in(31) & a_in(31 downto 0);
@@ -960,10 +1037,8 @@ begin
                     v.result := move_result;
                 when "011" =>
                     v.result := gather_res;
-                when "100" =>
-                    v.result := vsel_result;
                 when others =>
-                    v.result := varith_res;
+                    v.result := vsel_result;
             end case;
         end if;
 

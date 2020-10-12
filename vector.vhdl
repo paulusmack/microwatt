@@ -125,6 +125,12 @@ begin
         variable signbit      : std_ulogic;
         variable sum1         : std_ulogic_vector(32 downto 0);
         variable sum2         : std_ulogic_vector(32 downto 0);
+        variable saturate     : std_ulogic_vector(7 downto 0);
+        variable sat_msb      : std_ulogic_vector(7 downto 0);
+        variable sat_lsb      : std_ulogic_vector(7 downto 0);
+        variable overflow     : std_ulogic;
+        variable ovf_hi       : std_ulogic;
+        variable ovf_lo       : std_ulogic;
     begin
         v := vst;
 
@@ -984,7 +990,7 @@ begin
 
         -- vector arithmetic
         cin := e_in.insn(10);           -- 1 for vsub, 0 for vadd
-        if e_in.second = '1' and e_in.insn(8) = '1' then
+        if e_in.second = '1' and e_in.insn(9 downto 6) = "0100" then
             -- vadduqm, vsubuqm; note these are done LS then MS
             cin := vst.carry;
         end if;
@@ -1009,10 +1015,53 @@ begin
             end if;
         end loop;
         vsum := std_ulogic_vector(unsigned(vop_a) + unsigned(vop_b) + cin);
+        -- Do overflow detection for saturation
+        -- We abuse the e_in.sign_extend flag as a indication of which
+        -- instructions do saturation.
+        saturate := x"00";
+        sat_msb := x"00";
+        sat_lsb := x"00";
+        if e_in.sign_extend = '1' then
+            overflow := '0';
+            signbit := '0';
+            for i in 7 downto 0 loop
+                k := i * 8;
+                m := i * 9;
+                -- if (i + 1) mod data_len = 0
+                if (lenm1 and not std_ulogic_vector(to_unsigned(i, 3))) = "000" then
+                    if e_in.is_signed = '0' then
+                        -- unsigned overflow: carry=1 for add, carry=0 for sub
+                        overflow := cin xor vsum(m + 8);
+                        signbit := cin;
+                        sat_msb(i) := not cin;
+                    else
+                        -- signed overflow: if result sign /= both operand signs
+                        ovf_hi := not vop_a(m + 7) and not vop_b(m + 7) and vsum(m + 7);
+                        ovf_lo := vop_a(m + 7) and vop_b(m + 7) and not vsum(m + 7);
+                        overflow := ovf_hi or ovf_lo;
+                        signbit := ovf_lo;
+                        sat_msb(i) := signbit;
+                    end if;
+                else
+                    sat_msb(i) := not signbit;
+                end if;
+                saturate(i) := overflow;
+                sat_lsb(i) := not signbit;
+                if overflow = '1' and e_in.insn_type = OP_VARITH and vec_valid = '1' then
+                    v.sat := '1';
+                end if;
+            end loop;
+        end if;
+        -- generate the output
         for i in 0 to 7 loop
             k := i * 8;
             m := i * 9;
-            varith_res(k + 7 downto k) := vsum(m + 7 downto m);
+            if saturate(i) = '1' then
+                varith_res(k + 7) := sat_msb(i);
+                varith_res(k + 6 downto k) := (others => sat_lsb(i));
+            else
+                varith_res(k + 7 downto k) := vsum(m + 7 downto m);
+            end if;
         end loop;
         v.carry := vsum(71);
 

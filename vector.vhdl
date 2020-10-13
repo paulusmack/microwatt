@@ -41,12 +41,14 @@ architecture behaviour of vector_unit is
         vbp_sel  : std_ulogic_vector(31 downto 0);
         carry    : std_ulogic;
         oshift   : unsigned(3 downto 0);
-        vs_ext   : std_ulogic_vector(7 downto 0);
+        vs_ext_l : std_ulogic_vector(7 downto 0);
+        vs_ext_r : std_ulogic_vector(7 downto 0);
         isum     : std_ulogic_vector(33 downto 0);
     end record;
     constant vec_state_init : vec_state := (ni => '0', sat => '0', all0 => '0', all1 => '0',
                                             vbpermq => (others => '0'), vbp_sel => (others => '0'),
-                                            oshift => "0000", carry => '0', vs_ext => x"00",
+                                            oshift => "0000", carry => '0',
+                                            vs_ext_l => x"00", vs_ext_r => x"00",
                                             isum => (others => '0'),
                                             others => (others => '0'));
 
@@ -110,8 +112,13 @@ begin
         variable shift_in     : std_ulogic_vector(15 downto 0);
         variable is_rotate    : std_ulogic;
         variable is_right_sh  : std_ulogic;
+        variable is_left_sh   : std_ulogic;
         variable shift_whole  : std_ulogic;
         variable is_empty     : std_ulogic;
+        variable log_len      : std_ulogic_vector(1 downto 0);
+        variable right_sel    : std_ulogic_vector(1 downto 0);
+        variable leftmost     : std_ulogic;
+        variable rightmost    : std_ulogic;
         variable byte0, byte1 : std_ulogic_vector(8 downto 0);
         variable byte2, byte3 : std_ulogic_vector(8 downto 0);
         variable bsum0, bsum1 : std_ulogic_vector(8 downto 0);
@@ -513,11 +520,15 @@ begin
             when OP_VSHIFT =>
                 -- OP_VSHIFT, column 4
                 store_ab := '1';
+                -- compute log_2(data_len), knowing data_len is one-hot
+                log_len(1) := e_in.data_len(3) or e_in.data_len(2);
+                log_len(0) := e_in.data_len(3) or e_in.data_len(1);
                 is_rotate := '0';
                 if e_in.insn(9 downto 8) = "00" then
                     is_rotate := '1';
                 end if;
                 is_right_sh := e_in.insn(9);
+                is_left_sh := not (is_right_sh or is_rotate);
                 shift_whole := '0';
                 if e_in.insn(10 downto 6) = "00111" or e_in.insn(10 downto 6) = "01011" or
                     e_in.insn(10 downto 7) = "1110" then
@@ -532,12 +543,9 @@ begin
                     if e_in.insn(10) = '1' then
                         is_right_sh := not e_in.insn(6);
                     end if;
-                    if is_right_sh = '1' then
-                        v.vs_ext := a_in(7 downto 0);
-                    else
-                        v.vs_ext := a_in(63 downto 56);
-                    end if;
                 end if;
+                v.vs_ext_r := a_in(7 downto 0);
+                v.vs_ext_l := a_in(63 downto 56);
                 for i in 0 to 7 loop
                     k := i * 8;
                     shift_col := std_ulogic_vector(to_unsigned(i, 3)) and not lenm1;
@@ -578,40 +586,68 @@ begin
                     end if;
                     -- Shift this byte left or right, or replace it with 0 or -1
                     bsh := shift(2 downto 0);
-                    if is_right_sh = '1' and bsh /= "000" then
+                    leftmost := '0';
+                    rightmost := '0';
+                    if is_right_sh = '1' then
                         bsh := std_ulogic_vector(- signed(bsh));
                         if (std_ulogic_vector(to_unsigned(i + 1, 3)) and lenm1) = "000" then
                             -- leftmost byte of element
-                            if shift_whole = '1' and e_in.second = '1' then
-                                shift_in(15 downto 8) := vst.vs_ext;
-                            else
-                                shift_in(15 downto 8) := (others => elt_sign);
-                            end if;
-                        else
-                            shift_in(15 downto 8) := a_in(k + 15 downto k + 8);
+                            leftmost := '1';
                         end if;
-                        shift_in(7 downto 0) := a_in(k + 7 downto k);
+                        right_sel := "00";
                     else
-                        if (std_ulogic_vector(to_unsigned(i, 3)) and lenm1) = "000" then
-                            -- rightmost byte of element
-                            if shift_whole = '1' and e_in.second = '1' then
-                                shift_in(7 downto 0) := vst.vs_ext;
-                            elsif is_rotate = '1' then
-                                m := to_integer(unsigned(std_ulogic_vector(to_unsigned(i, 3)) or lenm1)) * 8;
-                                shift_in(7 downto 0) := a_in(m + 7 downto m);
-                            else
-                                shift_in(7 downto 0) := (others => '0');
-                            end if;
-                        else
-                            shift_in(7 downto 0) := a_in(k - 1 downto k - 8);
+                        if (std_ulogic_vector(to_unsigned(i, 3)) and lenm1) = "000" and
+                            (is_rotate or (shift_whole and e_in.second)) = '0' then
+                            rightmost := '1';
                         end if;
-                        shift_in(15 downto 8) := a_in(k + 7 downto k);
+                        right_sel := log_len;
                     end if;
-                    if is_empty = '0' then
+
+                    if is_right_sh = '0' then
+                        shift_in(15 downto 8) := a_in(k + 7 downto k);
+                    elsif i < 7 and leftmost = '0' then
+                        shift_in(15 downto 8) := a_in(k + 15 downto k + 8);
+                    elsif i = 7 and shift_whole = '1' and e_in.second = '1' then
+                        shift_in(15 downto 8) := vst.vs_ext_r;
+                    else
+                        shift_in(15 downto 8) := (others => elt_sign);
+                    end if;
+
+                    shift_in(7 downto 0) := (others => '0');
+                    case right_sel is
+                        when "00" =>
+                            shift_in(7 downto 0) := a_in(k + 7 downto k);
+                        when "01" =>
+                            if (i mod 2) = 0 then
+                                shift_in(7 downto 0) := a_in(k + 15 downto k + 8);
+                            else
+                                shift_in(7 downto 0) := a_in(k - 1 downto k - 8);
+                            end if;
+                        when "10" =>
+                            if (i mod 4) = 0 then
+                                shift_in(7 downto 0) := a_in(k + 31 downto k + 24);
+                            else
+                                shift_in(7 downto 0) := a_in(k - 1 downto k - 8);
+                            end if;
+                        when others =>
+                            if i = 0 then
+                                if shift_whole = '1' and e_in.second = '1' then
+                                    shift_in(7 downto 0) := vst.vs_ext_l;
+                                else
+                                    shift_in(7 downto 0) := a_in(63 downto 56);
+                                end if;
+                            else
+                                shift_in(7 downto 0) := a_in(k - 1 downto k - 8);
+                            end if;
+                    end case;
+                    if rightmost = '1' then
+                        shift_in(7 downto 0) := (others => '0');
+                    end if;
+                    if is_empty = '1' then
+                        a_sh(k + 7 downto k) := (others => elt_sign);
+                    elsif shift(2 downto 0) /= "000" then
                         n := to_integer(unsigned(bsh));
                         a_sh(k + 7 downto k) := shift_in(15 - n downto 8 - n);
-                    else
-                        a_sh(k + 7 downto k) := (others => elt_sign);
                     end if;
                 end loop;
             when others =>

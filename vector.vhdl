@@ -58,6 +58,11 @@ architecture behaviour of vector_unit is
 
     signal lenm1        : std_ulogic_vector(2 downto 0);
     signal log_len      : std_ulogic_vector(1 downto 0);
+    signal cmpeq        : std_ulogic_vector(7 downto 0);
+    signal cmpgt        : std_ulogic_vector(7 downto 0);
+    signal cmpgtu       : std_ulogic_vector(7 downto 0);
+    signal cmpaz        : std_ulogic_vector(7 downto 0);
+    signal cmpbz        : std_ulogic_vector(7 downto 0);
     signal vperm_result : std_ulogic_vector(63 downto 0);
     signal lvs_result   : std_ulogic_vector(63 downto 0);
     signal varith_res   : std_ulogic_vector(63 downto 0);
@@ -79,9 +84,9 @@ architecture behaviour of vector_unit is
     signal sovf_hi      : std_ulogic_vector(7 downto 0);
     signal uovf_lo      : std_ulogic_vector(7 downto 0);
     signal uovf_hi      : std_ulogic_vector(7 downto 0);
-    signal overflow     : std_ulogic_vector(7 downto 0);
-    signal sat_msb      : std_ulogic_vector(7 downto 0);
-    signal sat_lsb      : std_ulogic_vector(7 downto 0);
+    signal arith_ovf    : std_ulogic_vector(7 downto 0);
+    signal arith_satm   : std_ulogic_vector(7 downto 0);
+    signal arith_satl   : std_ulogic_vector(7 downto 0);
     signal satb0        : std_ulogic_vector(7 downto 0);
     signal satb7        : std_ulogic_vector(7 downto 0);
     signal perm_data    : std_ulogic_vector(255 downto 0);
@@ -89,6 +94,14 @@ architecture behaviour of vector_unit is
     signal mfvsr_c      : std_ulogic_vector(63 downto 0);
     signal move_sel     : std_ulogic_vector(1 downto 0);
     signal vscr_enable  : std_ulogic;
+    signal overflow     : std_ulogic_vector(7 downto 0);
+    signal sat_msb      : std_ulogic_vector(7 downto 0);
+    signal sat_lsb      : std_ulogic_vector(7 downto 0);
+    signal vec_result_presat : std_ulogic_vector(63 downto 0);
+    signal sum_overflow : std_ulogic_vector(7 downto 0);
+    signal sum_satm     : std_ulogic_vector(7 downto 0);
+    signal sum_satl     : std_ulogic_vector(7 downto 0);
+    signal cmp_bits     : std_ulogic_vector(7 downto 0);
 
     -- Spread out bits from the MSB of each element down to other bytes of the
     -- element, based on the element length encoded in sel.
@@ -117,6 +130,15 @@ begin
     -- compute log_2(data_len), knowing data_len is one-hot
     log_len(1) <= e_in.data_len(3) or e_in.data_len(2);
     log_len(0) <= e_in.data_len(3) or e_in.data_len(1);
+
+    -- do comparisons for vcmp*, vmin* and vmax*
+    byte_cmp: for i in 0 to 7 generate
+        cmpeq(i) <= '1' when unsigned(a_in(i*8 + 7 downto i*8)) = unsigned(b_in(i*8 + 7 downto i*8)) else '0';
+        cmpgt(i) <= '1' when signed(a_in(i*8 + 7 downto i*8)) > signed(b_in(i*8 + 7 downto i*8)) else '0';
+        cmpgtu(i) <='1' when  unsigned(a_in(i*8 + 7 downto i*8)) > unsigned(b_in(i*8 + 7 downto i*8)) else '0';
+        cmpaz(i) <= '1' when a_in(i*8 + 7 downto i*8) = x"00" else '0';
+        cmpbz(i) <= '1' when b_in(i*8 + 7 downto i*8) = x"00" else '0';
+    end generate;
 
     -- vperm
     perm_data <= vst.a0 & a_in & vst.b0 & b_in;
@@ -197,17 +219,16 @@ begin
     byte_ovf <= uovf_hi or uovf_lo or sovf_hi or sovf_lo;
     satb0 <= sovf_hi or uovf_hi;
     satb7 <= sovf_lo or uovf_hi;
-    overflow <= spreadbits(log_len, byte_ovf, byte_ovf) and (7 downto 0 => e_in.sign_extend);
-    sat_msb  <= spreadbits(log_len, satb7, satb0);
-    sat_lsb  <= spreadbits(log_len, satb0, satb0);
+    arith_ovf <= spreadbits(log_len, byte_ovf, byte_ovf) and (7 downto 0 => e_in.sign_extend);
+    arith_satm <= spreadbits(log_len, satb7, satb0);
+    arith_satl <= spreadbits(log_len, satb0, satb0);
     -- generate the output
     sum_output: for i in 0 to 7 generate
-        varith_res(i * 8 + 7 downto i * 8) <= vsum(i * 9 + 7 downto i * 9) when overflow(i) = '0' else
-                                              sat_msb(i) & (6 downto 0 => sat_lsb(i));
+        varith_res(i * 8 + 7 downto i * 8) <= vsum(i * 9 + 7 downto i * 9);
     end generate;
 
-    -- Final result mux
-    with sub_select select vec_result <=
+    -- Final result mux and saturation logic
+    with sub_select select vec_result_presat <=
         varith_res   when "000",
         lvs_result   when "001",
         cmp_result   when "010",
@@ -216,6 +237,25 @@ begin
         gather_res   when "101",
         sum_result   when "110",
         vperm_result when others;
+    with sub_select select overflow <=
+        arith_ovf    when "000",
+        cmp_bits     when "010",
+        sum_overflow when "110",
+        x"00"        when others;
+    with sub_select select sat_msb <=
+        arith_satm when "000",
+        x"ff"      when "010",
+        sum_satm   when "110",
+        x"00"      when others;
+    with sub_select select sat_lsb <=
+        arith_satl when "000",
+        x"ff"      when "010",
+        sum_satl   when "110",
+        x"00"      when others;
+    sat_output: for i in 0 to 7 generate
+        vec_result(i*8 + 7 downto i*8) <= vec_result_presat(i*8 + 7 downto i*8) when overflow(i) = '0' else
+                                          sat_msb(i) & (6 downto 0 => sat_lsb(i));
+    end generate;
 
     vector_0: process(clk)
     begin
@@ -238,11 +278,6 @@ begin
         variable b_sh         : std_ulogic_vector(63 downto 0);
         variable store_ab     : std_ulogic;
         variable all0, all1   : std_ulogic;
-        variable cmpeq        : byte_comparison_t;
-        variable cmpgt        : byte_comparison_t;
-        variable cmpgtu       : byte_comparison_t;
-        variable cmpaz        : byte_comparison_t;
-        variable cmpbz        : byte_comparison_t;
         variable bv           : boolean;
         variable byte         : std_ulogic_vector(7 downto 0);
         variable oshift       : unsigned(3 downto 0);
@@ -281,16 +316,6 @@ begin
         a_sh := a_in;
         b_sh := b_in;
         store_ab := not e_in.second;
-
-        -- do comparisons for vcmp*, vmin* and vmax*
-        for i in 0 to 7 loop
-            k := i * 8;
-            cmpeq(i) := unsigned(a_in(k + 7 downto k)) = unsigned(b_in(k + 7 downto k));
-            cmpgt(i) := signed(a_in(k + 7 downto k)) > signed(b_in(k + 7 downto k));
-            cmpgtu(i) := unsigned(a_in(k + 7 downto k)) > unsigned(b_in(k + 7 downto k));
-            cmpaz(i) := a_in(k + 7 downto k) = x"00";
-            cmpbz(i) := b_in(k + 7 downto k) = x"00";
-        end loop;
 
         -- Compute permutation vector v.perm_sel
         if e_in.valid = '1' then
@@ -334,22 +359,14 @@ begin
                         -- vmaxsb, vminsb
                         for i in 0 to 7 loop
                             k := i * 8;
-                            b := '0';
-                            if cmpgt(i) then
-                                b := '1';
-                            end if;
-                            v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                            v.perm_sel(k + 7 downto k) := "000" & (cmpgt(i) xor e_in.insn(9)) &
                                                           not e_in.second & std_ulogic_vector(to_unsigned(i, 3));
                         end loop;
                     when "000" =>
                         -- vmaxub, vminub
                         for i in 0 to 7 loop
                             k := i * 8;
-                            b := '0';
-                            if cmpgtu(i) then
-                                b := '1';
-                            end if;
-                            v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                            v.perm_sel(k + 7 downto k) := "000" & (cmpgtu(i) xor e_in.insn(9)) &
                                                           not e_in.second & std_ulogic_vector(to_unsigned(i, 3));
                         end loop;
                     when "101" =>
@@ -357,10 +374,7 @@ begin
                         for i in 0 to 3 loop
                             k := i * 16;
                             m := i * 2;
-                            b := '0';
-                            if cmpgt(m + 1) or (cmpeq(m + 1) and cmpgtu(m)) then
-                                b := '1';
-                            end if;
+                            b := cmpgt(m + 1) or (cmpeq(m + 1) and cmpgtu(m));
                             v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
                                                           not e_in.second & std_ulogic_vector(to_unsigned(i, 2)) & '0';
                             v.perm_sel(k + 15 downto k + 8) := "000" & (b xor e_in.insn(9)) &
@@ -371,10 +385,7 @@ begin
                         for i in 0 to 3 loop
                             k := i * 16;
                             m := i * 2;
-                            b := '0';
-                            if cmpgtu(m + 1) or (cmpeq(m + 1) and cmpgtu(m)) then
-                                b := '1';
-                            end if;
+                            b := cmpgtu(m + 1) or (cmpeq(m + 1) and cmpgtu(m));
                             v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
                                                           not e_in.second & std_ulogic_vector(to_unsigned(i, 2)) & '0';
                             v.perm_sel(k + 15 downto k + 8) := "000" & (b xor e_in.insn(9)) &
@@ -383,18 +394,14 @@ begin
                     when "110" =>
                         -- vmaxsw, vminsw
                         for i in 0 to 1 loop
-                            bv := cmpgt(i * 4 + 3);
-                            if cmpeq(i * 4 + 3) then
+                            b := cmpgt(i * 4 + 3);
+                            if cmpeq(i * 4 + 3) = '1' then
                                 for m in i * 4 + 2 downto i * 4 loop
-                                    bv := cmpgtu(m);
-                                    if not cmpeq(m) then
+                                    b := cmpgtu(m);
+                                    if cmpeq(m) = '0' then
                                         exit;
                                     end if;
                                 end loop;
-                            end if;
-                            b := '0';
-                            if bv then
-                                b := '1';
                             end if;
                             for m in i * 4 to i * 4 + 3 loop
                                 k := m * 8;
@@ -407,15 +414,11 @@ begin
                         -- vmaxuw, vminuw
                         for i in 0 to 1 loop
                             for m in i * 4 + 3 downto i * 4 loop
-                                bv := cmpgtu(m);
-                                if not cmpeq(m) then
+                                b := cmpgtu(m);
+                                if cmpeq(m) = '0' then
                                     exit;
                                 end if;
                             end loop;
-                            b := '0';
-                            if bv then
-                                b := '1';
-                            end if;
                             for m in i * 4 to i * 4 + 3 loop
                                 k := m * 8;
                                 v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
@@ -425,18 +428,14 @@ begin
                         end loop;
                     when "111" =>
                         -- vmaxsd, vminsd
-                        bv := cmpgt(7);
-                        if cmpeq(7) then
+                        b := cmpgt(7);
+                        if cmpeq(7) = '1' then
                             for m in 6 downto 0 loop
-                                bv := cmpgtu(m);
-                                if not cmpeq(m) then
+                                b := cmpgtu(m);
+                                if cmpeq(m) = '0' then
                                     exit;
                                 end if;
                             end loop;
-                        end if;
-                        b := '0';
-                        if bv then
-                            b := '1';
                         end if;
                         for m in 0 to 7 loop
                             k := m * 8;
@@ -447,15 +446,11 @@ begin
                     when others =>
                         -- vmaxud, vminud
                         for m in 7 downto 0 loop
-                            bv := cmpgtu(m);
-                            if not cmpeq(m) then
+                            b := cmpgtu(m);
+                            if cmpeq(m) = '0' then
                                 exit;
                             end if;
                         end loop;
-                        b := '0';
-                        if bv then
-                            b := '1';
-                        end if;
                         for m in 0 to 7 loop
                             k := m * 8;
                             v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
@@ -800,240 +795,146 @@ begin
             all0 := vst.all0;
             all1 := vst.all1;
         end if;
+        cmp_bits <= x"00";
         case e_in.insn(9 downto 6) & e_in.insn(0) is
             when "00000" =>
                 -- vcmpequb
-                for i in 0 to 7 loop
-                    k := i * 8;
-                    if cmpeq(i) then
-                        cmp_result(k + 7 downto k) <= x"ff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
-                    end if;
-                end loop;
+                cmp_bits <= cmpeq;
             when "00001" =>
                 -- vcmpneb
-                for i in 0 to 7 loop
-                    k := i * 8;
-                    if not cmpeq(i) then
-                        cmp_result(k + 7 downto k) <= x"ff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
-                    end if;
-                end loop;
+                cmp_bits <= not cmpeq;
             when "01001" =>
                 -- vcmpnezb
-                for i in 0 to 7 loop
-                    k := i * 8;
-                    if not cmpeq(i) or cmpaz(i) or cmpbz(i) then
-                        cmp_result(k + 7 downto k) <= x"ff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
-                    end if;
-                end loop;
+                cmp_bits <= not cmpeq or cmpaz or cmpbz;
             when "00010" =>
                 -- vcmpequh
                 for i in 0 to 3 loop
-                    k := i * 16;
                     m := i * 2;
                     if cmpeq(m) and cmpeq(m + 1) then
-                        cmp_result(k + 15 downto k) <= x"ffff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
+                        cmp_bits(m + 1 downto m) <= "11";
                     end if;
                 end loop;
             when "00011" =>
                 -- vcmpneh
                 for i in 0 to 3 loop
-                    k := i * 16;
                     m := i * 2;
                     if not (cmpeq(m) and cmpeq(m + 1)) then
-                        cmp_result(k + 15 downto k) <= x"ffff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
+                        cmp_bits(m + 1 downto m) <= "11";
                     end if;
                 end loop;
             when "01011" =>
                 -- vcmpnezh
                 for i in 0 to 3 loop
-                    k := i * 16;
                     m := i * 2;
                     if not (cmpeq(m) and cmpeq(m + 1)) or
                         (cmpaz(m) and cmpaz(m + 1)) or (cmpbz(m) and cmpbz(m + 1)) then
-                        cmp_result(k + 15 downto k) <= x"ffff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
+                        cmp_bits(m + 1 downto m) <= "11";
                     end if;
                 end loop;
             when "00100" =>
                 -- vcmpequw
                 for i in 0 to 1 loop
-                    k := i * 32;
                     m := i * 4;
                     if cmpeq(m) and cmpeq(m + 1) and cmpeq(m + 2) and cmpeq(m + 3) then
-                        cmp_result(k + 31 downto k) <= x"ffffffff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
+                        cmp_bits(m + 3 downto m) <= "1111";
                     end if;
                 end loop;
             when "00101" =>
                 -- vcmpnew
                 for i in 0 to 1 loop
-                    k := i * 32;
                     m := i * 4;
                     if not (cmpeq(m) and cmpeq(m + 1) and cmpeq(m + 2) and cmpeq(m + 3)) then
-                        cmp_result(k + 31 downto k) <= x"ffffffff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
+                        cmp_bits(m + 3 downto m) <= "1111";
                     end if;
                 end loop;
             when "01101" =>
                 -- vcmpnezw
                 for i in 0 to 1 loop
-                    k := i * 32;
                     m := i * 4;
                     if not (cmpeq(m) and cmpeq(m + 1) and cmpeq(m + 2) and cmpeq(m + 3)) or
                         (cmpaz(m) and cmpaz(m + 1) and cmpaz(m + 2) and cmpaz(m + 3)) or
                         (cmpbz(m) and cmpbz(m + 1) and cmpbz(m + 2) and cmpbz(m + 3)) then
-                        cmp_result(k + 31 downto k) <= x"ffffffff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
+                        cmp_bits(m + 3 downto m) <= "1111";
                     end if;
                 end loop;
             when "00111" =>
                 -- vcmpequd
                 if cmpeq(0) and cmpeq(1) and cmpeq(2) and cmpeq(3) and
                     cmpeq(4) and cmpeq(5) and cmpeq(6) and cmpeq(7) then
-                    cmp_result <= (others => '1');
-                    all0 := '0';
-                else
-                    all1 := '0';
+                    cmp_bits <= x"ff";
                 end if;
             when "10000" =>
                 -- vcmpgtub
-                for i in 0 to 7 loop
-                    k := i * 8;
-                    if cmpgtu(i) then
-                        cmp_result(k + 7 downto k) <= x"ff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
-                    end if;
-                end loop;
+                cmp_bits <= cmpgtu;
             when "10010" =>
                 -- vcmpgtuh
                 for i in 0 to 3 loop
-                    k := i * 16;
                     m := i * 2;
                     if cmpgtu(m + 1) or (cmpeq(m + 1) and cmpgtu(m)) then
-                        cmp_result(k + 15 downto k) <= x"ffff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
+                        cmp_bits(m + 1 downto m) <= "11";
                     end if;
                 end loop;
             when "10100" =>
                 -- vcmpgtuw
                 for i in 0 to 1 loop
-                    k := i * 32;
                     for m in i * 4 + 3 downto i * 4 loop
-                        bv := cmpgtu(m);
-                        if not cmpeq(m) then
+                        b := cmpgtu(m);
+                        if cmpeq(m) = '0' then
                             exit;
                         end if;
                     end loop;
-                    if bv then
-                        cmp_result(k + 31 downto k) <= x"ffffffff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
-                    end if;
+                    cmp_bits(i*4 + 3 downto i*4) <= (others => b);
                 end loop;
             when "10111" =>
                 -- vcmpgtud
                 for m in 7 downto 0 loop
-                    bv := cmpgtu(m);
-                    if not cmpeq(m) then
+                    b := cmpgtu(m);
+                    if cmpeq(m) = '0' then
                         exit;
                     end if;
                 end loop;
-                if bv then
-                    cmp_result <= (others => '1');
-                    all0 := '0';
-                else
-                    all1 := '0';
-                end if;
+                cmp_bits <= (others => b);
             when "11000" =>
                 -- vcmpgtsb
-                for i in 0 to 7 loop
-                    k := i * 8;
-                    if cmpgt(i) then
-                        cmp_result(k + 7 downto k) <= x"ff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
-                    end if;
-                end loop;
+                cmp_bits <= cmpgt;
             when "11010" =>
                 -- vcmpgtsh
                 for i in 0 to 3 loop
-                    k := i * 16;
                     m := i * 2;
-                    if cmpgt(m + 1) or (cmpeq(m + 1) and cmpgtu(m)) then
-                        cmp_result(k + 15 downto k) <= x"ffff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
-                    end if;
+                    b := cmpgt(m + 1) or (cmpeq(m + 1) and cmpgtu(m));
+                    cmp_bits(m + 1 downto m) <= b & b;
                 end loop;
             when "11100" =>
                 -- vcmpgtsw
                 for i in 0 to 1 loop
                     k := i * 32;
-                    bv := cmpgt(i * 4 + 3);
-                    if cmpeq(i * 4 + 3) then
+                    b := cmpgt(i * 4 + 3);
+                    if cmpeq(i * 4 + 3) = '1' then
                         for m in i * 4 + 2 downto i * 4 loop
-                            bv := cmpgtu(m);
-                            if not cmpeq(m) then
+                            b := cmpgtu(m);
+                            if cmpeq(m) = '0' then
                                 exit;
                             end if;
                         end loop;
                     end if;
-                    if bv then
-                        cmp_result(k + 31 downto k) <= x"ffffffff";
-                        all0 := '0';
-                    else
-                        all1 := '0';
-                    end if;
+                    cmp_bits(i*4 + 3 downto i*4) <= (others => b);
                 end loop;
             when "11111" =>
                 -- vcmpgtsd
-                bv := cmpgt(7);
-                if cmpeq(7) then
+                b := cmpgt(7);
+                if cmpeq(7) = '1' then
                     for m in 6 downto 0 loop
-                        bv := cmpgtu(m);
-                        if not cmpeq(m) then
+                        b := cmpgtu(m);
+                        if cmpeq(m) = '0' then
                             exit;
                         end if;
                     end loop;
                 end if;
-                if bv then
-                    cmp_result <= (others => '1');
-                    all0 := '0';
-                else
-                    all1 := '0';
-                end if;
+                cmp_bits <= (others => b);
             when others =>
         end case;
+        all0 := all0 and not (or (cmp_bits));
+        all1 := all1 and (and (cmp_bits));
         vec_cr6 <= all1 & '0' & all0 & '0';
         if vec_valid = '1' then
             v.all0 := all0;
@@ -1114,24 +1015,33 @@ begin
         if e_in.data_len(2) = '1' then
             -- vsumsws, vsum2sws
             sum_result(63 downto 32) <= x"00000000";
+            sum_overflow(7 downto 4) <= "0000";
+            sum_satm(7 downto 4) <= "0000";
+            sum_satl(7 downto 4) <= "0000";
             if e_in.second = '1' or e_in.insn(8) = '0' then
                 total := std_ulogic_vector(unsigned(word2(33) & word2) +
                                            unsigned(word_sum(33) & word_sum));
+                sum_result(31 downto 0) <= total(31 downto 0);
                 -- work out whether to saturate
                 if total(34 downto 31) = "0000" or total(34 downto 31) = "1111" then
-                    sum_result(31 downto 0) <= total(31 downto 0);
+                    sum_overflow(3 downto 0) <= "0000";
                 else
-                    if e_in.insn_type = OP_VSUM and vec_valid = '1' then
-                        v.sat := '1';
-                    end if;
-                    if total(34) = '0' then
-                        sum_result(31 downto 0) <= x"7fffffff";
-                    else
-                        sum_result(31 downto 0) <= x"80000000";
-                    end if;
+                    sum_overflow(3 downto 0) <= "1111";
+                end if;
+                if total(34) = '0' then
+                    -- saturate to 0x7fffffff
+                    sum_satm(3 downto 0) <= "0111";
+                    sum_satl(3 downto 0) <= "1111";
+                else
+                    -- saturate to 0x80000000
+                    sum_satm(3 downto 0) <= "1000";
+                    sum_satl(3 downto 0) <= "0000";
                 end if;
             else
                 sum_result(31 downto 0) <= x"00000000";
+                sum_overflow(3 downto 0) <= "0000";
+                sum_satm(3 downto 0) <= "0000";
+                sum_satl(3 downto 0) <= "0000";
             end if;
 
         else
@@ -1165,21 +1075,29 @@ begin
                 sum2 := std_ulogic_vector(unsigned(signbit & b_in(k + 31 downto k)) +
                                           unsigned(sum1));
                 
+                sum_result(k + 31 downto k) <= sum2(31 downto 0);
                 if (e_in.is_signed and sum2(31)) = sum2(32) then
-                    sum_result(k + 31 downto k) <= sum2(31 downto 0);
+                    sum_overflow(i*4 + 3 downto i*4) <= "0000";
                 else
-                    if e_in.insn_type = OP_VSUM and vec_valid = '1' then
-                        v.sat := '1';
-                    end if;
-                    if e_in.is_signed = '0' then
-                        sum_result(k + 31 downto k) <= x"ffffffff";
-                    elsif sum2(32) = '0' then
-                        sum_result(k + 31 downto k) <= x"7fffffff";
-                    else
-                        sum_result(k + 31 downto k) <= x"80000000";
-                    end if;
+                    sum_overflow(i*4 + 3 downto i*4) <= "1111";
+                end if;
+                if e_in.is_signed = '0' then
+                    -- saturate to 0xffffffff
+                    sum_satm(i*4 + 3 downto i*4) <= "1111";
+                    sum_satl(i*4 + 3 downto i*4) <= "1111";
+                elsif sum2(32) = '0' then
+                    -- saturate to 0x7fffffff
+                    sum_satm(i*4 + 3 downto i*4) <= "0111";
+                    sum_satl(i*4 + 3 downto i*4) <= "1111";
+                else
+                    -- saturate to 0x80000000
+                    sum_satm(i*4 + 3 downto i*4) <= "1000";
+                    sum_satl(i*4 + 3 downto i*4) <= "0000";
                 end if;
             end loop;
+        end if;
+        if sum_overflow /= x"00" and e_in.insn_type = OP_VSUM and vec_valid = '1' then
+            v.sat := '1';
         end if;
 
         -- update state

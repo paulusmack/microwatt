@@ -765,31 +765,27 @@ begin
                 ctrl_tmp.srr1(63 - 45) <= '1';
                 report "privileged instruction";
 
-            elsif not HAS_FPU and e_in.fac = FPU then
+            elsif not HAS_FPU and e_in.need_fac_fpu = '1' then
                 -- make lfd/stfd/lfs/stfs etc. illegal in no-FPU implementations
                 illegal := '1';
 
-            elsif not HAS_VECVSX and (e_in.fac = VEC or e_in.fac = VSX) then
+            elsif not HAS_VECVSX and (e_in.need_fac_vec = '1' or e_in.need_fac_vsx = '1') then
                 -- make vector/VSX instructions illegal in no-vector/VSX implementations
                 illegal := '1';
 
-            elsif HAS_FPU and ctrl.msr(MSR_FP) = '0' and e_in.fac = FPU then
+            elsif HAS_FPU and ctrl.msr(MSR_FP) = '0' and e_in.need_fac_fpu = '1' then
                 -- generate a floating-point unavailable interrupt
                 exception := '1';
                 v.f.redirect_nia := std_logic_vector(to_unsigned(16#800#, 64));
                 report "FP unavailable interrupt";
 
-            elsif HAS_VECVSX and ctrl.msr(MSR_VEC) = '0' and
-                (e_in.fac = VEC or (e_in.fac = VOV and e_in.insn(0) = '1') or
-                 (e_in.fac = VOV2 and e_in.insn(3) = '1')) then
+            elsif HAS_VECVSX and ctrl.msr(MSR_VEC) = '0' and e_in.need_fac_vec = '1' then
                 -- generate a vector unavailable interrupt
                 exception := '1';
                 v.f.redirect_nia := std_logic_vector(to_unsigned(16#f20#, 64));
                 report "Vector unavailable interrupt";
 
-            elsif HAS_VECVSX and ctrl.msr(MSR_VSX) = '0' and
-                (e_in.fac = VSX or (e_in.fac = VOV and e_in.insn(0) = '0') or
-                 (e_in.fac = VOV2 and e_in.insn(3) = '0')) then
+            elsif HAS_VECVSX and ctrl.msr(MSR_VSX) = '0' and e_in.need_fac_vsx = '1' then
                 -- generate a VSX unavailable interrupt
                 exception := '1';
                 v.f.redirect_nia := std_logic_vector(to_unsigned(16#f40#, 64));

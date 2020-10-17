@@ -540,14 +540,24 @@ begin
         case d_in.decode.length is
             when is1B =>
                 length := "0001";
+                v.e.log_len := "00";
+                v.e.lenm1 := "000";
             when is2B =>
                 length := "0010";
+                v.e.log_len := "01";
+                v.e.lenm1 := "001";
             when is4B =>
                 length := "0100";
+                v.e.log_len := "10";
+                v.e.lenm1 := "011";
             when is8B =>
                 length := "1000";
+                v.e.log_len := "11";
+                v.e.lenm1 := "111";
             when NONE =>
                 length := "0000";
+                v.e.log_len := "00";
+                v.e.lenm1 := "000";
         end case;
 
         -- execute unit
@@ -600,6 +610,34 @@ begin
         v.e.br_pred := d_in.br_pred;
         v.e.result_sel := result_select(d_in.decode.insn_type);
         v.e.sub_select := subresult_select(d_in.decode.insn_type);
+
+        -- further instruction decodes for vector instructions
+        v.e.vec_shift_whole := '0';
+        if d_in.insn(10 downto 6) = "00111" or d_in.insn(10 downto 6) = "01011" or
+            d_in.insn(10 downto 7) = "1110" then
+            v.e.vec_shift_whole := '1';
+        end if;
+        v.e.vec_rotate := not (d_in.insn(9) or d_in.insn(8));
+        v.e.vec_shift_right := d_in.insn(9);
+        -- vslv breaks the encoding pattern of left vs right shifts
+        if v.e.vec_shift_whole = '1' and d_in.insn(10) = '1' then
+            v.e.vec_shift_right := not d_in.insn(6);
+        end if;
+
+        v.e.need_fac_fpu := '0';
+        v.e.need_fac_vec := '0';
+        v.e.need_fac_vsx := '0';
+        if d_in.decode.facility = FPU then
+            v.e.need_fac_fpu := '1';
+        end if;
+        if d_in.decode.facility = VEC or (d_in.decode.facility = VOV and d_in.insn(0) = '1') or
+            (d_in.decode.facility = VOV2 and d_in.insn(3) = '1') then
+            v.e.need_fac_vec := '1';
+        end if;
+        if d_in.decode.facility = VSX or (d_in.decode.facility = VOV and d_in.insn(0) = '0') or
+            (d_in.decode.facility = VOV2 and d_in.insn(3) = '0') then
+            v.e.need_fac_vsx := '1';
+        end if;
 
         -- issue control
         control_valid_in <= d_in.valid;

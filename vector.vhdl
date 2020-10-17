@@ -228,10 +228,8 @@ begin
 
     -- Data path
 
-    lenm1 <= std_ulogic_vector(unsigned(e_in.data_len(2 downto 0)) - 1);
-    -- compute log_2(data_len), knowing data_len is one-hot
-    log_len(1) <= e_in.data_len(3) or e_in.data_len(2);
-    log_len(0) <= e_in.data_len(3) or e_in.data_len(1);
+    lenm1 <= e_in.lenm1;
+    log_len <= e_in.log_len;
 
     -- do comparisons for vcmp*, vmin* and vmax*
     byte_cmp: for i in 0 to 7 generate
@@ -294,12 +292,9 @@ begin
 
     -- vector shifts
     -- shift_whole is 1 for vsl, vsr, vslv and vsrv
-    shift_whole <= '1' when e_in.insn(10 downto 6) = "00111" or e_in.insn(10 downto 6) = "01011" or
-                   e_in.insn(10 downto 7) = "1110" else '0';
-    is_rotate <= '1' when e_in.insn(9 downto 8) = "00" else '0';
-    -- vslv breaks the encoding pattern of left vs right shifts
-    is_right_sh <= not e_in.insn(6) when shift_whole = '1' and e_in.insn(10) = '1'
-                   else e_in.insn(9);
+    shift_whole <= e_in.vec_shift_whole;
+    is_rotate <= e_in.vec_rotate;
+    is_right_sh <= e_in.vec_shift_right;
 
     shift_axl <= vst.vs_ext_r & a_in;
     shift_xr <= vst.vs_ext_l when is_rotate = '0' else a_in(63 downto 56);

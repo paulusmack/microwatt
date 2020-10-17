@@ -63,10 +63,24 @@ architecture behaviour of vector_unit is
     signal cmpgtu       : std_ulogic_vector(7 downto 0);
     signal cmpaz        : std_ulogic_vector(7 downto 0);
     signal cmpbz        : std_ulogic_vector(7 downto 0);
+    signal hcmpeq       : std_ulogic_vector(3 downto 0);
+    signal hcmpgt       : std_ulogic_vector(3 downto 0);
+    signal hcmpgtu      : std_ulogic_vector(3 downto 0);
+    signal hcmpaz       : std_ulogic_vector(3 downto 0);
+    signal hcmpbz       : std_ulogic_vector(3 downto 0);
+    signal wcmpeq       : std_ulogic_vector(1 downto 0);
+    signal wcmpgt       : std_ulogic_vector(1 downto 0);
+    signal wcmpgtu      : std_ulogic_vector(1 downto 0);
+    signal wcmpaz       : std_ulogic_vector(1 downto 0);
+    signal wcmpbz       : std_ulogic_vector(1 downto 0);
+    signal dcmpeq       : std_ulogic;
+    signal dcmpgt       : std_ulogic;
+    signal dcmpgtu      : std_ulogic;
+    signal dcmpaz       : std_ulogic;
+    signal dcmpbz       : std_ulogic;
     signal vperm_result : std_ulogic_vector(63 downto 0);
     signal lvs_result   : std_ulogic_vector(63 downto 0);
     signal varith_res   : std_ulogic_vector(63 downto 0);
-    signal cmp_result   : std_ulogic_vector(63 downto 0);
     signal log_result   : std_ulogic_vector(63 downto 0);
     signal move_result  : std_ulogic_vector(63 downto 0);
     signal gather_res   : std_ulogic_vector(63 downto 0);
@@ -102,6 +116,23 @@ architecture behaviour of vector_unit is
     signal sum_satm     : std_ulogic_vector(7 downto 0);
     signal sum_satl     : std_ulogic_vector(7 downto 0);
     signal cmp_bits     : std_ulogic_vector(7 downto 0);
+    signal elt_sign_a   : std_ulogic_vector(7 downto 0);
+    signal shift_lsel   : std_ulogic_vector(15 downto 0);
+    signal shift_rsel   : std_ulogic_vector(23 downto 0);
+    signal shift_sel    : std_ulogic_vector(15 downto 0);
+    signal shift_count  : std_ulogic_vector(23 downto 0);
+    signal shift_bits   : std_ulogic_vector(47 downto 0);
+    signal shift_in     : std_ulogic_vector(127 downto 0);
+    signal shift_axl    : std_ulogic_vector(71 downto 0);
+    signal shift_axr    : std_ulogic_vector(63 downto 0);
+    signal shift_xr     : std_ulogic_vector(7 downto 0);
+    signal shift_out    : std_ulogic_vector(63 downto 0);
+    signal a_sh         : std_ulogic_vector(63 downto 0);
+    signal is_rotate    : std_ulogic;
+    signal is_right_sh  : std_ulogic;
+    signal shift_whole  : std_ulogic;
+    signal leftmost     : std_ulogic_vector(7 downto 0);
+    signal rightmost    : std_ulogic_vector(7 downto 0);
 
     -- Spread out bits from the MSB of each element down to other bytes of the
     -- element, based on the element length encoded in sel.
@@ -122,6 +153,77 @@ architecture behaviour of vector_unit is
         return result;
     end;
 
+    -- 2x comparison reduction functions
+    function reduce_eq(eq: std_ulogic_vector) return std_ulogic_vector is
+        variable result: std_ulogic_vector(eq'length / 2 - 1 downto 0);
+    begin
+        for i in 0 to result'left loop
+            result(i) := eq(2*i + 1) and eq(2*i);
+        end loop;
+        return result;
+    end;
+    function reduce_gtu(gtu: std_ulogic_vector; eq: std_ulogic_vector) return std_ulogic_vector is
+        variable result: std_ulogic_vector(gtu'length / 2 - 1 downto 0);
+    begin
+        for i in 0 to result'left loop
+            result(i) := gtu(2*i + 1) or (eq(2*i + 1) and gtu(2*i));
+        end loop;
+        return result;
+    end;
+    function reduce_gt(gt: std_ulogic_vector; eq: std_ulogic_vector;
+                       gtu: std_ulogic_vector) return std_ulogic_vector is
+        variable result: std_ulogic_vector(gt'length / 2 - 1 downto 0);
+    begin
+        for i in 0 to result'left loop
+            result(i) := gt(2*i + 1) or (eq(2*i + 1) and gtu(2*i));
+        end loop;
+        return result;
+    end;
+
+    -- Expand each bit of a vector to 2 consecutive bits
+    function vexpand2(vec: std_ulogic_vector(3 downto 0)) return std_ulogic_vector is
+        variable result: std_ulogic_vector(7 downto 0);
+    begin
+        for i in 0 to 3 loop
+            result(2*i + 1 downto 2*i) := (others => vec(i));
+        end loop;
+        return result;
+    end;
+
+    -- Expand each bit of a vector to 4 consecutive bits
+    function vexpand4(vec: std_ulogic_vector(1 downto 0)) return std_ulogic_vector is
+        variable result: std_ulogic_vector(7 downto 0);
+    begin
+        for i in 0 to 1 loop
+            result(4*i + 3 downto 4*i) := (others => vec(i));
+        end loop;
+        return result;
+    end;
+
+    -- Return the bit index of the byte to the right of byte i,
+    -- in cyclic order in elements of eltsize bytes.
+    function goright(i: integer; eltsize: integer) return integer is
+    begin
+        if i mod eltsize = 0 then
+            return (i + eltsize - 1) * 8;
+        else
+            return (i - 1) * 8;
+        end if;
+    end;
+
+    -- Return the bit index of the LSB of the element containing
+    -- byte i, in elements of eltsize bytes
+    function elt_right(i: integer; eltsize: integer) return integer is
+    begin
+        return (i - (i mod eltsize)) * 8;
+    end;
+
+    -- Return the upper 8 bits of val << n
+    function lshift(val: std_ulogic_vector(15 downto 0); n: integer) return std_ulogic_vector is
+    begin
+        return val(15 - n downto 8 - n);
+    end;
+
 begin
 
     -- Data path
@@ -135,9 +237,35 @@ begin
     byte_cmp: for i in 0 to 7 generate
         cmpeq(i) <= '1' when unsigned(a_in(i*8 + 7 downto i*8)) = unsigned(b_in(i*8 + 7 downto i*8)) else '0';
         cmpgt(i) <= '1' when signed(a_in(i*8 + 7 downto i*8)) > signed(b_in(i*8 + 7 downto i*8)) else '0';
-        cmpgtu(i) <='1' when  unsigned(a_in(i*8 + 7 downto i*8)) > unsigned(b_in(i*8 + 7 downto i*8)) else '0';
+        cmpgtu(i) <= '1' when unsigned(a_in(i*8 + 7 downto i*8)) > unsigned(b_in(i*8 + 7 downto i*8)) else '0';
         cmpaz(i) <= '1' when a_in(i*8 + 7 downto i*8) = x"00" else '0';
         cmpbz(i) <= '1' when b_in(i*8 + 7 downto i*8) = x"00" else '0';
+    end generate;
+    -- Work out half-word comparison results
+    hcmpeq <= reduce_eq(cmpeq);
+    hcmpgt <= reduce_gt(cmpgt, cmpeq, cmpgtu);
+    hcmpgtu <= reduce_gtu(cmpgtu, cmpeq);
+    hcmpaz <= reduce_eq(cmpaz);
+    hcmpbz <= reduce_eq(cmpbz);
+    -- Work out word comparison results
+    wcmpeq <= reduce_eq(hcmpeq);
+    wcmpgt <= reduce_gt(hcmpgt, hcmpeq, hcmpgtu);
+    wcmpgtu <= reduce_gtu(hcmpgtu, hcmpeq);
+    wcmpaz <= reduce_eq(hcmpaz);
+    wcmpbz <= reduce_eq(hcmpbz);
+    -- Work out doubleword comparison results
+    dcmpeq <= reduce_eq(wcmpeq)(0);
+    dcmpgt <= reduce_gt(wcmpgt, wcmpeq, wcmpgtu)(0);
+    dcmpgtu <= reduce_gtu(wcmpgtu, wcmpeq)(0);
+    dcmpaz <= reduce_eq(wcmpaz)(0);
+    dcmpbz <= reduce_eq(wcmpbz)(0);
+
+    elt_sign_bits: for i in 0 to 7 generate
+        with log_len select elt_sign_a(i) <=
+            a_in(i * 8 + 7) and e_in.is_signed when "00",
+            a_in((i - (i mod 2) + 1) * 8 + 7) and e_in.is_signed when "01",
+            a_in((i - (i mod 4) + 3) * 8 + 7) and e_in.is_signed when "10",
+            a_in(63) and e_in.is_signed when others;
     end generate;
 
     -- vperm
@@ -163,6 +291,112 @@ begin
     gather_res <= vgbbd_result when e_in.insn(6) = '0'
                   else 64x"0" when vec_in_progress = '1'
                   else 48x"0" & vbperm_byte & vst.vbpermq;
+
+    -- vector shifts
+    -- shift_whole is 1 for vsl, vsr, vslv and vsrv
+    shift_whole <= '1' when e_in.insn(10 downto 6) = "00111" or e_in.insn(10 downto 6) = "01011" or
+                   e_in.insn(10 downto 7) = "1110" else '0';
+    is_rotate <= '1' when e_in.insn(9 downto 8) = "00" else '0';
+    -- vslv breaks the encoding pattern of left vs right shifts
+    is_right_sh <= not e_in.insn(6) when shift_whole = '1' and e_in.insn(10) = '1'
+                   else e_in.insn(9);
+
+    shift_axl <= vst.vs_ext_r & a_in;
+    shift_xr <= vst.vs_ext_l when is_rotate = '0' else a_in(63 downto 56);
+    shift_axr <= a_in(55 downto 0) & shift_xr;
+
+    -- Note that vsl and vsr are done as per-byte shifts (like vslv
+    -- and vsrv) because P9's behaviour is to shift each byte of VRA
+    -- by the shift count in the corresponding byte of VRB.  The arch
+    -- requires all bytes of VRB to have the same value in the bottom
+    -- 3 bits for vsl and vsr.
+    vec_shift: for i in 0 to 7 generate
+        with log_len select shift_bits(i*6 + 5 downto i*6) <=
+            "000" & b_in(i*8 + 2 downto i*8) when "00",
+            "00" & b_in(elt_right(i, 2) + 3 downto elt_right(i, 2)) when "01",
+            '0' & b_in(elt_right(i, 4) + 4 downto elt_right(i, 4)) when "10",
+            b_in(5 downto 0) when others;
+        -- negate shift count for right shifts
+        shift_count(i*3 + 2 downto i*3) <= shift_bits(i*6 + 2 downto i*6) when is_right_sh = '0'
+                                           else std_ulogic_vector(- signed(shift_bits(i*6 + 2 downto i*6)));
+        leftmost(i) <= '1' when (std_ulogic_vector(to_unsigned(i + 1, 3)) and lenm1) = "000" else '0';
+        rightmost(i) <= '1' when (std_ulogic_vector(to_unsigned(i, 3)) and lenm1) = "000" else '0';
+
+        -- when shifting right, 11 for the leftmost byte of each element,
+        -- except when doing vsr/vsrv, when it's 11 for byte 7 of 1st dword.
+        shift_lsel(i*2 + 1) <= is_right_sh;
+        shift_lsel(i*2) <= leftmost(i) when shift_whole = '0'
+                           else '1' when (i = 7 and e_in.second = '0')
+                           else '0';
+        with shift_lsel(i*2 + 1 downto i*2) select shift_in(i*16 + 15 downto i*16 + 8) <=
+            shift_axl(i*8 + 15 downto i*8 + 8) when "10",
+            (others => elt_sign_a(i)) when "11",
+            shift_axl(i*8 + 7 downto i*8) when others;
+
+        -- when shifting left (not rotating), 1 for the rightmost byte of each element;
+        -- when doing vsl/vslv, 1 for byte 0 of the 1st dword
+        shift_rsel(i*3 + 2) <= '0' when is_right_sh = '1'
+                               else rightmost(i) when (is_rotate = '0' and shift_whole = '0')
+                               else '1' when (shift_whole = '1' and i = 0 and e_in.second = '0')
+                               else '0';
+        shift_rsel(i*3 + 1 downto i*3) <= "00" when is_right_sh = '1'
+                                          else log_len when shift_whole = '0'
+                                          else "11";
+        with shift_rsel(i*3 + 2 downto i*3) select shift_in(i*16 + 7 downto i*16) <=
+            a_in(i*8 + 7 downto i*8) when "000",
+            a_in(goright(i, 2) + 7 downto goright(i, 2)) when "001",
+            a_in(goright(i, 4) + 7 downto goright(i, 4)) when "010",
+            shift_axr(i*8 + 7 downto i*8) when "011",
+            x"00" when others;
+
+        shift_out(i*8 + 7 downto i*8) <= lshift(shift_in(i*16 + 15 downto i*16),
+                                                to_integer(unsigned(shift_count(i*3 + 2 downto i*3))));
+
+        with shift_sel(i*2 + 1 downto i*2) select a_sh(i*8 + 7 downto i*8) <= 
+            shift_out(i*8 + 7 downto i*8) when "10",
+            (others => elt_sign_a(i)) when "11",
+            a_in(i*8 + 7 downto i*8) when others;
+    end generate;
+
+    -- vcmp* result, done via saturation logic
+    with e_in.insn(9 downto 6) & e_in.insn(0) select cmp_bits <=
+        -- vcmpequb
+        cmpeq when "00000",
+        -- vcmpneb
+        not cmpeq when "00001",
+        -- vcmpnezb
+        not cmpeq or cmpaz or cmpbz when "01001",
+        -- vcmpequh
+        vexpand2(hcmpeq) when "00010",
+        -- vcmpneh
+        vexpand2(not hcmpeq) when "00011",
+        -- vcmpnezh
+        vexpand2(not hcmpeq or hcmpaz or hcmpbz) when "01011",
+        -- vcmpequw
+        vexpand4(wcmpeq) when "00100",
+        -- vcmpnew
+        vexpand4(not wcmpeq) when "00101",
+        -- vcmpnezw
+        vexpand4(not wcmpeq or wcmpaz or wcmpbz) when "01101",
+        -- vcmpequd
+        (others => dcmpeq) when "00111",
+        -- vcmpgtub
+        cmpgtu when "10000",
+        -- vcmpgtuh
+        vexpand2(hcmpgtu) when "10010",
+        -- vcmpgtuw
+        vexpand4(wcmpgtu) when "10100",
+        -- vcmpgtud
+        (others => dcmpgtu) when "10111",
+        -- vcmpgtsb
+        cmpgt when "11000",
+        -- vcmpgtsh
+        vexpand2(hcmpgt) when "11010",
+        -- vcmpgtsw
+        vexpand4(wcmpgt) when "11100",
+        -- vcmpgtsd
+        (others => dcmpgt) when "11111",
+        (others => '0') when others;
 
     -- mfvscr/mfvsr*/mtvsr*
     mtvsr_a(31 downto 0) <= a_in(31 downto 0);
@@ -231,7 +465,7 @@ begin
     with sub_select select vec_result_presat <=
         varith_res   when "000",
         lvs_result   when "001",
-        cmp_result   when "010",
+        64x"0"       when "010",
         log_result   when "011",
         move_result  when "100",
         gather_res   when "101",
@@ -274,29 +508,17 @@ begin
         variable b            : std_ulogic;
         variable data         : std_ulogic_vector(255 downto 0);
         variable sum          : unsigned(7 downto 0);
-        variable a_sh         : std_ulogic_vector(63 downto 0);
         variable b_sh         : std_ulogic_vector(63 downto 0);
         variable store_ab     : std_ulogic;
         variable all0, all1   : std_ulogic;
-        variable bv           : boolean;
         variable byte         : std_ulogic_vector(7 downto 0);
         variable oshift       : unsigned(3 downto 0);
         variable index        : std_ulogic_vector(4 downto 0);
         variable shift        : std_ulogic_vector(5 downto 0);
         variable shift_col    : std_ulogic_vector(2 downto 0);
-        variable bsh          : std_ulogic_vector(2 downto 0);
         variable src_byte     : std_ulogic_vector(2 downto 0);
         variable byte_in_elt  : std_ulogic_vector(2 downto 0);
-        variable elt_sign     : std_ulogic;
-        variable shift_in     : std_ulogic_vector(15 downto 0);
-        variable is_rotate    : std_ulogic;
-        variable is_right_sh  : std_ulogic;
-        variable is_left_sh   : std_ulogic;
-        variable shift_whole  : std_ulogic;
         variable is_empty     : std_ulogic;
-        variable right_sel    : std_ulogic_vector(1 downto 0);
-        variable leftmost     : std_ulogic;
-        variable rightmost    : std_ulogic;
         variable byte0, byte1 : std_ulogic_vector(8 downto 0);
         variable byte2, byte3 : std_ulogic_vector(8 downto 0);
         variable bsum0, bsum1 : std_ulogic_vector(8 downto 0);
@@ -313,9 +535,10 @@ begin
     begin
         v := vst;
 
-        a_sh := a_in;
         b_sh := b_in;
         store_ab := not e_in.second;
+
+        shift_sel <= (others => '0');
 
         -- Compute permutation vector v.perm_sel
         if e_in.valid = '1' then
@@ -373,39 +596,26 @@ begin
                         -- vmaxsh, vminsh
                         for i in 0 to 3 loop
                             k := i * 16;
-                            m := i * 2;
-                            b := cmpgt(m + 1) or (cmpeq(m + 1) and cmpgtu(m));
-                            v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                            v.perm_sel(k + 7 downto k) := "000" & (hcmpgt(i) xor e_in.insn(9)) &
                                                           not e_in.second & std_ulogic_vector(to_unsigned(i, 2)) & '0';
-                            v.perm_sel(k + 15 downto k + 8) := "000" & (b xor e_in.insn(9)) &
+                            v.perm_sel(k + 15 downto k + 8) := "000" & (hcmpgt(i) xor e_in.insn(9)) &
                                                                not e_in.second & std_ulogic_vector(to_unsigned(i, 2)) & '1';
                         end loop;
                     when "001" =>
                         -- vmaxuh, vminuh
                         for i in 0 to 3 loop
                             k := i * 16;
-                            m := i * 2;
-                            b := cmpgtu(m + 1) or (cmpeq(m + 1) and cmpgtu(m));
-                            v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                            v.perm_sel(k + 7 downto k) := "000" & (hcmpgtu(i) xor e_in.insn(9)) &
                                                           not e_in.second & std_ulogic_vector(to_unsigned(i, 2)) & '0';
-                            v.perm_sel(k + 15 downto k + 8) := "000" & (b xor e_in.insn(9)) &
+                            v.perm_sel(k + 15 downto k + 8) := "000" & (hcmpgtu(i) xor e_in.insn(9)) &
                                                                not e_in.second & std_ulogic_vector(to_unsigned(i, 2)) & '1';
                         end loop;
                     when "110" =>
                         -- vmaxsw, vminsw
                         for i in 0 to 1 loop
-                            b := cmpgt(i * 4 + 3);
-                            if cmpeq(i * 4 + 3) = '1' then
-                                for m in i * 4 + 2 downto i * 4 loop
-                                    b := cmpgtu(m);
-                                    if cmpeq(m) = '0' then
-                                        exit;
-                                    end if;
-                                end loop;
-                            end if;
                             for m in i * 4 to i * 4 + 3 loop
                                 k := m * 8;
-                                v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                                v.perm_sel(k + 7 downto k) := "000" & (wcmpgt(i) xor e_in.insn(9)) &
                                                               not e_in.second &
                                                               std_ulogic_vector(to_unsigned(m, 3));
                             end loop;
@@ -413,47 +623,26 @@ begin
                     when "010" =>
                         -- vmaxuw, vminuw
                         for i in 0 to 1 loop
-                            for m in i * 4 + 3 downto i * 4 loop
-                                b := cmpgtu(m);
-                                if cmpeq(m) = '0' then
-                                    exit;
-                                end if;
-                            end loop;
                             for m in i * 4 to i * 4 + 3 loop
                                 k := m * 8;
-                                v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                                v.perm_sel(k + 7 downto k) := "000" & (wcmpgtu(i) xor e_in.insn(9)) &
                                                               not e_in.second &
                                                               std_ulogic_vector(to_unsigned(m, 3));
                             end loop;
                         end loop;
                     when "111" =>
                         -- vmaxsd, vminsd
-                        b := cmpgt(7);
-                        if cmpeq(7) = '1' then
-                            for m in 6 downto 0 loop
-                                b := cmpgtu(m);
-                                if cmpeq(m) = '0' then
-                                    exit;
-                                end if;
-                            end loop;
-                        end if;
                         for m in 0 to 7 loop
                             k := m * 8;
-                            v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                            v.perm_sel(k + 7 downto k) := "000" & (dcmpgt xor e_in.insn(9)) &
                                                           not e_in.second &
                                                           std_ulogic_vector(to_unsigned(m, 3));
                         end loop;
                     when others =>
                         -- vmaxud, vminud
-                        for m in 7 downto 0 loop
-                            b := cmpgtu(m);
-                            if cmpeq(m) = '0' then
-                                exit;
-                            end if;
-                        end loop;
                         for m in 0 to 7 loop
                             k := m * 8;
-                            v.perm_sel(k + 7 downto k) := "000" & (b xor e_in.insn(9)) &
+                            v.perm_sel(k + 7 downto k) := "000" & (dcmpgtu xor e_in.insn(9)) &
                                                           not e_in.second &
                                                           std_ulogic_vector(to_unsigned(m, 3));
                         end loop;
@@ -650,40 +839,12 @@ begin
             when OP_VSHIFT =>
                 -- OP_VSHIFT, column 4
                 store_ab := '1';
-                is_rotate := '0';
-                if e_in.insn(9 downto 8) = "00" then
-                    is_rotate := '1';
-                end if;
-                is_right_sh := e_in.insn(9);
-                is_left_sh := not (is_right_sh or is_rotate);
-                shift_whole := '0';
-                if e_in.insn(10 downto 6) = "00111" or e_in.insn(10 downto 6) = "01011" or
-                    e_in.insn(10 downto 7) = "1110" then
-                    -- vsl, vsr, vslv and vsrv
-                    -- Note that vsl and vsr are done as per-byte shifts (like
-                    -- vslv/vsrv) because P9's behaviour is to shift each byte
-                    -- of VRA by the shift count in the corresponding byte of
-                    -- VRB.  The arch requires all bytes of VRB to have the
-                    -- same value in the bottom 3 bits.
-                    shift_whole := '1';
-                    -- vslv breaks the encoding pattern of left vs right shifts
-                    if e_in.insn(10) = '1' then
-                        is_right_sh := not e_in.insn(6);
-                    end if;
-                end if;
-                v.vs_ext_r := a_in(7 downto 0);
-                v.vs_ext_l := a_in(63 downto 56);
                 for i in 0 to 7 loop
                     k := i * 8;
-                    shift_col := std_ulogic_vector(to_unsigned(i, 3)) and not lenm1;
                     -- Calculate permutation vector for rotating the bytes of
                     -- this element
-                    if shift_whole = '1' then
-                        shift := "000" & b_in(k + 2 downto k);
-                    else
-                        m := to_integer(unsigned(shift_col)) * 8;
-                        shift := (b_in(m + 5 downto m + 3) and lenm1) & b_in(m + 2 downto m);
-                    end if;
+                    shift_col := std_ulogic_vector(to_unsigned(i, 3)) and not lenm1;
+                    shift := shift_bits(i * 6 + 5 downto i * 6);
                     -- Compute where this byte of the output comes from
                     if is_right_sh = '1' then
                         -- right shifts
@@ -705,76 +866,10 @@ begin
                             is_empty := '1';
                         end if;
                     end if;
-                    -- For vsra*, work out the sign of this element
-                    elt_sign := '0';
-                    if e_in.is_signed = '1' then
-                        m := to_integer(unsigned(shift_col or lenm1)) * 8;
-                        elt_sign := a_in(m + 7);
-                    end if;
-                    -- Shift this byte left or right, or replace it with 0 or -1
-                    bsh := shift(2 downto 0);
-                    leftmost := '0';
-                    rightmost := '0';
-                    if is_right_sh = '1' then
-                        bsh := std_ulogic_vector(- signed(bsh));
-                        if (std_ulogic_vector(to_unsigned(i + 1, 3)) and lenm1) = "000" then
-                            -- leftmost byte of element
-                            leftmost := '1';
-                        end if;
-                        right_sel := "00";
-                    else
-                        if (std_ulogic_vector(to_unsigned(i, 3)) and lenm1) = "000" and
-                            (is_rotate or (shift_whole and e_in.second)) = '0' then
-                            rightmost := '1';
-                        end if;
-                        right_sel := log_len;
-                    end if;
-
-                    if is_right_sh = '0' then
-                        shift_in(15 downto 8) := a_in(k + 7 downto k);
-                    elsif i < 7 and leftmost = '0' then
-                        shift_in(15 downto 8) := a_in(k + 15 downto k + 8);
-                    elsif i = 7 and shift_whole = '1' and e_in.second = '1' then
-                        shift_in(15 downto 8) := vst.vs_ext_r;
-                    else
-                        shift_in(15 downto 8) := (others => elt_sign);
-                    end if;
-
-                    shift_in(7 downto 0) := (others => '0');
-                    case right_sel is
-                        when "00" =>
-                            shift_in(7 downto 0) := a_in(k + 7 downto k);
-                        when "01" =>
-                            if (i mod 2) = 0 then
-                                shift_in(7 downto 0) := a_in(k + 15 downto k + 8);
-                            else
-                                shift_in(7 downto 0) := a_in(k - 1 downto k - 8);
-                            end if;
-                        when "10" =>
-                            if (i mod 4) = 0 then
-                                shift_in(7 downto 0) := a_in(k + 31 downto k + 24);
-                            else
-                                shift_in(7 downto 0) := a_in(k - 1 downto k - 8);
-                            end if;
-                        when others =>
-                            if i = 0 then
-                                if shift_whole = '1' and e_in.second = '1' then
-                                    shift_in(7 downto 0) := vst.vs_ext_l;
-                                else
-                                    shift_in(7 downto 0) := a_in(63 downto 56);
-                                end if;
-                            else
-                                shift_in(7 downto 0) := a_in(k - 1 downto k - 8);
-                            end if;
-                    end case;
-                    if rightmost = '1' then
-                        shift_in(7 downto 0) := (others => '0');
-                    end if;
                     if is_empty = '1' then
-                        a_sh(k + 7 downto k) := (others => elt_sign);
+                        shift_sel(i*2 + 1 downto i*2) <= "11";
                     elsif shift(2 downto 0) /= "000" then
-                        n := to_integer(unsigned(bsh));
-                        a_sh(k + 7 downto k) := shift_in(15 - n downto 8 - n);
+                        shift_sel(i*2 + 1 downto i*2) <= "10";
                     end if;
                 end loop;
             when others =>
@@ -782,12 +877,15 @@ begin
             end case;
         end if;
 
+        if e_in.valid = '1' then
+            v.vs_ext_r := a_in(7 downto 0);
+            v.vs_ext_l := a_in(63 downto 56);
+        end if;
         if e_in.valid = '1' and store_ab = '1' then
             v.a0 := a_sh;
             v.b0 := b_sh;
         end if;
 
-        cmp_result <= (others => '0');
         if e_in.second = '0' then
             all0 := '1';
             all1 := '1';
@@ -795,144 +893,6 @@ begin
             all0 := vst.all0;
             all1 := vst.all1;
         end if;
-        cmp_bits <= x"00";
-        case e_in.insn(9 downto 6) & e_in.insn(0) is
-            when "00000" =>
-                -- vcmpequb
-                cmp_bits <= cmpeq;
-            when "00001" =>
-                -- vcmpneb
-                cmp_bits <= not cmpeq;
-            when "01001" =>
-                -- vcmpnezb
-                cmp_bits <= not cmpeq or cmpaz or cmpbz;
-            when "00010" =>
-                -- vcmpequh
-                for i in 0 to 3 loop
-                    m := i * 2;
-                    if cmpeq(m) and cmpeq(m + 1) then
-                        cmp_bits(m + 1 downto m) <= "11";
-                    end if;
-                end loop;
-            when "00011" =>
-                -- vcmpneh
-                for i in 0 to 3 loop
-                    m := i * 2;
-                    if not (cmpeq(m) and cmpeq(m + 1)) then
-                        cmp_bits(m + 1 downto m) <= "11";
-                    end if;
-                end loop;
-            when "01011" =>
-                -- vcmpnezh
-                for i in 0 to 3 loop
-                    m := i * 2;
-                    if not (cmpeq(m) and cmpeq(m + 1)) or
-                        (cmpaz(m) and cmpaz(m + 1)) or (cmpbz(m) and cmpbz(m + 1)) then
-                        cmp_bits(m + 1 downto m) <= "11";
-                    end if;
-                end loop;
-            when "00100" =>
-                -- vcmpequw
-                for i in 0 to 1 loop
-                    m := i * 4;
-                    if cmpeq(m) and cmpeq(m + 1) and cmpeq(m + 2) and cmpeq(m + 3) then
-                        cmp_bits(m + 3 downto m) <= "1111";
-                    end if;
-                end loop;
-            when "00101" =>
-                -- vcmpnew
-                for i in 0 to 1 loop
-                    m := i * 4;
-                    if not (cmpeq(m) and cmpeq(m + 1) and cmpeq(m + 2) and cmpeq(m + 3)) then
-                        cmp_bits(m + 3 downto m) <= "1111";
-                    end if;
-                end loop;
-            when "01101" =>
-                -- vcmpnezw
-                for i in 0 to 1 loop
-                    m := i * 4;
-                    if not (cmpeq(m) and cmpeq(m + 1) and cmpeq(m + 2) and cmpeq(m + 3)) or
-                        (cmpaz(m) and cmpaz(m + 1) and cmpaz(m + 2) and cmpaz(m + 3)) or
-                        (cmpbz(m) and cmpbz(m + 1) and cmpbz(m + 2) and cmpbz(m + 3)) then
-                        cmp_bits(m + 3 downto m) <= "1111";
-                    end if;
-                end loop;
-            when "00111" =>
-                -- vcmpequd
-                if cmpeq(0) and cmpeq(1) and cmpeq(2) and cmpeq(3) and
-                    cmpeq(4) and cmpeq(5) and cmpeq(6) and cmpeq(7) then
-                    cmp_bits <= x"ff";
-                end if;
-            when "10000" =>
-                -- vcmpgtub
-                cmp_bits <= cmpgtu;
-            when "10010" =>
-                -- vcmpgtuh
-                for i in 0 to 3 loop
-                    m := i * 2;
-                    if cmpgtu(m + 1) or (cmpeq(m + 1) and cmpgtu(m)) then
-                        cmp_bits(m + 1 downto m) <= "11";
-                    end if;
-                end loop;
-            when "10100" =>
-                -- vcmpgtuw
-                for i in 0 to 1 loop
-                    for m in i * 4 + 3 downto i * 4 loop
-                        b := cmpgtu(m);
-                        if cmpeq(m) = '0' then
-                            exit;
-                        end if;
-                    end loop;
-                    cmp_bits(i*4 + 3 downto i*4) <= (others => b);
-                end loop;
-            when "10111" =>
-                -- vcmpgtud
-                for m in 7 downto 0 loop
-                    b := cmpgtu(m);
-                    if cmpeq(m) = '0' then
-                        exit;
-                    end if;
-                end loop;
-                cmp_bits <= (others => b);
-            when "11000" =>
-                -- vcmpgtsb
-                cmp_bits <= cmpgt;
-            when "11010" =>
-                -- vcmpgtsh
-                for i in 0 to 3 loop
-                    m := i * 2;
-                    b := cmpgt(m + 1) or (cmpeq(m + 1) and cmpgtu(m));
-                    cmp_bits(m + 1 downto m) <= b & b;
-                end loop;
-            when "11100" =>
-                -- vcmpgtsw
-                for i in 0 to 1 loop
-                    k := i * 32;
-                    b := cmpgt(i * 4 + 3);
-                    if cmpeq(i * 4 + 3) = '1' then
-                        for m in i * 4 + 2 downto i * 4 loop
-                            b := cmpgtu(m);
-                            if cmpeq(m) = '0' then
-                                exit;
-                            end if;
-                        end loop;
-                    end if;
-                    cmp_bits(i*4 + 3 downto i*4) <= (others => b);
-                end loop;
-            when "11111" =>
-                -- vcmpgtsd
-                b := cmpgt(7);
-                if cmpeq(7) = '1' then
-                    for m in 6 downto 0 loop
-                        b := cmpgtu(m);
-                        if cmpeq(m) = '0' then
-                            exit;
-                        end if;
-                    end loop;
-                end if;
-                cmp_bits <= (others => b);
-            when others =>
-        end case;
         all0 := all0 and not (or (cmp_bits));
         all1 := all1 and (and (cmp_bits));
         vec_cr6 <= all1 & '0' & all0 & '0';

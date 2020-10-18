@@ -274,20 +274,27 @@ begin
             err => random_err
             );
 
-    vector_0: entity work.vector_unit
-        port map (
-            clk             => clk,
-            rst             => rst,
-            vec_valid       => vec_valid,
-            vec_in_progress => r.vec_in_progress,
-            sub_select      => current.sub_select,
-            a_in            => a_in,
-            b_in            => b_in,
-            c_in            => c_in,
-            e_in            => e_in,
-            vec_cr6         => vec_cr6,
-            vec_result      => vec_result
-            );
+    hasvector: if HAS_VECVSX generate
+        vector_0: entity work.vector_unit
+            port map (
+                clk             => clk,
+                rst             => rst,
+                vec_valid       => vec_valid,
+                vec_in_progress => r.vec_in_progress,
+                sub_select      => current.sub_select,
+                a_in            => a_in,
+                b_in            => b_in,
+                c_in            => c_in,
+                e_in            => e_in,
+                vec_cr6         => vec_cr6,
+                vec_result      => vec_result
+                );
+    end generate;
+
+    novector: if not HAS_VECVSX generate
+        vec_cr6 <= (others => '0');
+        vec_result <= (others => '0');
+    end generate;
 
     dbg_msr_out <= ctrl.msr;
     log_rd_addr <= r.log_addr_spr;

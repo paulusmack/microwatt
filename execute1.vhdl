@@ -29,6 +29,7 @@ entity execute1 is
 	e_in  : in Decode2ToExecute1Type;
         l_in  : in Loadstore1ToExecute1Type;
         fp_in : in FPUToExecute1Type;
+        v_in  : in VectorToExecute1Type;
 
 	ext_irq_in : std_ulogic;
 
@@ -36,6 +37,7 @@ entity execute1 is
         l_out : out Execute1ToLoadstore1Type;
 	f_out : out Execute1ToFetch1Type;
         fp_out : out Execute1ToFPUType;
+        v_out : out Execute1ToVectorType;
 
 	e_out : out Execute1ToWritebackType;
 
@@ -63,7 +65,6 @@ architecture behaviour of execute1 is
         prev_op : insn_type_t;
 	lr_update : std_ulogic;
 	next_lr : std_ulogic_vector(63 downto 0);
-        vec_in_progress : std_ulogic;
 	mul_in_progress : std_ulogic;
         mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
@@ -75,7 +76,7 @@ architecture behaviour of execute1 is
         (e => Execute1ToWritebackInit, f => Execute1ToFetch1Init,
          cur_instr => Decode2ToExecute1Init,
          busy => '0', lr_update => '0', terminate => '0',
-         fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL, vec_in_progress => '0',
+         fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL,
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
          next_lr => (others => '0'), last_nia => (others => '0'), others => (others => '0'));
 
@@ -93,9 +94,6 @@ architecture behaviour of execute1 is
     signal rotator_carry: std_ulogic;
     signal logical_result: std_ulogic_vector(63 downto 0);
     signal countzero_result: std_ulogic_vector(63 downto 0);
-    signal vec_result: std_ulogic_vector(63 downto 0);
-    signal vec_valid: std_ulogic;
-    signal vec_cr6: std_ulogic_vector(3 downto 0);
     signal alu_result: std_ulogic_vector(63 downto 0);
     signal adder_result: std_ulogic_vector(63 downto 0);
     signal misc_result: std_ulogic_vector(63 downto 0);
@@ -274,28 +272,6 @@ begin
             err => random_err
             );
 
-    hasvector: if HAS_VECVSX generate
-        vector_0: entity work.vector_unit
-            port map (
-                clk             => clk,
-                rst             => rst,
-                vec_valid       => vec_valid,
-                vec_in_progress => r.vec_in_progress,
-                sub_select      => current.sub_select,
-                a_in            => a_in,
-                b_in            => b_in,
-                c_in            => c_in,
-                e_in            => e_in,
-                vec_cr6         => vec_cr6,
-                vec_result      => vec_result
-                );
-    end generate;
-
-    novector: if not HAS_VECVSX generate
-        vec_cr6 <= (others => '0');
-        vec_result <= (others => '0');
-    end generate;
-
     dbg_msr_out <= ctrl.msr;
     log_rd_addr <= r.log_addr_spr;
 
@@ -303,7 +279,7 @@ begin
     b_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data2 = '1' else e_in.read_data2;
     c_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data3 = '1' else e_in.read_data3;
 
-    busy_out <= l_in.busy or r.busy or fp_in.busy;
+    busy_out <= l_in.busy or r.busy or fp_in.busy or v_in.busy;
     valid_in <= e_in.valid and not busy_out;
 
     terminate_out <= r.terminate;
@@ -318,7 +294,7 @@ begin
         muldiv_result      when "011",
         countzero_result   when "100",
         spr_result         when "101",
-        vec_result         when "110",
+        64x"0"             when "110",
         misc_result        when others;
 
     execute1_0: process(clk)
@@ -390,6 +366,7 @@ begin
         variable do_trace : std_ulogic;
         variable hold_wr_data : std_ulogic;
         variable fv : Execute1ToFPUType;
+        variable vv : Execute1ToVectorType;
     begin
 	sum_with_carry := (others => '0');
 	newcrf := (others => '0');
@@ -397,13 +374,13 @@ begin
         taken_branch := '0';
         abs_branch := '0';
         hold_wr_data := '0';
-        vec_valid <= '0';
 
 	v := r;
 	v.e := Execute1ToWritebackInit;
         lv := Execute1ToLoadstore1Init;
         v.f.redirect := '0';
         fv := Execute1ToFPUInit;
+        vv.valid := '0';
 
 	-- XER forwarding. To avoid having to track XER hazards, we
 	-- use the previously latched value.
@@ -451,7 +428,6 @@ begin
         end if;
 
 	v.lr_update := '0';
-        v.vec_in_progress := '0';
 	v.mul_in_progress := '0';
         v.div_in_progress := '0';
         v.cntz_in_progress := '0';
@@ -1142,32 +1118,6 @@ begin
 		v.busy := '1';
 		x_to_divider.valid <= '1';
 
-            when OP_VPERM | OP_VPACK | OP_VMERGE | OP_XPERM | OP_VBPERM | OP_VMINMAX |
-                OP_VSHIFT | OP_VSHOCT =>
-                -- These have a busy cycle and take 3 cycles for the 2
-                -- iterations of the instruction.
-                vec_valid <= '1';
-                if e_in.second = '0' then
-                    v.e.valid := '0';
-                    v.busy := '1';
-                    v.vec_in_progress := '1';
-                end if;
-
-            when OP_LVS | OP_VLOG | OP_VMOVE | OP_VGATHER | OP_VARITH | OP_VSUM =>
-                vec_valid <= '1';
-
-            when OP_VCMP =>
-                vec_valid <= '1';
-                -- write back CR6 result on the second half
-                if insn_rc6(e_in.insn) = '1' and e_in.second = '1' then
-                    v.e.write_cr_enable := '1';
-                    v.e.write_cr_data := x"000000" & vec_cr6 & x"0";
-                    v.e.write_cr_mask := x"02";
-                end if;
-
-            when OP_MTVSCR =>
-                vec_valid <= '1';
-
             when others =>
 		v.terminate := '1';
 		report "illegal";
@@ -1200,6 +1150,8 @@ begin
                 illegal := '1';
             elsif HAS_FPU and e_in.unit = FPU then
                 fv.valid := '1';
+            elsif HAS_VECVSX and e_in.unit = VSU then
+                vv.valid := '1';
             end if;
             -- Handling an ITLB miss doesn't count as having executed an instruction
             if e_in.insn_type = OP_FETCH_FAILED then
@@ -1230,14 +1182,6 @@ begin
             v.fp_exception_next := '0';
 	    report "Writing SRR1: " & to_hstring(ctrl.srr1);
 
-        elsif r.vec_in_progress = '1' then
-            -- wait for the second half to be presented
-            if e_in.valid = '0' then
-                v.vec_in_progress := '1';
-                v.busy := '1';
-            else
-                v.e.valid := '1';
-            end if;
         elsif r.cntz_in_progress = '1' then
             -- cnt[lt]z always takes two cycles
             v.e.valid := '1';
@@ -1433,6 +1377,12 @@ begin
         fv.rc := e_in.rc;
         fv.out_cr := e_in.output_cr;
 
+        -- Outputs to vector unit
+        vv.e := e_in;
+        vv.vra := a_in;
+        vv.vrb := b_in;
+        vv.vrc := c_in;
+
 	-- Update registers
 	rin <= v;
 
@@ -1441,6 +1391,7 @@ begin
         l_out <= lv;
 	e_out <= r.e;
         fp_out <= fv;
+        v_out <= vv;
 	flush_out <= f_out.redirect;
 
         exception_log <= exception;

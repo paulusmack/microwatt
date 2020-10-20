@@ -86,6 +86,11 @@ architecture behave of core is
     signal fpu_to_execute1: FPUToExecute1Type;
     signal fpu_to_writeback: FPUToWritebackType;
 
+    -- Vector/VSX signals
+    signal execute1_to_vector: Execute1ToVectorType;
+    signal vector_to_execute1: VectorToExecute1Type := VectorToExecute1Init;
+    signal vector_to_writeback: VectorToWritebackType := VectorToWritebackInit;
+
     -- local signals
     signal fetch1_stall_in : std_ulogic;
     signal icache_stall_out : std_ulogic;
@@ -116,6 +121,7 @@ architecture behave of core is
     signal rst_dec2    : std_ulogic := '1';
     signal rst_ex1     : std_ulogic := '1';
     signal rst_fpu     : std_ulogic := '1';
+    signal rst_vec     : std_ulogic := '1';
     signal rst_ls1     : std_ulogic := '1';
     signal rst_dbg     : std_ulogic := '1';
     signal alt_reset_d : std_ulogic;
@@ -179,6 +185,7 @@ begin
             rst_dec2    <= core_rst;
             rst_ex1     <= core_rst;
             rst_fpu     <= core_rst;
+            rst_vec     <= core_rst;
             rst_ls1     <= core_rst;
             rst_dbg     <= rst;
             alt_reset_d <= alt_reset;
@@ -327,10 +334,12 @@ begin
             e_in => decode2_to_execute1,
             l_in => loadstore1_to_execute1,
             fp_in => fpu_to_execute1,
+            v_in => vector_to_execute1,
             ext_irq_in => ext_irq,
             l_out => execute1_to_loadstore1,
             f_out => execute1_to_fetch1,
             fp_out => execute1_to_fpu,
+            v_out => execute1_to_vector,
             e_out => execute1_to_writeback,
 	    icache_inval => ex1_icache_inval,
             dbg_msr_out => msr,
@@ -362,6 +371,18 @@ begin
         fpu_to_writeback.valid <= '0';
         fpu_to_writeback.write_enable <= '0';
         fpu_to_writeback.write_cr_enable <= '0';
+    end generate;
+
+    with_vector: if HAS_VECVSX generate
+    begin
+        vector_0: entity work.vector_unit
+            port map (
+                clk => clk,
+                rst => rst_vec,
+                e_in => execute1_to_vector,
+                e_out => vector_to_execute1,
+                w_out => vector_to_writeback
+                );
     end generate;
 
     loadstore1_0: entity work.loadstore1
@@ -421,6 +442,7 @@ begin
             e_in => execute1_to_writeback,
             l_in => loadstore1_to_writeback,
             fp_in => fpu_to_writeback,
+            v_in => vector_to_writeback,
             w_out => writeback_to_register_file,
             c_out => writeback_to_cr_file,
             complete_out => complete

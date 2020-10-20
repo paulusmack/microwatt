@@ -13,6 +13,7 @@ entity writeback is
         e_in         : in Execute1ToWritebackType;
         l_in         : in Loadstore1ToWritebackType;
         fp_in        : in FPUToWritebackType;
+        v_in         : in VectorToWritebackType;
 
         w_out        : out WritebackToRegisterFileType;
         c_out        : out WritebackToCrFileType;
@@ -27,26 +28,30 @@ begin
         variable x : std_ulogic_vector(0 downto 0);
         variable y : std_ulogic_vector(0 downto 0);
         variable w : std_ulogic_vector(0 downto 0);
+        variable z : std_ulogic_vector(0 downto 0);
     begin
         if rising_edge(clk) then
             -- Do consistency checks only on the clock edge
             x(0) := e_in.valid;
             y(0) := l_in.valid;
             w(0) := fp_in.valid;
+            z(0) := v_in.valid;
             assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) +
-                    to_integer(unsigned(w))) <= 1 severity failure;
+                    to_integer(unsigned(w)) + to_integer(unsigned(z))) <= 1 severity failure;
 
             x(0) := e_in.write_enable or e_in.exc_write_enable;
             y(0) := l_in.write_enable;
             w(0) := fp_in.write_enable;
+            z(0) := v_in.write_enable;
             assert (to_integer(unsigned(x)) + to_integer(unsigned(y)) +
-                    to_integer(unsigned(w))) <= 1 severity failure;
+                    to_integer(unsigned(w)) + to_integer(unsigned(z))) <= 1 severity failure;
 
             w(0) := e_in.write_cr_enable;
             x(0) := (e_in.write_enable and e_in.rc);
             y(0) := fp_in.write_cr_enable;
+            z(0) := v_in.write_cr_enable;
             assert (to_integer(unsigned(w)) + to_integer(unsigned(x)) +
-                    to_integer(unsigned(y))) <= 1 severity failure;
+                    to_integer(unsigned(y)) + to_integer(unsigned(z))) <= 1 severity failure;
         end if;
     end process;
 
@@ -60,7 +65,7 @@ begin
         c_out <= WritebackToCrFileInit;
 
         complete_out <= '0';
-        if e_in.valid = '1' or l_in.valid = '1' or fp_in.valid = '1' then
+        if e_in.valid = '1' or l_in.valid = '1' or fp_in.valid = '1' or v_in.valid = '1' then
             complete_out <= '1';
         end if;
 
@@ -96,6 +101,17 @@ begin
                 c_out.write_cr_enable <= '1';
                 c_out.write_cr_mask <= fp_in.write_cr_mask;
                 c_out.write_cr_data <= fp_in.write_cr_data;
+            end if;
+
+            if v_in.write_enable = '1' then
+                w_out.write_reg <= v_in.write_reg;
+                w_out.write_data <= v_in.write_data;
+                w_out.write_enable <= '1';
+            end if;
+            if v_in.write_cr_enable = '1' then
+                c_out.write_cr_enable <= '1';
+                c_out.write_cr_mask <= v_in.write_cr_mask;
+                c_out.write_cr_data <= v_in.write_cr_data;
             end if;
 
             if l_in.write_enable = '1' then

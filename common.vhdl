@@ -520,6 +520,32 @@ package common is
         write_cr_data   : std_ulogic_vector(31 downto 0);
     end record;
 
+    type Execute1ToVectorType is record
+        valid : std_ulogic;
+        e     : Decode2ToExecute1Type;
+        vra   : std_ulogic_vector(63 downto 0);
+        vrb   : std_ulogic_vector(63 downto 0);
+        vrc   : std_ulogic_vector(63 downto 0);
+    end record;
+
+    type VectorToExecute1Type is record
+        busy      : std_ulogic;
+    end record;
+    constant VectorToExecute1Init : VectorToExecute1Type := (busy => '0');
+
+    type VectorToWritebackType is record
+        valid           : std_ulogic;
+        write_enable    : std_ulogic;
+        write_reg       : gspr_index_t;
+        write_data      : std_ulogic_vector(63 downto 0);
+        write_cr_enable : std_ulogic;
+        write_cr_mask   : std_ulogic_vector(7 downto 0);
+        write_cr_data   : std_ulogic_vector(31 downto 0);
+    end record;
+    constant VectorToWritebackInit : VectorToWritebackType := (valid => '0', write_enable => '0', write_cr_enable => '0',
+                                                               write_reg => (others => '0'), write_data => (others => '0'),
+                                                               write_cr_mask => (others => '0'), write_cr_data => (others => '0'));
+
     type DividerToExecute1Type is record
 	valid: std_ulogic;
 	write_reg_data: std_ulogic_vector(63 downto 0);

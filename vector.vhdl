@@ -24,24 +24,36 @@ architecture behaviour of vector_unit is
     
     -- State for vector instructions
     type vec_state is record
-        ni       : std_ulogic;          -- non-IEEE mode
-        sat      : std_ulogic;          -- saturation flag
-        a0       : std_ulogic_vector(63 downto 0);
-        b0       : std_ulogic_vector(63 downto 0);
-        perm_sel : std_ulogic_vector(63 downto 0);
-        all0     : std_ulogic;
-        all1     : std_ulogic;
-        vbpermq  : std_ulogic_vector(7 downto 0);
-        vbp_sel  : std_ulogic_vector(31 downto 0);
-        carry    : std_ulogic;
-        oshift   : unsigned(3 downto 0);
-        vs_ext_l : std_ulogic_vector(7 downto 0);
-        vs_ext_r : std_ulogic_vector(7 downto 0);
-        isum     : std_ulogic_vector(33 downto 0);
-        vip      : std_ulogic;
-        writes   : std_ulogic;
-        e        : VectorToExecute1Type;
-        w        : VectorToWritebackType;
+        ni           : std_ulogic;      -- non-IEEE mode
+        sat          : std_ulogic;      -- saturation flag
+        a0           : std_ulogic_vector(63 downto 0);
+        b0           : std_ulogic_vector(63 downto 0);
+        perm_sel     : std_ulogic_vector(63 downto 0);
+        all0         : std_ulogic;
+        all1         : std_ulogic;
+        vbpermq      : std_ulogic_vector(7 downto 0);
+        vbp_sel      : std_ulogic_vector(31 downto 0);
+        carry        : std_ulogic;
+        oshift       : unsigned(3 downto 0);
+        vs_ext_l     : std_ulogic_vector(7 downto 0);
+        vs_ext_r     : std_ulogic_vector(7 downto 0);
+        isum         : std_ulogic_vector(33 downto 0);
+        vip          : std_ulogic;
+        writes       : std_ulogic;
+        e            : VectorToExecute1Type;
+        w            : VectorToWritebackType;
+        varith_res   : std_ulogic_vector(63 downto 0);
+        lvs_result   : std_ulogic_vector(63 downto 0);
+        log_result   : std_ulogic_vector(63 downto 0);
+        move_result  : std_ulogic_vector(63 downto 0);
+        gather_res   : std_ulogic_vector(63 downto 0);
+        sum_result   : std_ulogic_vector(63 downto 0);
+        vperm_result : std_ulogic_vector(63 downto 0);
+        overflow     : std_ulogic_vector(7 downto 0);
+        sat_msb      : std_ulogic_vector(7 downto 0);
+        sat_lsb      : std_ulogic_vector(7 downto 0);
+        sub_select   : std_ulogic_vector(2 downto 0);
+        set_sat      : std_ulogic;
     end record;
     constant vec_state_init : vec_state := (ni => '0', sat => '0', all0 => '0', all1 => '0',
                                             vbpermq => (others => '0'), vbp_sel => (others => '0'),
@@ -49,6 +61,7 @@ architecture behaviour of vector_unit is
                                             vs_ext_l => x"00", vs_ext_r => x"00",
                                             isum => (others => '0'), vip => '0', writes => '0',
                                             e => VectorToExecute1Init, w => VectorToWritebackInit,
+                                            set_sat => '0',
                                             others => (others => '0'));
 
     signal vst, vst_in : vec_state;
@@ -139,6 +152,7 @@ architecture behaviour of vector_unit is
     signal leftmost     : std_ulogic_vector(7 downto 0);
     signal rightmost    : std_ulogic_vector(7 downto 0);
     signal vec_cr6      : std_ulogic_vector(3 downto 0);
+    signal sat          : std_ulogic;
 
     -- Spread out bits from the MSB of each element down to other bytes of the
     -- element, based on the element length encoded in sel.
@@ -417,7 +431,8 @@ begin
                 else "00" when e_in.e.insn(9) = '0'
                 else "11" when e_in.e.insn(6) = '1'
                 else "10";
-    vscr_enable <= not e_in.e.insn(26) and e_in.e.second;
+    vscr_enable <= (not e_in.e.insn(26)) and e_in.e.second;
+    sat <= vst.sat or (vst.set_sat and (or (vst.overflow)));
     with move_sel select move_result <=
         -- mfvscr and mtvsr{d,wa,wz} low DW = zero
         47x"0" & (vst.ni and vscr_enable) & 15x"0" & (vst.sat and vscr_enable) when "00",
@@ -467,15 +482,15 @@ begin
     end generate;
 
     -- Final result mux and saturation logic
-    with sub_select select vec_result_ps <=
-        varith_res   when "000",
-        lvs_result   when "001",
-        64x"0"       when "010",
-        log_result   when "011",
-        move_result  when "100",
-        gather_res   when "101",
-        sum_result   when "110",
-        vperm_result when others;
+    with vst.sub_select select vec_result_ps <=
+        vst.varith_res   when "000",
+        vst.lvs_result   when "001",
+        vst.log_result   when "011",
+        vst.move_result  when "100",
+        vst.gather_res   when "101",
+        vst.sum_result   when "110",
+        vst.vperm_result when "111",
+        64x"0"       when others;
     with sub_select select overflow <=
         arith_ovf    when "000",
         cmp_bits     when "010",
@@ -492,8 +507,8 @@ begin
         sum_satl   when "110",
         x"00"      when others;
     sat_output: for i in 0 to 7 generate
-        vec_result(i*8 + 7 downto i*8) <= vec_result_ps(i*8 + 7 downto i*8) when overflow(i) = '0' else
-                                          sat_msb(i) & (6 downto 0 => sat_lsb(i));
+        vec_result(i*8 + 7 downto i*8) <= vec_result_ps(i*8 + 7 downto i*8) when vst.overflow(i) = '0' else
+                                          vst.sat_msb(i) & (6 downto 0 => vst.sat_lsb(i));
     end generate;
 
     vector_0: process(clk)
@@ -542,6 +557,7 @@ begin
         v.e.busy := '0';
         v.w.valid := '0';
         v.vip := '0';
+        v.set_sat := '0';
 
         if vec_valid = '1' then
             v.w.valid := '1';
@@ -984,13 +1000,12 @@ begin
         if vec_valid = '1' and e_in.e.insn_type = OP_MTVSCR and e_in.e.second = '1' then
             v.ni := b_in(16);
             v.sat := b_in(0);
+        else
+            v.sat := sat;
         end if;
 
         -- vector arithmetic
         v.carry := vsum(71);
-        if e_in.e.insn_type = OP_VARITH and vec_valid = '1' and overflow /= x"00" then
-            v.sat := '1';
-        end if;
 
         -- Sum-across logic
         word0 := a_in(31) & a_in(31) & a_in(31 downto 0);
@@ -1091,19 +1106,36 @@ begin
                 end if;
             end loop;
         end if;
-        if sum_overflow /= x"00" and e_in.e.insn_type = OP_VSUM and vec_valid = '1' then
-            v.sat := '1';
+        if (e_in.e.insn_type = OP_VSUM or e_in.e.insn_type = OP_VARITH) and vec_valid = '1' then
+            v.set_sat := '1';
         end if;
 
+        v.varith_res := varith_res;
+        v.lvs_result := lvs_result;
+        v.log_result := log_result;
+        v.move_result := move_result;
+        v.gather_res := gather_res;
+        v.sum_result := sum_result;
+        v.vperm_result := vperm_result;
+        v.overflow := overflow;
+        v.sat_msb := sat_msb;
+        v.sat_lsb := sat_lsb;
+        v.sub_select := sub_select;
+
         v.w.write_enable := v.w.valid and v.writes;
-        v.w.write_data := vec_result;
 
         -- write back CR6 result on the second half
         v.w.write_cr_enable := vec_valid and e_in.e.output_cr and e_in.e.second;
-        v.w.write_cr_mask := num_to_fxm(6);
         v.w.write_cr_data := x"000000" & vec_cr6 & x"0";
 
-        w_out <= vst.w;
+        w_out.valid <= vst.w.valid;
+        w_out.write_enable <= vst.w.write_enable;
+        w_out.write_reg <= vst.w.write_reg;
+        w_out.write_data <= vec_result;
+        w_out.write_cr_enable <= vst.w.write_cr_enable;
+        w_out.write_cr_mask <= num_to_fxm(6);
+        w_out.write_cr_data <= vst.w.write_cr_data;
+
         e_out <= vst.e;
 
         -- update state

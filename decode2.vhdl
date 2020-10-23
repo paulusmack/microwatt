@@ -277,6 +277,29 @@ architecture behaviour of decode2 is
         others     => "000"
         );
 
+    type privilege_level is (USER, SUPER);
+    type op_privilege_array is array(insn_type_t) of privilege_level;
+    constant op_privilege: op_privilege_array := (
+        OP_ATTN => SUPER,
+        OP_MFMSR => SUPER,
+        OP_MTMSRD => SUPER,
+        OP_RFID => SUPER,
+        OP_TLBIE => SUPER,
+        others => USER
+        );
+
+    function instr_is_privileged(op: insn_type_t; insn: std_ulogic_vector(31 downto 0))
+        return std_ulogic is
+    begin
+        if op_privilege(op) = SUPER then
+            return '1';
+        elsif op = OP_MFSPR or op = OP_MTSPR then
+            return insn(20);
+        else
+            return '0';
+        end if;
+    end;
+
     -- issue control signals
     signal control_valid_in : std_ulogic;
     signal control_valid_out : std_ulogic;
@@ -488,6 +511,7 @@ begin
         v.e.is_32bit := d_in.decode.is_32bit;
         v.e.is_signed := d_in.decode.is_signed;
         v.e.insn := d_in.insn;
+        v.e.privileged := instr_is_privileged(d_in.decode.insn_type, d_in.insn);
         v.e.data_len := length;
         v.e.byte_reverse := d_in.decode.byte_reverse;
         v.e.sign_extend := d_in.decode.sign_extend;

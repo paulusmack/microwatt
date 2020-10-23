@@ -146,29 +146,6 @@ architecture behaviour of execute1 is
     signal exception_log : std_ulogic;
     signal irq_valid_log : std_ulogic;
 
-    type privilege_level is (USER, SUPER);
-    type op_privilege_array is array(insn_type_t) of privilege_level;
-    constant op_privilege: op_privilege_array := (
-        OP_ATTN => SUPER,
-        OP_MFMSR => SUPER,
-        OP_MTMSRD => SUPER,
-        OP_RFID => SUPER,
-        OP_TLBIE => SUPER,
-        others => USER
-        );
-
-    function instr_is_privileged(op: insn_type_t; insn: std_ulogic_vector(31 downto 0))
-        return boolean is
-    begin
-        if op_privilege(op) = SUPER then
-            return true;
-        elsif op = OP_MFSPR or op = OP_MTSPR then
-            return insn(20) = '1';
-        else
-            return false;
-        end if;
-    end;
-
     procedure set_carry(e: inout Execute1ToWritebackType;
 			carry32 : in std_ulogic;
 			carry : in std_ulogic) is
@@ -836,7 +813,7 @@ begin
                 end if;
                 exception := '1';
 
-            elsif ctrl.msr(MSR_PR) = '1' and instr_is_privileged(e_in.insn_type, e_in.insn) then
+            elsif ctrl.msr(MSR_PR) = '1' and e_in.privileged = '1' then
                 -- generate a program interrupt
                 exception := '1';
                 v.e.intr_vec := 16#700#;

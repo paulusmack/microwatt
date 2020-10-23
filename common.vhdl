@@ -290,6 +290,7 @@ package common is
 	update : std_ulogic;				-- is this an update instruction?
         reserve : std_ulogic;                           -- set for larx/stcx
         br_pred : std_ulogic;
+        privileged : std_ulogic;
         result_sel : std_ulogic_vector(2 downto 0);     -- select source of result
         sub_select : std_ulogic_vector(2 downto 0);     -- sub-result selection
         repeat : std_ulogic;                            -- set if instruction is cracked into two ops
@@ -302,6 +303,7 @@ package common is
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0',
          output_cr => '0', output_xer => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
+         privileged => '0',
          byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'),
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),

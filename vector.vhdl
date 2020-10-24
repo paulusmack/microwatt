@@ -49,11 +49,22 @@ architecture behaviour of vector_unit is
         gather_res   : std_ulogic_vector(63 downto 0);
         sum_result   : std_ulogic_vector(63 downto 0);
         vperm_result : std_ulogic_vector(63 downto 0);
-        overflow     : std_ulogic_vector(7 downto 0);
-        sat_msb      : std_ulogic_vector(7 downto 0);
-        sat_lsb      : std_ulogic_vector(7 downto 0);
         sub_select   : std_ulogic_vector(2 downto 0);
         set_sat      : std_ulogic;
+        arith_ovf    : std_ulogic_vector(7 downto 0);
+        arith_satm   : std_ulogic_vector(7 downto 0);
+        arith_satl   : std_ulogic_vector(7 downto 0);
+        sum_overflow : std_ulogic_vector(7 downto 0);
+        sum_satm     : std_ulogic_vector(7 downto 0);
+        sum_satl     : std_ulogic_vector(7 downto 0);
+        cmp_bits     : std_ulogic_vector(7 downto 0);
+        vsum         : std_ulogic_vector(71 downto 0);
+        is_signed    : std_ulogic;
+        is_subtract  : std_ulogic;
+        is_sat       : std_ulogic;
+        vop_sign_a   : std_ulogic_vector(7 downto 0);
+        vop_sign_b   : std_ulogic_vector(7 downto 0);
+        log_len      : std_ulogic_vector(1 downto 0);
     end record;
     constant vec_state_init : vec_state := (ni => '0', sat => '0', all0 => '0', all1 => '0',
                                             vbpermq => (others => '0'), vbp_sel => (others => '0'),
@@ -61,7 +72,8 @@ architecture behaviour of vector_unit is
                                             vs_ext_l => x"00", vs_ext_r => x"00",
                                             isum => (others => '0'), vip => '0', writes => '0',
                                             e => VectorToExecute1Init, w => VectorToWritebackInit,
-                                            set_sat => '0',
+                                            set_sat => '0', is_signed => '0', is_subtract => '0',
+                                            is_sat => '0', vsum => (others => '0'),
                                             others => (others => '0'));
 
     signal vst, vst_in : vec_state;
@@ -432,7 +444,6 @@ begin
                 else "11" when e_in.e.insn(6) = '1'
                 else "10";
     vscr_enable <= (not e_in.e.insn(26)) and e_in.e.second;
-    sat <= vst.sat or (vst.set_sat and (or (vst.overflow)));
     with move_sel select move_result <=
         -- mfvscr and mtvsr{d,wa,wz} low DW = zero
         47x"0" & (vst.ni and vscr_enable) & 15x"0" & (vst.sat and vscr_enable) when "00",
@@ -464,18 +475,18 @@ begin
     -- instructions do saturation.
     ovf_detect: for i in 0 to 7 generate
         -- unsigned overflow: carry=1 for add, carry=0 for sub
-        uovf_hi(i) <= not is_subtract and vsum(i * 9 + 8) and not e_in.e.is_signed;
-        uovf_lo(i) <= is_subtract and not vsum(i * 9 + 8) and not e_in.e.is_signed;
+        uovf_hi(i) <= not vst.is_subtract and vst.vsum(i * 9 + 8) and not vst.is_signed;
+        uovf_lo(i) <= vst.is_subtract and not vst.vsum(i * 9 + 8) and not vst.is_signed;
         -- signed overflow: if result sign /= both operand signs
-        sovf_hi(i) <= not vop_a(i * 9 + 7) and not vop_b(i * 9 + 7) and vsum(i * 9 + 7) and e_in.e.is_signed;
-        sovf_lo(i) <= vop_a(i * 9 + 7) and vop_b(i * 9 + 7) and not vsum(i * 9 + 7) and e_in.e.is_signed;
+        sovf_hi(i) <= not vst.vop_sign_a(i) and not vst.vop_sign_b(i) and vst.vsum(i * 9 + 7) and vst.is_signed;
+        sovf_lo(i) <= vst.vop_sign_a(i) and vst.vop_sign_b(i) and not vst.vsum(i * 9 + 7) and vst.is_signed;
     end generate;
     byte_ovf <= uovf_hi or uovf_lo or sovf_hi or sovf_lo;
     satb0 <= sovf_hi or uovf_hi;
     satb7 <= sovf_lo or uovf_hi;
-    arith_ovf <= spreadbits(log_len, byte_ovf, byte_ovf) and (7 downto 0 => e_in.e.sign_extend);
-    arith_satm <= spreadbits(log_len, satb7, satb0);
-    arith_satl <= spreadbits(log_len, satb0, satb0);
+    arith_ovf <= spreadbits(vst.log_len, byte_ovf, byte_ovf) and (7 downto 0 => vst.is_sat);
+    arith_satm <= spreadbits(vst.log_len, satb7, satb0);
+    arith_satl <= spreadbits(vst.log_len, satb0, satb0);
     -- generate the output
     sum_output: for i in 0 to 7 generate
         varith_res(i * 8 + 7 downto i * 8) <= vsum(i * 9 + 7 downto i * 9);
@@ -490,26 +501,27 @@ begin
         vst.gather_res   when "101",
         vst.sum_result   when "110",
         vst.vperm_result when "111",
-        64x"0"       when others;
-    with sub_select select overflow <=
-        arith_ovf    when "000",
-        cmp_bits     when "010",
-        sum_overflow when "110",
-        x"00"        when others;
-    with sub_select select sat_msb <=
-        arith_satm when "000",
-        x"ff"      when "010",
-        sum_satm   when "110",
-        x"00"      when others;
-    with sub_select select sat_lsb <=
-        arith_satl when "000",
-        x"ff"      when "010",
-        sum_satl   when "110",
-        x"00"      when others;
+        64x"0"           when others;
+    with vst.sub_select select overflow <=
+        arith_ovf        when "000",
+        vst.cmp_bits     when "010",
+        vst.sum_overflow when "110",
+        x"00"            when others;
+    with vst.sub_select select sat_msb <=
+        arith_satm     when "000",
+        x"ff"          when "010",
+        vst.sum_satm   when "110",
+        x"00"          when others;
+    with vst.sub_select select sat_lsb <=
+        arith_satl     when "000",
+        x"ff"          when "010",
+        vst.sum_satl   when "110",
+        x"00"          when others;
     sat_output: for i in 0 to 7 generate
-        vec_result(i*8 + 7 downto i*8) <= vec_result_ps(i*8 + 7 downto i*8) when vst.overflow(i) = '0' else
-                                          vst.sat_msb(i) & (6 downto 0 => vst.sat_lsb(i));
+        vec_result(i*8 + 7 downto i*8) <= vec_result_ps(i*8 + 7 downto i*8) when overflow(i) = '0' else
+                                          sat_msb(i) & (6 downto 0 => sat_lsb(i));
     end generate;
+    sat <= vst.sat or (vst.set_sat and (or (overflow)));
 
     vector_0: process(clk)
     begin
@@ -1117,10 +1129,20 @@ begin
         v.gather_res := gather_res;
         v.sum_result := sum_result;
         v.vperm_result := vperm_result;
-        v.overflow := overflow;
-        v.sat_msb := sat_msb;
-        v.sat_lsb := sat_lsb;
+        v.sum_overflow := sum_overflow;
+        v.sum_satm := sum_satm;
+        v.sum_satl := sum_satl;
+        v.cmp_bits := cmp_bits;
         v.sub_select := sub_select;
+        v.vsum := vsum;
+        v.is_signed := e_in.e.is_signed;
+        v.is_subtract := is_subtract;
+        v.is_sat := e_in.e.sign_extend;
+        v.log_len := log_len;
+        for i in 0 to 7 loop
+            v.vop_sign_a(i) := vop_a(i * 9 + 7);
+            v.vop_sign_b(i) := vop_b(i * 9 + 7);
+        end loop;
 
         v.w.write_enable := v.w.valid and v.writes;
 

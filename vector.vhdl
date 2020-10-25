@@ -949,17 +949,13 @@ begin
             v.b0 := b_sh;
         end if;
 
-        if e_in.e.second = '0' then
-            all0 := '1';
-            all1 := '1';
-        else
-            all0 := vst.all0;
-            all1 := vst.all1;
-        end if;
-        all0 := all0 and not (or (cmp_bits));
-        all1 := all1 and (and (cmp_bits));
+        all0 := vst.all0 and not (or (vst.cmp_bits));
+        all1 := vst.all1 and (and (vst.cmp_bits));
         vec_cr6 <= all1 & '0' & all0 & '0';
-        if vec_valid = '1' then
+        if vec_valid = '1' and e_in.e.second = '0' then
+            v.all0 := '1';
+            v.all1 := '1';
+        elsif vst.w.valid = '1' then
             v.all0 := all0;
             v.all1 := all1;
         end if;
@@ -1156,7 +1152,7 @@ begin
         w_out.write_data <= vec_result;
         w_out.write_cr_enable <= vst.w.write_cr_enable;
         w_out.write_cr_mask <= num_to_fxm(6);
-        w_out.write_cr_data <= vst.w.write_cr_data;
+        w_out.write_cr_data <= x"000000" & vec_cr6 & x"0";
 
         e_out <= vst.e;
 

@@ -146,6 +146,7 @@ architecture behaviour of vector_unit is
     signal sum_satm     : std_ulogic_vector(7 downto 0);
     signal sum_satl     : std_ulogic_vector(7 downto 0);
     signal cmp_bits     : std_ulogic_vector(7 downto 0);
+    signal maxbits      : std_ulogic_vector(7 downto 0);
     signal elt_sign_a   : std_ulogic_vector(7 downto 0);
     signal shift_lsel   : std_ulogic_vector(15 downto 0);
     signal shift_rsel   : std_ulogic_vector(23 downto 0);
@@ -429,6 +430,25 @@ begin
         (others => dcmpgt) when "11111",
         (others => '0') when others;
 
+    -- vmin/vmax selection
+    with e_in.e.insn(8 downto 6) select maxbits <=
+        -- vmaxub, vminub
+        cmpgtu when "000",
+        -- vmaxuh, vimnuh
+        vexpand2(hcmpgtu) when "001",
+        -- vmaxuw, vminuw
+        vexpand4(wcmpgtu) when "010",
+        -- vmaxud, vminud
+        (others => dcmpgtu) when "011",
+        -- vmaxsb, vminsb
+        cmpgt when "100",
+        -- vmaxsh, vminsh
+        vexpand2(hcmpgt) when "101",
+        -- vmaxsw, vminsw
+        vexpand4(wcmpgt) when "110",
+        -- vmaxsd, vminsd
+        (others => dcmpgt) when others;
+
     -- mfvscr/mfvsr*/mtvsr*
     mtvsr_a(31 downto 0) <= a_in(31 downto 0);
     mtvsr_a(63 downto 32) <= a_in(63 downto 32) when e_in.e.is_32bit = '0'
@@ -640,76 +660,11 @@ begin
             when OP_VMINMAX =>
                 -- OP_VMINMAX, column 02
                 -- e_in.e.insn(9) is 1 for vmin, 0 for vmax
-                case e_in.e.insn(8 downto 6) is
-                    when "100" =>
-                        -- vmaxsb, vminsb
-                        for i in 0 to 7 loop
-                            k := i * 8;
-                            v.perm_sel(k + 7 downto k) := "000" & (cmpgt(i) xor e_in.e.insn(9)) &
-                                                          not e_in.e.second & std_ulogic_vector(to_unsigned(i, 3));
-                        end loop;
-                    when "000" =>
-                        -- vmaxub, vminub
-                        for i in 0 to 7 loop
-                            k := i * 8;
-                            v.perm_sel(k + 7 downto k) := "000" & (cmpgtu(i) xor e_in.e.insn(9)) &
-                                                          not e_in.e.second & std_ulogic_vector(to_unsigned(i, 3));
-                        end loop;
-                    when "101" =>
-                        -- vmaxsh, vminsh
-                        for i in 0 to 3 loop
-                            k := i * 16;
-                            v.perm_sel(k + 7 downto k) := "000" & (hcmpgt(i) xor e_in.e.insn(9)) &
-                                                          not e_in.e.second & std_ulogic_vector(to_unsigned(i, 2)) & '0';
-                            v.perm_sel(k + 15 downto k + 8) := "000" & (hcmpgt(i) xor e_in.e.insn(9)) &
-                                                               not e_in.e.second & std_ulogic_vector(to_unsigned(i, 2)) & '1';
-                        end loop;
-                    when "001" =>
-                        -- vmaxuh, vminuh
-                        for i in 0 to 3 loop
-                            k := i * 16;
-                            v.perm_sel(k + 7 downto k) := "000" & (hcmpgtu(i) xor e_in.e.insn(9)) &
-                                                          not e_in.e.second & std_ulogic_vector(to_unsigned(i, 2)) & '0';
-                            v.perm_sel(k + 15 downto k + 8) := "000" & (hcmpgtu(i) xor e_in.e.insn(9)) &
-                                                               not e_in.e.second & std_ulogic_vector(to_unsigned(i, 2)) & '1';
-                        end loop;
-                    when "110" =>
-                        -- vmaxsw, vminsw
-                        for i in 0 to 1 loop
-                            for m in i * 4 to i * 4 + 3 loop
-                                k := m * 8;
-                                v.perm_sel(k + 7 downto k) := "000" & (wcmpgt(i) xor e_in.e.insn(9)) &
-                                                              not e_in.e.second &
-                                                              std_ulogic_vector(to_unsigned(m, 3));
-                            end loop;
-                        end loop;
-                    when "010" =>
-                        -- vmaxuw, vminuw
-                        for i in 0 to 1 loop
-                            for m in i * 4 to i * 4 + 3 loop
-                                k := m * 8;
-                                v.perm_sel(k + 7 downto k) := "000" & (wcmpgtu(i) xor e_in.e.insn(9)) &
-                                                              not e_in.e.second &
-                                                              std_ulogic_vector(to_unsigned(m, 3));
-                            end loop;
-                        end loop;
-                    when "111" =>
-                        -- vmaxsd, vminsd
-                        for m in 0 to 7 loop
-                            k := m * 8;
-                            v.perm_sel(k + 7 downto k) := "000" & (dcmpgt xor e_in.e.insn(9)) &
-                                                          not e_in.e.second &
-                                                          std_ulogic_vector(to_unsigned(m, 3));
-                        end loop;
-                    when others =>
-                        -- vmaxud, vminud
-                        for m in 0 to 7 loop
-                            k := m * 8;
-                            v.perm_sel(k + 7 downto k) := "000" & (dcmpgtu xor e_in.e.insn(9)) &
-                                                          not e_in.e.second &
-                                                          std_ulogic_vector(to_unsigned(m, 3));
-                        end loop;
-                end case;
+                for i in 0 to 7 loop
+                    k := i * 8;
+                    v.perm_sel(k + 7 downto k) := "000" & (maxbits(i) xor e_in.e.insn(9)) &
+                                                  not e_in.e.second & std_ulogic_vector(to_unsigned(i, 3));
+                end loop;
             when OP_VPACK =>
                 -- OP_VPACK, column 0e
                 if e_in.e.insn(6) = '0' then

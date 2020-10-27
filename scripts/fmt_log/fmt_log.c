@@ -25,7 +25,7 @@ struct log_entry {
 	u64	ic_insn: 32;
 	u64	ic_valid: 1;
 	u64	d1_valid: 1;
-	u64	d1_unit: 2;
+	u64	d1_unit: 3;
 	u64	d1_part_nia: 4;
 	u64	d1_insn_type: 7;
 	u64	d2_bypass_a: 1;
@@ -40,7 +40,7 @@ struct log_entry {
 	u64	e1_redirect: 1;
 	u64	e1_valid: 1;
 	u64	e1_write_enable: 1;
-	u64	e1_unused: 2;
+	u64	e1_unused: 1;
 
 	u64	e1_irq_state: 1;
 	u64	e1_irq: 1;
@@ -83,7 +83,7 @@ struct log_entry {
 #define FLGA(i, y, z)	(log.i? y: z)
 #define PNIA(f)		(full_nia[log.f] & 0xff)
 
-const char *units[4] = { "--", "al", "ls", "fp" };
+const char *units[8] = { "--", "al", "ls", "fp", "vs", "?5", "?6", "?7" };
 const char *ops[128] =
 {
 	"illegal", "nop    ", "add    ", "and    ", "attn   ", "b      ", "bc     ", "bcreg  ",

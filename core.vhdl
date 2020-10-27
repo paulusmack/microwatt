@@ -254,7 +254,7 @@ begin
             f_in => icache_to_decode1,
             d_out => decode1_to_decode2,
             f_out => decode1_to_fetch1,
-            log_out => log_data(110 downto 97)
+            log_out => log_data(111 downto 97)
             );
 
     decode1_stall_in <= decode2_stall_out;
@@ -280,7 +280,7 @@ begin
             r_out => decode2_to_register_file,
             c_in => cr_file_to_decode2,
             c_out => decode2_to_cr_file,
-            log_out => log_data(120 downto 111)
+            log_out => log_data(121 downto 112)
             );
     decode2_busy_in <= ex1_busy_out;
 
@@ -344,7 +344,7 @@ begin
 	    icache_inval => ex1_icache_inval,
             dbg_msr_out => msr,
             terminate_out => terminate,
-            log_out => log_data(134 downto 121),
+            log_out => log_data(134 downto 122),
             log_rd_addr => log_rd_addr,
             log_rd_data => log_rd_data,
             log_wr_addr => log_wr_addr

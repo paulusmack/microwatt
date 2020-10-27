@@ -25,7 +25,7 @@ entity decode1 is
         f_in      : in IcacheToDecode1Type;
         f_out     : out Decode1ToFetch1Type;
         d_out     : out Decode1ToDecode2Type;
-        log_out   : out std_ulogic_vector(13 downto 0)
+        log_out   : out std_ulogic_vector(14 downto 0)
 	);
 end entity decode1;
 
@@ -987,14 +987,14 @@ begin
     end process;
 
     d1_log: if LOG_LENGTH > 0 generate
-        signal log_data : std_ulogic_vector(13 downto 0);
+        signal log_data : std_ulogic_vector(14 downto 0);
     begin
         dec1_log : process(clk)
         begin
             if rising_edge(clk) then
                 log_data <= std_ulogic_vector(to_unsigned(insn_type_t'pos(r.decode.insn_type), 7)) &
                             r.nia(5 downto 2) &
-                            std_ulogic_vector(to_unsigned(unit_t'pos(r.decode.unit), 2)) &
+                            std_ulogic_vector(to_unsigned(unit_t'pos(r.decode.unit), 3)) &
                             r.valid;
             end if;
         end process;

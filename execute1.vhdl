@@ -40,6 +40,7 @@ entity execute1 is
         v_out : out Execute1ToVectorType;
 
 	e_out : out Execute1ToWritebackType;
+        next_wr_tag : out value_tag_t;
 
         dbg_msr_out : out std_ulogic_vector(63 downto 0);
 
@@ -1382,6 +1383,9 @@ begin
         fp_out <= fv;
         v_out <= vv;
 	flush_out <= f_out.redirect;
+
+        next_wr_tag.valid <= v.e.write_tag.valid and v.e.write_enable;
+        next_wr_tag.tag <= v.e.write_tag.tag;
 
         exception_log <= exception;
         irq_valid_log <= irq_valid;

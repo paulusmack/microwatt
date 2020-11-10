@@ -6,6 +6,7 @@ use work.common.all;
 
 entity control is
     generic (
+        EX1_BYPASS : boolean := true;
         PIPELINE_DEPTH : natural := 2
         );
     port (
@@ -23,7 +24,6 @@ entity control is
 
         gpr_write_valid_in  : in std_ulogic;
         gpr_write_in        : in gspr_index_t;
-        gpr_bypassable      : in std_ulogic;
 
         update_gpr_write_valid : in std_ulogic;
         update_gpr_write_reg : in gspr_index_t;
@@ -38,6 +38,7 @@ entity control is
         gpr_c_read_in       : in gspr_index_t;
 
         gpr_writing_tag     : in value_tag_t;
+        execute_next_tag    : in value_tag_t;
 
         cr_read_in          : in std_ulogic;
         cr_write_in         : in std_ulogic;
@@ -124,10 +125,6 @@ begin
             use_bypass         => cr_bypass
             );
 
-    gpr_bypass_a <= '0';
-    gpr_bypass_b <= '0';
-    gpr_bypass_c <= '0';
-
     control0: process(clk)
     begin
         if rising_edge(clk) then
@@ -168,6 +165,9 @@ begin
         variable tag_s : value_tag_t;
         variable tag_t : value_tag_t;
         variable incr_tag : tag_number_t;
+        variable byp_a : std_ulogic;
+        variable byp_b : std_ulogic;
+        variable byp_c : std_ulogic;
     begin
         tag_a := value_tag_init;
         for i in tag_number_t loop
@@ -199,10 +199,32 @@ begin
         if tag_match(tag_c, gpr_writing_tag) then
             tag_c.valid := '0';
         end if;
+
+        -- See if any of the operands can get their value next cycle via the
+        -- bypass path.
+        byp_a := '0';
+        if EX1_BYPASS and tag_match(execute_next_tag, tag_a) then
+            byp_a := '1';
+        end if;
+        byp_b := '0';
+        if EX1_BYPASS and tag_match(execute_next_tag, tag_b) then
+            byp_b := '1';
+        end if;
+        byp_c := '0';
+        if EX1_BYPASS and tag_match(execute_next_tag, tag_c) then
+            byp_c := '1';
+        end if;
+
         gpr_tag_a <= tag_a;
         gpr_tag_b <= tag_b;
         gpr_tag_c <= tag_c;
-        gpr_tag_stall <= tag_a.valid or tag_b.valid or tag_c.valid;
+        gpr_bypass_a <= byp_a;
+        gpr_bypass_b <= byp_b;
+        gpr_bypass_c <= byp_c;
+
+        gpr_tag_stall <= (tag_a.valid and not byp_a) or
+                         (tag_b.valid and not byp_b) or
+                         (tag_c.valid and not byp_c);
 
         incr_tag := curr_tag;
         write_tag.tag <= curr_tag;

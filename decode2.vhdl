@@ -38,6 +38,8 @@ entity decode2 is
         c_in  : in CrFileToDecode2Type;
         c_out : out Decode2ToCrFileType;
 
+        execute_next_tag : in value_tag_t;
+
         log_out : out std_ulogic_vector(9 downto 0)
 	);
 end entity decode2;
@@ -400,7 +402,6 @@ architecture behaviour of decode2 is
 
     signal gpr_write_valid : std_ulogic;
     signal gpr_write : gspr_index_t;
-    signal gpr_bypassable  : std_ulogic;
 
     signal update_gpr_write_valid : std_ulogic;
     signal update_gpr_write_reg : gspr_index_t;
@@ -427,6 +428,7 @@ architecture behaviour of decode2 is
 begin
     control_0: entity work.control
 	generic map (
+            EX1_BYPASS => EX1_BYPASS,
             PIPELINE_DEPTH => 1
             )
 	port map (
@@ -444,7 +446,6 @@ begin
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write,
-            gpr_bypassable     => gpr_bypassable,
 
             update_gpr_write_valid => update_gpr_write_valid,
             update_gpr_write_reg => update_gpr_write_reg,
@@ -459,6 +460,7 @@ begin
             gpr_c_read_in        => gpr_c_read,
 
             gpr_writing_tag      => r_in.write_tag,
+            execute_next_tag     => execute_next_tag,
 
             cr_read_in           => d_in.decode.input_cr,
             cr_write_in          => cr_write_valid,
@@ -679,10 +681,6 @@ begin
 
         gpr_write_valid <= v.e.write_reg_enable;
         gpr_write <= decoded_reg_o.reg;
-        gpr_bypassable <= '0';
-        if EX1_BYPASS and d_in.decode.unit = ALU then
-            gpr_bypassable <= '1';
-        end if;
         update_gpr_write_valid <= d_in.decode.update;
         update_gpr_write_reg <= decoded_reg_a.reg;
         if v.e.lr = '1' then

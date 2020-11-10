@@ -76,6 +76,7 @@ architecture behaviour of fpu is
         op           : insn_type_t;
         insn         : std_ulogic_vector(31 downto 0);
         dest_fpr     : gspr_index_t;
+        dest_tag     : value_tag_t;
         fe_mode      : std_ulogic;
         rc           : std_ulogic;
         is_cmp       : std_ulogic;
@@ -576,6 +577,7 @@ begin
     w_out.valid <= r.instr_done and not r.do_intr;
     w_out.write_enable <= r.writing_back;
     w_out.write_reg <= r.dest_fpr;
+    w_out.write_tag <= r.dest_tag;
     w_out.write_data <= fp_result;
     w_out.write_cr_enable <= r.instr_done and (r.rc or r.is_cmp);
     w_out.write_cr_mask <= r.cr_mask;
@@ -645,6 +647,7 @@ begin
             v.op := e_in.op;
             v.fe_mode := or (e_in.fe_mode);
             v.dest_fpr := e_in.frt;
+            v.dest_tag := e_in.wr_tag;
             v.single_prec := e_in.single;
             v.longmask := e_in.single;
             v.int_result := '0';

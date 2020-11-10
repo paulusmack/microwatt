@@ -37,6 +37,8 @@ entity control is
         gpr_c_read_valid_in : in std_ulogic;
         gpr_c_read_in       : in gspr_index_t;
 
+        gpr_writing_tag     : in value_tag_t;
+
         cr_read_in          : in std_ulogic;
         cr_write_in         : in std_ulogic;
         cr_bypassable       : in std_ulogic;
@@ -48,7 +50,10 @@ entity control is
         gpr_bypass_a        : out std_ulogic;
         gpr_bypass_b        : out std_ulogic;
         gpr_bypass_c        : out std_ulogic;
-        cr_bypass           : out std_ulogic
+        cr_bypass           : out std_ulogic;
+
+        gpr_write_tag       : out value_tag_t;
+        ugpr_write_tag      : out value_tag_t
         );
 end entity control;
 
@@ -71,85 +76,34 @@ architecture rtl of control is
     signal gpr_write_valid : std_ulogic := '0';
     signal cr_write_valid  : std_ulogic := '0';
 
+    type tag_register is record
+        reg    : gspr_index_t;
+        valid  : std_ulogic;
+        recent : std_ulogic;
+    end record;
+
+    type tag_regs_array is array(tag_number_t) of tag_register;
+    signal tag_regs : tag_regs_array;
+
+    signal update_gpr_write : std_ulogic;
+
+    signal write_tag  : value_tag_t;
+    signal update_tag : value_tag_t;
+
+    signal gpr_tag_a : value_tag_t;
+    signal gpr_tag_b : value_tag_t;
+    signal gpr_tag_c : value_tag_t;
+    signal gpr_tag_stall : std_ulogic;
+
+    signal curr_tag : tag_number_t;
+    signal next_tag : tag_number_t;
+
+    function tag_match(tag1 : value_tag_t; tag2 : value_tag_t) return boolean is
+    begin
+        return tag1.valid = '1' and tag2.valid = '1' and tag1.tag = tag2.tag;
+    end;
+
 begin
-    gpr_hazard0: entity work.gpr_hazard
-        generic map (
-            PIPELINE_DEPTH => PIPELINE_DEPTH
-            )
-        port map (
-            clk                => clk,
-            busy_in            => busy_in,
-	    deferred           => deferred,
-            complete_in        => complete_in,
-            flush_in           => flush_in,
-            issuing            => valid_out,
-            repeated           => repeated,
-
-            gpr_write_valid_in => gpr_write_valid,
-            gpr_write_in       => gpr_write_in,
-            bypass_avail       => gpr_bypassable,
-            gpr_read_valid_in  => gpr_a_read_valid_in,
-            gpr_read_in        => gpr_a_read_in,
-
-            ugpr_write_valid   => update_gpr_write_valid,
-            ugpr_write_reg     => update_gpr_write_reg,
-
-            stall_out          => stall_a_out,
-            use_bypass         => gpr_bypass_a
-            );
-
-    gpr_hazard1: entity work.gpr_hazard
-        generic map (
-            PIPELINE_DEPTH => PIPELINE_DEPTH
-            )
-        port map (
-            clk                => clk,
-            busy_in            => busy_in,
-	    deferred           => deferred,
-            complete_in        => complete_in,
-            flush_in           => flush_in,
-            issuing            => valid_out,
-            repeated           => repeated,
-
-            gpr_write_valid_in => gpr_write_valid,
-            gpr_write_in       => gpr_write_in,
-            bypass_avail       => gpr_bypassable,
-            gpr_read_valid_in  => gpr_b_read_valid_in,
-            gpr_read_in        => gpr_b_read_in,
-
-            ugpr_write_valid   => update_gpr_write_valid,
-            ugpr_write_reg     => update_gpr_write_reg,
-
-            stall_out          => stall_b_out,
-            use_bypass         => gpr_bypass_b
-            );
-
-    gpr_hazard2: entity work.gpr_hazard
-        generic map (
-            PIPELINE_DEPTH => PIPELINE_DEPTH
-            )
-        port map (
-            clk                => clk,
-            busy_in            => busy_in,
-	    deferred           => deferred,
-            complete_in        => complete_in,
-            flush_in           => flush_in,
-            issuing            => valid_out,
-            repeated           => repeated,
-
-            gpr_write_valid_in => gpr_write_valid,
-            gpr_write_in       => gpr_write_in,
-            bypass_avail       => gpr_bypassable,
-            gpr_read_valid_in  => gpr_c_read_valid_in,
-            gpr_read_in        => gpr_c_read_in,
-
-            ugpr_write_valid   => update_gpr_write_valid,
-            ugpr_write_reg     => update_gpr_write_reg,
-
-            stall_out          => stall_c_out,
-            use_bypass         => gpr_bypass_c
-            );
-
     cr_hazard0: entity work.cr_hazard
         generic map (
             PIPELINE_DEPTH => PIPELINE_DEPTH
@@ -170,13 +124,100 @@ begin
             use_bypass         => cr_bypass
             );
 
+    gpr_bypass_a <= '0';
+    gpr_bypass_b <= '0';
+    gpr_bypass_c <= '0';
+
     control0: process(clk)
     begin
         if rising_edge(clk) then
             assert rin_int.outstanding >= 0 and rin_int.outstanding <= (PIPELINE_DEPTH+1)
                 report "Outstanding bad " & integer'image(rin_int.outstanding) severity failure;
             r_int <= rin_int;
+            for i in tag_number_t loop
+                if rst = '1' or flush_in = '1' then
+                    tag_regs(i).valid <= '0';
+                elsif write_tag.valid = '1' and i = write_tag.tag then
+                    tag_regs(i).reg <= gpr_write_in;
+                    tag_regs(i).valid <= '1';
+                    tag_regs(i).recent <= '1';
+                elsif update_tag.valid = '1' and i = update_tag.tag then
+                    tag_regs(i).reg <= update_gpr_write_reg;
+                    tag_regs(i).valid <= '1';
+                    tag_regs(i).recent <= '1';
+                elsif gpr_writing_tag.valid = '1' and i = gpr_writing_tag.tag then
+                    tag_regs(gpr_writing_tag.tag).valid <= '0';
+                elsif (write_tag.valid = '1' and tag_regs(i).reg = gpr_write_in) or
+                    (update_tag.valid = '1' and tag_regs(i).reg = update_gpr_write_reg) then
+                    tag_regs(i).recent <= '0';
+                end if;
+            end loop;
+            if rst = '1' then
+                curr_tag <= 0;
+            else
+                curr_tag <= next_tag;
+            end if;
         end if;
+    end process;
+
+    control_hazards : process(all)
+        variable gpr_stall : std_ulogic;
+        variable tag_a : value_tag_t;
+        variable tag_b : value_tag_t;
+        variable tag_c : value_tag_t;
+        variable tag_s : value_tag_t;
+        variable tag_t : value_tag_t;
+        variable incr_tag : tag_number_t;
+    begin
+        tag_a := value_tag_init;
+        for i in tag_number_t loop
+            if tag_regs(i).valid = '1' and tag_regs(i).recent = '1' and tag_regs(i).reg = gpr_a_read_in then
+                tag_a.valid := gpr_a_read_valid_in;
+                tag_a.tag := i;
+            end if;
+        end loop;
+        if tag_match(tag_a, gpr_writing_tag) then
+            tag_a.valid := '0';
+        end if;
+        tag_b := value_tag_init;
+        for i in tag_number_t loop
+            if tag_regs(i).valid = '1' and tag_regs(i).recent = '1' and tag_regs(i).reg = gpr_b_read_in then
+                tag_b.valid := gpr_b_read_valid_in;
+                tag_b.tag := i;
+            end if;
+        end loop;
+        if tag_match(tag_b, gpr_writing_tag) then
+            tag_b.valid := '0';
+        end if;
+        tag_c := value_tag_init;
+        for i in tag_number_t loop
+            if tag_regs(i).valid = '1' and tag_regs(i).recent = '1' and tag_regs(i).reg = gpr_c_read_in then
+                tag_c.valid := gpr_c_read_valid_in;
+                tag_c.tag := i;
+            end if;
+        end loop;
+        if tag_match(tag_c, gpr_writing_tag) then
+            tag_c.valid := '0';
+        end if;
+        gpr_tag_a <= tag_a;
+        gpr_tag_b <= tag_b;
+        gpr_tag_c <= tag_c;
+        gpr_tag_stall <= tag_a.valid or tag_b.valid or tag_c.valid;
+
+        incr_tag := curr_tag;
+        write_tag.tag <= curr_tag;
+        write_tag.valid <= gpr_write_valid and valid_out and not deferred;
+        if write_tag.valid = '1' then
+            incr_tag := (curr_tag + 1) mod TAG_COUNT;
+        end if;
+        update_tag.tag <= incr_tag;
+        update_tag.valid <= update_gpr_write and valid_out and not deferred;
+        if update_tag.valid = '1' then
+            incr_tag := (incr_tag + 1) mod TAG_COUNT;
+        end if;
+        next_tag <= incr_tag;
+        gpr_write_tag <= write_tag;
+        ugpr_write_tag <= update_tag;
     end process;
 
     control1 : process(all)
@@ -222,8 +263,8 @@ begin
                             v_int.state := WAIT_FOR_CURR_TO_COMPLETE;
                         end if;
                     else
-                        -- let it go out if there are no GPR hazards
-                        stall_tmp := stall_a_out or stall_b_out or stall_c_out or cr_stall_out;
+                        -- let it go out if there are no GPR or CR hazards
+                        stall_tmp := gpr_tag_stall or cr_stall_out;
                     end if;
                 end if;
 
@@ -249,8 +290,8 @@ begin
                                 v_int.state := WAIT_FOR_CURR_TO_COMPLETE;
                             end if;
                         else
-                            -- let it go out if there are no GPR hazards
-                            stall_tmp := stall_a_out or stall_b_out or stall_c_out or cr_stall_out;
+                            -- let it go out if there are no GPR or CR hazards
+                            stall_tmp := gpr_tag_stall or cr_stall_out;
                         end if;
                     end if;
                 else
@@ -262,15 +303,12 @@ begin
             valid_tmp := '0';
         end if;
 
-        if valid_tmp = '1' then
-            if deferred = '0' then
-                v_int.outstanding := v_int.outstanding + 1;
-            end if;
-            gpr_write_valid <= gpr_write_valid_in;
-            cr_write_valid <= cr_write_in;
-        else
-            gpr_write_valid <= '0';
-            cr_write_valid <= '0';
+        gpr_write_valid <= gpr_write_valid_in and valid_tmp;
+        update_gpr_write <= update_gpr_write_valid and valid_tmp;
+        cr_write_valid <= cr_write_in and valid_tmp;
+
+        if valid_tmp = '1' and deferred = '0' then
+            v_int.outstanding := v_int.outstanding + 1;
         end if;
 
         -- update outputs

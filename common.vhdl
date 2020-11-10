@@ -3,6 +3,7 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library work;
+use work.utils.all;
 use work.decode_types.all;
 
 package common is
@@ -133,6 +134,17 @@ package common is
     constant FPSCR_NI     : integer := 63 - 61;
     constant FPSCR_RN     : integer := 63 - 63;
 
+    -- Used for tracking pending register writes
+    constant TAG_COUNT : positive := 8;
+    constant TAG_NUMBER_BITS : natural := log2(TAG_COUNT);
+    subtype tag_number_t is integer range 0 to TAG_COUNT - 1;
+    subtype tag_index_t is unsigned(TAG_NUMBER_BITS - 1 downto 0);
+    type value_tag_t is record
+        tag   : tag_number_t;
+        valid : std_ulogic;
+    end record;
+    constant value_tag_init : value_tag_t := (tag => 0, valid => '0');
+
     type irq_state_t is (WRITE_SRR0, WRITE_SRR1);
 
     -- For now, fixed 16 sources, make this either a parametric
@@ -204,6 +216,7 @@ package common is
 	nia: std_ulogic_vector(63 downto 0);
 	write_reg: gspr_index_t;
         write_reg_enable: std_ulogic;
+        write_tag : value_tag_t;
 	read_reg1: gspr_index_t;
 	read_reg2: gspr_index_t;
 	read_data1: std_ulogic_vector(63 downto 0);
@@ -234,6 +247,7 @@ package common is
 	byte_reverse : std_ulogic;
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
+        ugpr_write_tag : value_tag_t;
         reserve : std_ulogic;                           -- set for larx/stcx
         br_pred : std_ulogic;
         privileged : std_ulogic;
@@ -250,12 +264,14 @@ package common is
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL,
-         write_reg_enable => '0', bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
+         write_reg_enable => '0', write_tag => value_tag_init,
+         bypass_data1 => '0', bypass_data2 => '0', bypass_data3 => '0',
          bypass_cr => '0', lr => '0', rc => '0', oe => '0', invert_a => '0', addm1 => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0', output_cr => '0',
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
          privileged => '0',
-         byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'),
+         byte_reverse => '0', sign_extend => '0', update => '0', ugpr_write_tag => value_tag_init,
+         nia => (others => '0'),
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'), lenm1 => "000",
          log_len => "00", result_sel => "000", sub_select => "000",
@@ -307,9 +323,10 @@ package common is
     end record;
 
     type RegisterFileToDecode2Type is record
-	read1_data : std_ulogic_vector(63 downto 0);
-	read2_data : std_ulogic_vector(63 downto 0);
-	read3_data : std_ulogic_vector(63 downto 0);
+        read1_data : std_ulogic_vector(63 downto 0);
+        read2_data : std_ulogic_vector(63 downto 0);
+        read3_data : std_ulogic_vector(63 downto 0);
+        write_tag  : value_tag_t;
     end record;
 
     type Decode2ToCrFileType is record
@@ -342,12 +359,14 @@ package common is
 	addr2 : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);		-- data to write, unused for read
 	write_reg : gspr_index_t;
+        write_tag : value_tag_t;
 	length : std_ulogic_vector(3 downto 0);
         ci : std_ulogic;                                -- cache-inhibited load/store
 	byte_reverse : std_ulogic;
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
 	update_reg : gpr_index_t;                      	-- if so, the register to update
+        update_tag : value_tag_t;
 	xerc : xer_common_t;
         reserve : std_ulogic;                           -- set for larx/stcx.
         rc : std_ulogic;                                -- set for stcx.
@@ -358,14 +377,17 @@ package common is
         repeat : std_ulogic;
         second : std_ulogic;
     end record;
-    constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type := (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
-                                                                     sign_extend => '0', update => '0', xerc => xerc_init,
-                                                                     reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
-                                                                     nia => (others => '0'), insn => (others => '0'),
-                                                                     addr1 => (others => '0'), addr2 => (others => '0'), data => (others => '0'),
-                                                                     write_reg => (others => '0'), length => (others => '0'),
-                                                                     mode_32bit => '0', is_32bit => '0',
-                                                                     repeat => '0', second => '0', others => (others => '0'));
+    constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type :=
+        (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
+         sign_extend => '0', update => '0', xerc => xerc_init,
+         reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
+         nia => (others => '0'), insn => (others => '0'),
+         addr1 => (others => '0'), addr2 => (others => '0'), data => (others => '0'),
+         write_reg => (others => '0'), write_tag => value_tag_init,
+         update_reg => (others => '0'), update_tag => value_tag_init,
+         length => (others => '0'),
+         mode_32bit => '0', is_32bit => '0',
+         repeat => '0', second => '0');
 
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;
@@ -454,13 +476,15 @@ package common is
 	valid : std_ulogic;
 	write_enable: std_ulogic;
 	write_reg : gspr_index_t;
+        write_tag : value_tag_t;
 	write_data : std_ulogic_vector(63 downto 0);
 	xerc : xer_common_t;
         rc : std_ulogic;
         store_done : std_ulogic;
     end record;
-    constant Loadstore1ToWritebackInit : Loadstore1ToWritebackType := (valid => '0', write_enable => '0', xerc => xerc_init,
-                                                                       rc => '0', store_done => '0', write_data => (others => '0'), others => (others => '0'));
+    constant Loadstore1ToWritebackInit : Loadstore1ToWritebackType :=
+        (valid => '0', write_enable => '0', write_tag => value_tag_init, xerc => xerc_init,
+         rc => '0', store_done => '0', write_data => (others => '0'), others => (others => '0'));
 
     type Execute1ToWritebackType is record
 	valid: std_ulogic;
@@ -468,6 +492,7 @@ package common is
         mode_32bit : std_ulogic;
 	write_enable : std_ulogic;
 	write_reg: gspr_index_t;
+        write_tag : value_tag_t;
 	write_data: std_ulogic_vector(63 downto 0);
 	write_cr_enable : std_ulogic;
 	write_cr_mask : std_ulogic_vector(7 downto 0);
@@ -476,14 +501,17 @@ package common is
 	xerc : xer_common_t;
         exc_write_enable : std_ulogic;
         exc_write_reg : gspr_index_t;
+        exc_write_tag : value_tag_t;
         exc_write_data : std_ulogic_vector(63 downto 0);
     end record;
-    constant Execute1ToWritebackInit : Execute1ToWritebackType := (valid => '0', rc => '0', mode_32bit => '0', write_enable => '0',
-								   write_cr_enable => '0', exc_write_enable => '0',
-								   write_xerc_enable => '0', xerc => xerc_init,
-                                   write_data => (others => '0'), write_cr_mask => (others => '0'),
-                                   write_cr_data => (others => '0'), write_reg => (others => '0'),
-                                   exc_write_reg => (others => '0'), exc_write_data => (others => '0'));
+    constant Execute1ToWritebackInit : Execute1ToWritebackType :=
+        (valid => '0', rc => '0', mode_32bit => '0', write_enable => '0',
+         write_cr_enable => '0', exc_write_enable => '0',
+         write_xerc_enable => '0', xerc => xerc_init,
+         write_data => (others => '0'), write_cr_mask => (others => '0'),
+         write_cr_data => (others => '0'), write_reg => (others => '0'),
+         write_tag => value_tag_init, exc_write_tag => value_tag_init,
+         exc_write_reg => (others => '0'), exc_write_data => (others => '0'));
 
     type Execute1ToFPUType is record
         valid   : std_ulogic;
@@ -496,6 +524,7 @@ package common is
         frb     : std_ulogic_vector(63 downto 0);
         frc     : std_ulogic_vector(63 downto 0);
         frt     : gspr_index_t;
+        wr_tag  : value_tag_t;
         rc      : std_ulogic;
         out_cr  : std_ulogic;
     end record;
@@ -503,6 +532,7 @@ package common is
                                                        insn  => (others => '0'), fe_mode => "00", rc => '0',
                                                        fra => (others => '0'), frb => (others => '0'),
                                                        frc => (others => '0'), frt => (others => '0'),
+                                                       wr_tag => value_tag_init,
                                                        single => '0', out_cr => '0');
 
     type FPUToExecute1Type is record
@@ -516,6 +546,7 @@ package common is
         valid           : std_ulogic;
         write_enable    : std_ulogic;
         write_reg       : gspr_index_t;
+        write_tag       : value_tag_t;
         write_data      : std_ulogic_vector(63 downto 0);
         write_cr_enable : std_ulogic;
         write_cr_mask   : std_ulogic_vector(7 downto 0);
@@ -539,14 +570,16 @@ package common is
         valid           : std_ulogic;
         write_enable    : std_ulogic;
         write_reg       : gspr_index_t;
+        write_tag       : value_tag_t;
         write_data      : std_ulogic_vector(63 downto 0);
         write_cr_enable : std_ulogic;
         write_cr_mask   : std_ulogic_vector(7 downto 0);
         write_cr_data   : std_ulogic_vector(31 downto 0);
     end record;
-    constant VectorToWritebackInit : VectorToWritebackType := (valid => '0', write_enable => '0', write_cr_enable => '0',
-                                                               write_reg => (others => '0'), write_data => (others => '0'),
-                                                               write_cr_mask => (others => '0'), write_cr_data => (others => '0'));
+    constant VectorToWritebackInit : VectorToWritebackType :=
+        (valid => '0', write_enable => '0', write_cr_enable => '0',
+         write_reg => (others => '0'), write_tag => value_tag_init, write_data => (others => '0'),
+         write_cr_mask => (others => '0'), write_cr_data => (others => '0'));
 
     type DividerToExecute1Type is record
 	valid: std_ulogic;
@@ -558,10 +591,13 @@ package common is
 
     type WritebackToRegisterFileType is record
 	write_reg : gspr_index_t;
+        write_tag : value_tag_t;
 	write_data : std_ulogic_vector(63 downto 0);
 	write_enable : std_ulogic;
     end record;
-    constant WritebackToRegisterFileInit : WritebackToRegisterFileType := (write_enable => '0', write_data => (others => '0'), others => (others => '0'));
+    constant WritebackToRegisterFileInit : WritebackToRegisterFileType :=
+        (write_enable => '0', write_tag => value_tag_init,
+         write_data => (others => '0'), others => (others => '0'));
 
     type WritebackToCrFileType is record
 	write_cr_enable : std_ulogic;

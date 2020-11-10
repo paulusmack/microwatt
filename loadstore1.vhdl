@@ -76,6 +76,7 @@ architecture behave of loadstore1 is
         second_bytes : std_ulogic_vector(7 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
 	write_reg    : gspr_index_t;
+        write_tag    : value_tag_t;
 	length       : std_ulogic_vector(3 downto 0);
         elt_length   : std_ulogic_vector(3 downto 0);
 	byte_reverse : std_ulogic;
@@ -85,6 +86,7 @@ architecture behave of loadstore1 is
         left_justify : std_ulogic;
 	update       : std_ulogic;
 	update_reg   : gpr_index_t;
+        update_tag   : value_tag_t;
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
         atomic       : std_ulogic;
@@ -109,10 +111,11 @@ architecture behave of loadstore1 is
                                           instr_fault => '0', load_zero => '0', noop => '0',
                                           mode_32bit => '0', addr => (others => '0'), addr0 => (others => '0'),
                                           byte_sel => x"00", second_bytes => x"00",
-                                          store_data => (others => '0'), write_reg => x"00", length => x"0",
-                                          elt_length => x"0", byte_reverse => '0', brev_mask => "000",
-                                          sign_extend => '0', is_vsx => '0', left_justify => '0', update => '0',
-                                          update_reg => 5x"00", xerc => xerc_init, reserve => '0',
+                                          store_data => (others => '0'), write_reg => x"00", write_tag => value_tag_init,
+                                          length => x"0", elt_length => x"0", byte_reverse => '0', brev_mask => "000",
+                                          sign_extend => '0', is_vsx => '0', left_justify => '0',
+                                          update => '0', update_reg => 5x"00", update_tag => value_tag_init,
+                                          xerc => xerc_init, reserve => '0',
                                           atomic => '0', atomic_last => '0', rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
                                           sprn => 10x"0", is_slbia => '0', align_intr => '0',
@@ -135,6 +138,7 @@ architecture behave of loadstore1 is
         complete     : std_ulogic;
         write_enable : std_ulogic;
 	write_reg    : gspr_index_t;
+        write_tag    : value_tag_t;
         write_data   : std_ulogic_vector(63 downto 0);
         rc           : std_ulogic;
         xerc         : xer_common_t;
@@ -369,12 +373,14 @@ begin
         v.valid := l_in.valid;
         v.mode_32bit := l_in.mode_32bit;
         v.write_reg := l_in.write_reg;
+        v.write_tag := l_in.write_tag;
         v.length := l_in.length;
         v.elt_length := l_in.length;
         v.byte_reverse := l_in.byte_reverse;
         v.sign_extend := l_in.sign_extend;
         v.update := l_in.update;
         v.update_reg := l_in.update_reg;
+        v.update_tag := l_in.update_tag;
         v.xerc := l_in.xerc;
         v.reserve := l_in.reserve;
         v.rc := l_in.rc;
@@ -956,9 +962,11 @@ begin
         v.complete := done;
         v.write_enable := write_enable or do_update;
         v.write_reg := r2.req.write_reg;
+        v.write_tag := r2.req.write_tag;
         if do_update = '1' then
             wr_sel := "01";
             v.write_reg := gpr_to_gspr(r2.req.update_reg);
+            v.write_tag := r2.req.update_tag;
         end if;
         case wr_sel is
         when "00" =>
@@ -1026,6 +1034,7 @@ begin
         l_out.valid <= r3.complete;
         l_out.write_enable <= r3.write_enable;
         l_out.write_reg <= r3.write_reg;
+        l_out.write_tag <= r3.write_tag;
         l_out.write_data <= r3.write_data;
         l_out.xerc <= r3.xerc;
         l_out.rc <= r3.rc and r3.complete;

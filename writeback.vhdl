@@ -71,11 +71,13 @@ begin
 
         if e_in.exc_write_enable = '1' then
             w_out.write_reg <= e_in.exc_write_reg;
+            w_out.write_tag <= e_in.exc_write_tag;
             w_out.write_data <= e_in.exc_write_data;
             w_out.write_enable <= '1';
         else
             if e_in.write_enable = '1' then
                 w_out.write_reg <= e_in.write_reg;
+                w_out.write_tag <= e_in.write_tag;
                 w_out.write_data <= e_in.write_data;
                 w_out.write_enable <= '1';
             end if;
@@ -93,6 +95,7 @@ begin
 
             if fp_in.write_enable = '1' then
                 w_out.write_reg <= fp_in.write_reg;
+                w_out.write_tag <= fp_in.write_tag;
                 w_out.write_data <= fp_in.write_data;
                 w_out.write_enable <= '1';
             end if;
@@ -105,6 +108,7 @@ begin
 
             if v_in.write_enable = '1' then
                 w_out.write_reg <= v_in.write_reg;
+                w_out.write_tag <= v_in.write_tag;
                 w_out.write_data <= v_in.write_data;
                 w_out.write_enable <= '1';
             end if;
@@ -116,6 +120,7 @@ begin
 
             if l_in.write_enable = '1' then
                 w_out.write_reg <= l_in.write_reg;
+                w_out.write_tag <= l_in.write_tag;
                 w_out.write_data <= l_in.write_data;
                 w_out.write_enable <= '1';
             end if;

@@ -290,6 +290,11 @@ begin
                 if r.lr_update = '1' then
                     report "LR update to " & to_hstring(r.next_lr);
                 end if;
+                if valid_in = '1' then
+                    report "execute " & to_hstring(e_in.nia) & " op=" & insn_type_t'image(e_in.insn_type) &
+                        " wr=" & to_hstring(rin.e.write_reg) & " wt=" &
+                        integer'image(rin.e.write_tag.tag) & " " & std_ulogic'image(rin.e.write_tag.valid);
+                end if;
             end if;
 	end if;
     end process;
@@ -675,6 +680,7 @@ begin
         exception_nextpc := '0';
         v.e.exc_write_enable := '0';
         v.e.exc_write_reg := fast_spr_num(SPR_SRR0);
+        v.e.exc_write_tag := value_tag_init;
         if valid_in = '1' then
             v.e.exc_write_data := e_in.nia;
             v.last_nia := e_in.nia;
@@ -1276,6 +1282,7 @@ begin
             v.e.write_data := r.e.write_data;
         end if;
         v.e.write_reg := current.write_reg;
+        v.e.write_tag := current.write_tag;
 	v.e.write_enable := current.write_reg_enable and v.e.valid and not exception;
         v.e.rc := current.rc and v.e.valid and not exception;
 
@@ -1289,6 +1296,7 @@ begin
                 v.e.exc_write_enable := '1';
                 v.e.exc_write_data := next_nia;
                 v.e.exc_write_reg := fast_spr_num(SPR_LR);
+                v.e.exc_write_tag := current.ugpr_write_tag;
             else
                 v.lr_update := '1';
                 v.e.valid := '0';
@@ -1300,6 +1308,7 @@ begin
             v.e.exc_write_enable := '1';
 	    v.e.exc_write_data := r.next_lr;
 	    v.e.exc_write_reg := fast_spr_num(SPR_LR);
+            v.e.exc_write_tag := current.ugpr_write_tag;
 	    v.e.valid := '1';
         end if;
 
@@ -1320,11 +1329,13 @@ begin
         lv.addr2 := b_in;
         lv.data := c_in;
         lv.write_reg := e_in.write_reg;
+        lv.write_tag := e_in.write_tag;
         lv.length := e_in.data_len;
         lv.byte_reverse := e_in.byte_reverse xnor ctrl.msr(MSR_LE);
         lv.sign_extend := e_in.sign_extend;
         lv.update := e_in.update;
         lv.update_reg := gspr_to_gpr(e_in.read_reg1);
+        lv.update_tag := e_in.ugpr_write_tag;
         lv.xerc := v.e.xerc;
         lv.reserve := e_in.reserve;
         lv.rc := e_in.rc;
@@ -1351,6 +1362,7 @@ begin
         fv.frb := b_in;
         fv.frc := c_in;
         fv.frt := e_in.write_reg;
+        fv.wr_tag := e_in.write_tag;
         fv.rc := e_in.rc;
         fv.out_cr := e_in.output_cr;
 

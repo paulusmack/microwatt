@@ -120,6 +120,9 @@ begin
                 d_out.read3_data <= w_in.write_data;
             end if;
         end if;
+
+        d_out.write_tag.tag <= w_in.write_tag.tag;
+        d_out.write_tag.valid <= w_in.write_tag.valid and w_in.write_enable;
     end process register_read_0;
 
     -- Latch read data and ack if dbg read requested and B port not busy

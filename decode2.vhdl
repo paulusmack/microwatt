@@ -421,6 +421,9 @@ architecture behaviour of decode2 is
     signal cr_bypass       : std_ulogic;
     signal cr_bypass_avail : std_ulogic;
 
+    signal gpr_write_tag  : value_tag_t;
+    signal ugpr_write_tag : value_tag_t;
+
 begin
     control_0: entity work.control
 	generic map (
@@ -455,6 +458,8 @@ begin
             gpr_c_read_valid_in  => gpr_c_read_valid,
             gpr_c_read_in        => gpr_c_read,
 
+            gpr_writing_tag      => r_in.write_tag,
+
             cr_read_in           => d_in.decode.input_cr,
             cr_write_in          => cr_write_valid,
             cr_bypass            => cr_bypass,
@@ -466,7 +471,10 @@ begin
 
             gpr_bypass_a => gpr_a_bypass,
             gpr_bypass_b => gpr_b_bypass,
-            gpr_bypass_c => gpr_c_bypass
+            gpr_bypass_c => gpr_c_bypass,
+
+            gpr_write_tag => gpr_write_tag,
+            ugpr_write_tag => ugpr_write_tag
             );
 
     deferred <= r.e.valid and busy_in;
@@ -598,6 +606,7 @@ begin
         v.e.bypass_data3 := gpr_c_bypass;
         v.e.write_reg := decoded_reg_o.reg;
         v.e.write_reg_enable := decoded_reg_o.reg_valid;
+        v.e.write_tag := gpr_write_tag;
         v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
         if not (d_in.decode.insn_type = OP_MUL_H32 or d_in.decode.insn_type = OP_MUL_H64) then
             v.e.oe := decode_oe(d_in.decode.rc, d_in.insn);
@@ -630,6 +639,7 @@ begin
         v.e.byte_reverse := d_in.decode.byte_reverse;
         v.e.sign_extend := d_in.decode.sign_extend;
         v.e.update := d_in.decode.update;
+        v.e.ugpr_write_tag := ugpr_write_tag;
         v.e.reserve := d_in.decode.reserve;
         v.e.br_pred := d_in.br_pred;
         v.e.result_sel := result_select(d_in.decode.insn_type);

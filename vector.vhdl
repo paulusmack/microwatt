@@ -594,6 +594,7 @@ begin
         if vec_valid = '1' then
             v.w.valid := '1';
             v.w.write_reg := e_in.e.write_reg;
+            v.w.write_tag := e_in.e.write_tag;
             v.writes := e_in.e.write_reg_enable;
             case e_in.e.insn_type is
             when OP_VPERM | OP_VPACK | OP_VMERGE | OP_XPERM | OP_VBPERM | OP_VMINMAX |
@@ -1104,6 +1105,7 @@ begin
         w_out.valid <= vst.w.valid;
         w_out.write_enable <= vst.w.write_enable;
         w_out.write_reg <= vst.w.write_reg;
+        w_out.write_tag <= vst.w.write_tag;
         w_out.write_data <= vec_result;
         w_out.write_cr_enable <= vst.w.write_cr_enable;
         w_out.write_cr_mask <= num_to_fxm(6);

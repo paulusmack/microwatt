@@ -64,8 +64,8 @@ architecture behaviour of execute1 is
         fp_exception_next : std_ulogic;
         trace_next : std_ulogic;
         prev_op : insn_type_t;
-	lr_update : std_ulogic;
 	next_lr : std_ulogic_vector(63 downto 0);
+        br_taken : std_ulogic;
 	mul_in_progress : std_ulogic;
         mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
@@ -76,8 +76,8 @@ architecture behaviour of execute1 is
     constant reg_type_init : reg_type :=
         (e => Execute1ToWritebackInit, f => Execute1ToFetch1Init,
          cur_instr => Decode2ToExecute1Init,
-         busy => '0', lr_update => '0', terminate => '0',
-         fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL,
+         busy => '0', terminate => '0',
+         fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL, br_taken => '0',
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
          next_lr => (others => '0'), last_nia => (others => '0'), others => (others => '0'));
 
@@ -102,6 +102,7 @@ architecture behaviour of execute1 is
     signal spr_result: std_ulogic_vector(63 downto 0);
     signal result_mux_sel: std_ulogic_vector(2 downto 0);
     signal sub_mux_sel: std_ulogic_vector(2 downto 0);
+    signal next_nia : std_ulogic_vector(63 downto 0);
     signal current: Decode2ToExecute1Type;
 
     -- multiply signals
@@ -272,7 +273,7 @@ begin
         muldiv_result      when "011",
         countzero_result   when "100",
         spr_result         when "101",
-        64x"0"             when "110",
+        next_nia           when "110",
         misc_result        when others;
 
     execute1_0: process(clk)
@@ -285,12 +286,6 @@ begin
             else
                 r <= rin;
                 ctrl <= ctrl_tmp;
-                assert not (r.lr_update = '1' and valid_in = '1')
-                    report "LR update collision with valid in EX1"
-                    severity failure;
-                if r.lr_update = '1' then
-                    report "LR update to " & to_hstring(r.next_lr);
-                end if;
                 if valid_in = '1' then
                     report "execute " & to_hstring(e_in.nia) & " op=" & insn_type_t'image(e_in.insn_type) &
                         " wr=" & to_hstring(rin.e.write_reg) & " wt=" &
@@ -325,7 +320,6 @@ begin
 	variable btnum, banum, bbnum : integer range 0 to 31;
 	variable crresult : std_ulogic;
 	variable l : std_ulogic;
-	variable next_nia : std_ulogic_vector(63 downto 0);
         variable carry_32, carry_64 : std_ulogic;
         variable sign1, sign2 : std_ulogic;
         variable abs1, abs2 : signed(63 downto 0);
@@ -410,7 +404,6 @@ begin
             end loop;
         end if;
 
-	v.lr_update := '0';
 	v.mul_in_progress := '0';
         v.div_in_progress := '0';
         v.cntz_in_progress := '0';
@@ -666,7 +659,7 @@ begin
         v.f.mode_32bit := not ctrl.msr(MSR_SF);
 
 	-- Next insn adder used in a couple of places
-	next_nia := std_ulogic_vector(unsigned(e_in.nia) + 4);
+	next_nia <= std_ulogic_vector(unsigned(e_in.nia) + 4);
 
 	-- rotator control signals
 	right_shift <= '1' when e_in.insn_type = OP_SHR else '0';
@@ -856,6 +849,7 @@ begin
                                      newcrf & newcrf & newcrf & newcrf;
             when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS |
                     OP_BPERM | OP_BCD =>
+
 	    when OP_B =>
                 is_branch := '1';
                 taken_branch := '1';
@@ -863,24 +857,39 @@ begin
                 if ctrl.msr(MSR_BE) = '1' then
                     do_trace := '1';
                 end if;
-	    when OP_BC =>
-		-- read_data1 is CTR
+            when OP_BD | OP_BDREG =>
+                -- Branch that updates CTR; could be the first instruction of
+                -- the pair for bcl, bclrl, bctarl that update both CTR and LR.
+                -- This decrements CTR and determines whether the branch should
+                -- be taken, and if e_in.repeat = 0, takes it.
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
-                is_branch := '1';
-		taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
-                abs_branch := insn_aa(e_in.insn);
-                if ctrl.msr(MSR_BE) = '1' then
-                    do_trace := '1';
-                end if;
-	    when OP_BCREG =>
-		-- read_data1 is CTR
-		-- read_data2 is target register (CTR, LR or TAR)
-		bo := insn_bo(e_in.insn);
-		bi := insn_bi(e_in.insn);
-                is_branch := '1';
-		taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
+                taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
+                v.br_taken := taken_branch;
                 abs_branch := '1';
+                if e_in.insn_type = OP_BD then
+                    abs_branch := insn_aa(e_in.insn);
+                end if;
+                if e_in.repeat = '0' then
+                    is_branch := '1';
+                    if ctrl.msr(MSR_BE) = '1' then
+                        do_trace := '1';
+                    end if;
+                end if;
+	    when OP_BC | OP_BCREG =>
+		-- for OP_BCREG, read_data2 is target register (CTR, LR or TAR)
+		bo := insn_bo(e_in.insn);
+		bi := insn_bi(e_in.insn);
+                is_branch := '1';
+                if e_in.second = '0' then
+                    taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
+                else
+                    taken_branch := r.br_taken;
+                end if;
+                abs_branch := '1';
+                if e_in.insn_type = OP_BC then
+                    abs_branch := insn_aa(e_in.insn);
+                end if;
                 if ctrl.msr(MSR_BE) = '1' then
                     do_trace := '1';
                 end if;
@@ -1286,32 +1295,6 @@ begin
         v.e.write_tag := current.write_tag;
 	v.e.write_enable := current.write_reg_enable and v.e.valid and not exception;
         v.e.rc := current.rc and v.e.valid and not exception;
-
-        -- Update LR on the next cycle after a branch link
-        -- If we're not writing back anything else, we can write back LR
-        -- this cycle, otherwise we take an extra cycle.  We use the
-        -- exc_write path since next_nia is written through that path
-        -- in other places.
-        if v.e.valid = '1' and exception = '0' and current.lr = '1' then
-            if current.write_reg_enable = '0' then
-                v.e.exc_write_enable := '1';
-                v.e.exc_write_data := next_nia;
-                v.e.exc_write_reg := fast_spr_num(SPR_LR);
-                v.e.exc_write_tag := current.ugpr_write_tag;
-            else
-                v.lr_update := '1';
-                v.e.valid := '0';
-                report "Delayed LR update to " & to_hstring(next_nia);
-                v.busy := '1';
-            end if;
-        end if;
-	if r.lr_update = '1' then
-            v.e.exc_write_enable := '1';
-	    v.e.exc_write_data := r.next_lr;
-	    v.e.exc_write_reg := fast_spr_num(SPR_LR);
-            v.e.exc_write_tag := current.ugpr_write_tag;
-	    v.e.valid := '1';
-        end if;
 
         -- Defer completion for one cycle when redirecting.
         -- This also ensures r.busy = 1 when ctrl.irq_state = WRITE_SRR1

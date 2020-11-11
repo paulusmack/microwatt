@@ -317,21 +317,9 @@ architecture behaviour of decode2 is
         OP_MOD      => "011",
         OP_CNTZ     => "100",           -- countzero_result
         OP_MFSPR    => "101",           -- spr_result
-        OP_VPERM    => "110",           -- vec_result
-        OP_VPACK    => "110",
-        OP_VMERGE   => "110",
-        OP_XPERM    => "110",
-        OP_VBPERM   => "110",
-        OP_LVS      => "110",
-        OP_VLOG     => "110",
-        OP_VMOVE    => "110",
-        OP_VGATHER  => "110",
-        OP_VSHIFT   => "110",
-        OP_VCMP     => "110",
-        OP_VMINMAX  => "110",
-        OP_VARITH   => "110",
-        OP_VSHOCT   => "110",
-        OP_VSUM     => "110",
+        OP_B        => "110",           -- next_nia
+        OP_BC       => "110",
+        OP_BCREG    => "110",
         OP_ADDG6S   => "111",           -- misc_result
         OP_ISEL     => "111",
         OP_DARN     => "111",
@@ -404,9 +392,6 @@ architecture behaviour of decode2 is
     signal gpr_write_valid : std_ulogic;
     signal gpr_write : gspr_index_t;
 
-    signal update_gpr_write_valid : std_ulogic;
-    signal update_gpr_write_reg : gspr_index_t;
-
     signal gpr_a_read_valid : std_ulogic;
     signal gpr_a_read       : gspr_index_t;
     signal gpr_a_bypass     : std_ulogic_vector(1 downto 0);
@@ -448,8 +433,8 @@ begin
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write,
 
-            update_gpr_write_valid => update_gpr_write_valid,
-            update_gpr_write_reg => update_gpr_write_reg,
+            update_gpr_write_valid => '0',
+            update_gpr_write_reg => x"00",
 
             gpr_a_read_valid_in  => gpr_a_read_valid,
             gpr_a_read_in        => gpr_a_read,
@@ -507,6 +492,7 @@ begin
         variable decoded_reg_c : decode_input_reg_t;
         variable decoded_reg_o : decode_output_reg_t;
         variable length : std_ulogic_vector(3 downto 0);
+        variable op : insn_type_t;
     begin
         v := r;
 
@@ -522,7 +508,12 @@ begin
                                              d_in.nia);
         decoded_reg_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, r_in.read2_data, d_in.ispr2);
         decoded_reg_c := decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn, r_in.read3_data);
-        decoded_reg_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn, d_in.ispr1);
+        decoded_reg_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn, d_in.ispro);
+
+        if d_in.decode.lr = '1' then
+            v.e.lr := insn_lk(d_in.insn);
+        end if;
+        op := d_in.decode.insn_type;
 
         if d_in.decode.repeat = SGLS then
             decoded_reg_c.reg(0) := '1';
@@ -568,6 +559,12 @@ begin
                     end if;
                 when others =>
             end case;
+        elsif v.e.lr = '1' and decoded_reg_a.reg_valid = '1' then
+            -- bcl/bclrl/bctarl that needs to write both CTR and LR has to be doubled
+            v.e.repeat := '1';
+            v.e.second := r.repeat;
+            -- first one does CTR, second does LR
+            decoded_reg_o.reg(0) := not r.repeat;
         end if;
 
         r_out.read1_enable <= decoded_reg_a.reg_valid and d_in.valid;
@@ -604,7 +601,6 @@ begin
         v.e.nia := d_in.nia;
         v.e.unit := d_in.decode.unit;
         v.e.fac := d_in.decode.facility;
-        v.e.insn_type := d_in.decode.insn_type;
         v.e.read_reg1 := decoded_reg_a.reg;
         v.e.read_reg2 := decoded_reg_b.reg;
         v.e.write_reg := decoded_reg_o.reg;
@@ -619,23 +615,24 @@ begin
         v.e.xerc := c_in.read_xerc_data;
         v.e.invert_a := d_in.decode.invert_a;
         v.e.addm1 := '0';
-        if d_in.decode.insn_type = OP_BC or d_in.decode.insn_type = OP_BCREG then
-            -- add -1 to CTR
-            v.e.addm1 := '1';
-            if d_in.insn(23) = '1' or
-                (d_in.decode.insn_type = OP_BCREG and d_in.insn(10) = '0') then
-                -- don't write decremented CTR if BO(2) = 1 or bcctr
-                v.e.write_reg_enable := '0';
+        if op = OP_BC or op = OP_BCREG then
+            if d_in.insn(23) = '0' and r.repeat = '0' and
+                not (d_in.decode.insn_type = OP_BCREG and d_in.insn(10) = '0') then
+                -- decrement CTR if BO(2) = 0 and not bcctr
+                v.e.addm1 := '1';
+                if op = OP_BC then
+                    op := OP_BD;
+                else
+                    op := OP_BDREG;
+                end if;
             end if;
         end if;
+        v.e.insn_type := op;
         v.e.invert_out := d_in.decode.invert_out;
         v.e.input_carry := d_in.decode.input_carry;
         v.e.output_carry := d_in.decode.output_carry;
         v.e.is_32bit := d_in.decode.is_32bit;
         v.e.is_signed := d_in.decode.is_signed;
-        if d_in.decode.lr = '1' then
-            v.e.lr := insn_lk(d_in.insn);
-        end if;
         v.e.insn := d_in.insn;
         v.e.privileged := instr_is_privileged(d_in.decode.insn_type, d_in.insn);
         v.e.data_len := length;
@@ -645,8 +642,8 @@ begin
         v.e.ugpr_write_tag := ugpr_write_tag;
         v.e.reserve := d_in.decode.reserve;
         v.e.br_pred := d_in.br_pred;
-        v.e.result_sel := result_select(d_in.decode.insn_type);
-        v.e.sub_select := subresult_select(d_in.decode.insn_type);
+        v.e.result_sel := result_select(op);
+        v.e.sub_select := subresult_select(op);
 
         -- further instruction decodes for vector instructions
         v.e.vec_shift_whole := '0';
@@ -708,9 +705,6 @@ begin
 
         gpr_write_valid <= v.e.write_reg_enable;
         gpr_write <= decoded_reg_o.reg;
-
-        update_gpr_write_valid <= v.e.lr;
-        update_gpr_write_reg <= fast_spr_num(SPR_LR);
 
         gpr_a_read_valid <= decoded_reg_a.reg_valid;
         gpr_a_read <= decoded_reg_a.reg;

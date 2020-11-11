@@ -96,7 +96,7 @@ const char *ops[128] =
 	"tlbie  ", "trap   ", "vrld   ", "vrst   ", "vsxlds ", "vsxldv ", "vsxldsp", "vsxst  ",
 	"vsxldl ", "vsxstl ", "vperm  ", "vpack  ", "vmerge ", "vcmp   ", "vminmax", "vlog   ",
 	"vmove  ", "vgather", "vbperm ", "vshift ", "varith ", "vshoct ", "vsum   ", "mtvscr ",
-	"lvs    ", "xperm  ", "xor    ", "bcd    ", "addg6s ", "ffail  ", "?86    ", "?87    ",
+	"lvs    ", "xperm  ", "xor    ", "bcd    ", "addg6s ", "bdec   ", "bdreg  ", "ffail  ",
 	"?88    ", "?89    ", "?90    ", "?91    ", "?92    ", "?93    ", "?94    ", "?95    ",
 	"?96    ", "?97    ", "?98    ", "?99    ", "?100   ", "?101   ", "?102   ", "?103   ",
 	"?104   ", "?105   ", "?106   ", "?107   ", "?108   ", "?109   ", "?110   ", "?111   ",

@@ -29,6 +29,7 @@ package decode_types is
                          OP_XPERM,
 			 OP_XOR,
                          OP_BCD, OP_ADDG6S,
+                         OP_BD, OP_BDREG,
                          OP_FETCH_FAILED
 			 );
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR, CIA, FRA, VRA, XA);

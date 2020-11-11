@@ -195,14 +195,15 @@ package common is
 	insn: std_ulogic_vector(31 downto 0);
 	ispr1: gspr_index_t; -- (G)SPR used for branch condition (CTR) or mfspr
 	ispr2: gspr_index_t; -- (G)SPR used for branch target (CTR, LR, TAR)
+	ispro: gspr_index_t; -- (G)SPR written with LR or CTR
 	decode: decode_rom_t;
         br_pred: std_ulogic; -- Branch was predicted to be taken
         big_endian: std_ulogic;
     end record;
     constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
         (valid => '0', stop_mark => '0', nia => (others => '0'), insn => (others => '0'),
-         ispr1 => (others => '0'), ispr2 => (others => '0'), decode => decode_rom_init,
-         br_pred => '0', big_endian => '0');
+         ispr1 => (others => '0'), ispr2 => (others => '0'), ispro => (others => '0'),
+         decode => decode_rom_init, br_pred => '0', big_endian => '0');
 
     type Decode1ToFetch1Type is record
         redirect     : std_ulogic;
@@ -627,9 +628,9 @@ package body common is
     begin
        case spr is
        when SPR_LR =>
-           n := 0;
+           n := 0;              -- N.B. decode2 relies on this specific value
        when SPR_CTR =>
-           n:= 1;
+           n := 1;              -- N.B. decode2 relies on this specific value
        when SPR_SRR0 =>
            n := 2;
        when SPR_SRR1 =>

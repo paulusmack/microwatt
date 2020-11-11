@@ -67,7 +67,7 @@ architecture behave of core is
     -- execute signals
     signal execute1_to_writeback: Execute1ToWritebackType;
     signal execute1_to_fetch1: Execute1ToFetch1Type;
-    signal execute1_next_tag: value_tag_t;
+    signal execute1_bypass: bypass_data_t;
 
     -- load store signals
     signal execute1_to_loadstore1: Execute1ToLoadstore1Type;
@@ -75,6 +75,7 @@ architecture behave of core is
     signal loadstore1_to_writeback: Loadstore1ToWritebackType;
     signal loadstore1_to_mmu: Loadstore1ToMmuType;
     signal mmu_to_loadstore1: MmuToLoadstore1Type;
+    signal loadstore1_bypass: bypass_data_t;
 
     -- dcache signals
     signal loadstore1_to_dcache: Loadstore1ToDcacheType;
@@ -281,7 +282,8 @@ begin
             r_out => decode2_to_register_file,
             c_in => cr_file_to_decode2,
             c_out => decode2_to_cr_file,
-            execute_next_tag => execute1_next_tag,
+            execute_bypass => execute1_bypass,
+            loadstore_bypass => loadstore1_bypass,
             log_out => log_data(121 downto 112)
             );
     decode2_busy_in <= ex1_busy_out;
@@ -343,7 +345,7 @@ begin
             fp_out => execute1_to_fpu,
             v_out => execute1_to_vector,
             e_out => execute1_to_writeback,
-            next_wr_tag => execute1_next_tag,
+            bypass_data => execute1_bypass,
 	    icache_inval => ex1_icache_inval,
             dbg_msr_out => msr,
             terminate_out => terminate,
@@ -400,6 +402,7 @@ begin
             l_in => execute1_to_loadstore1,
             e_out => loadstore1_to_execute1,
             l_out => loadstore1_to_writeback,
+            bypass_data => loadstore1_bypass,
             d_out => loadstore1_to_dcache,
             d_in => dcache_to_loadstore1,
             m_out => loadstore1_to_mmu,

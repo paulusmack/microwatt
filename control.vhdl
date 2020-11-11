@@ -39,6 +39,7 @@ entity control is
 
         gpr_writing_tag     : in value_tag_t;
         execute_next_tag    : in value_tag_t;
+        loadstore_next_tag  : in value_tag_t;
 
         cr_read_in          : in std_ulogic;
         cr_write_in         : in std_ulogic;
@@ -48,9 +49,9 @@ entity control is
         stall_out           : out std_ulogic;
         stopped_out         : out std_ulogic;
 
-        gpr_bypass_a        : out std_ulogic;
-        gpr_bypass_b        : out std_ulogic;
-        gpr_bypass_c        : out std_ulogic;
+        gpr_bypass_a        : out std_ulogic_vector(1 downto 0);
+        gpr_bypass_b        : out std_ulogic_vector(1 downto 0);
+        gpr_bypass_c        : out std_ulogic_vector(1 downto 0);
         cr_bypass           : out std_ulogic;
 
         gpr_write_tag       : out value_tag_t;
@@ -91,18 +92,10 @@ architecture rtl of control is
     signal write_tag  : value_tag_t;
     signal update_tag : value_tag_t;
 
-    signal gpr_tag_a : value_tag_t;
-    signal gpr_tag_b : value_tag_t;
-    signal gpr_tag_c : value_tag_t;
     signal gpr_tag_stall : std_ulogic;
 
     signal curr_tag : tag_number_t;
     signal next_tag : tag_number_t;
-
-    function tag_match(tag1 : value_tag_t; tag2 : value_tag_t) return boolean is
-    begin
-        return tag1.valid = '1' and tag2.valid = '1' and tag1.tag = tag2.tag;
-    end;
 
 begin
     cr_hazard0: entity work.cr_hazard
@@ -165,9 +158,9 @@ begin
         variable tag_s : value_tag_t;
         variable tag_t : value_tag_t;
         variable incr_tag : tag_number_t;
-        variable byp_a : std_ulogic;
-        variable byp_b : std_ulogic;
-        variable byp_c : std_ulogic;
+        variable byp_a : std_ulogic_vector(1 downto 0);
+        variable byp_b : std_ulogic_vector(1 downto 0);
+        variable byp_c : std_ulogic_vector(1 downto 0);
     begin
         tag_a := value_tag_init;
         for i in tag_number_t loop
@@ -200,31 +193,32 @@ begin
             tag_c.valid := '0';
         end if;
 
-        -- See if any of the operands can get their value next cycle via the
-        -- bypass path.
-        byp_a := '0';
+        byp_a := "00";
         if EX1_BYPASS and tag_match(execute_next_tag, tag_a) then
-            byp_a := '1';
+            byp_a := "01";
+        elsif EX1_BYPASS and tag_match(loadstore_next_tag, tag_a) then
+            byp_a := "10";
         end if;
-        byp_b := '0';
+        byp_b := "00";
         if EX1_BYPASS and tag_match(execute_next_tag, tag_b) then
-            byp_b := '1';
+            byp_b := "01";
+        elsif EX1_BYPASS and tag_match(loadstore_next_tag, tag_b) then
+            byp_b := "10";
         end if;
-        byp_c := '0';
+        byp_c := "00";
         if EX1_BYPASS and tag_match(execute_next_tag, tag_c) then
-            byp_c := '1';
+            byp_c := "01";
+        elsif EX1_BYPASS and tag_match(loadstore_next_tag, tag_c) then
+            byp_c := "10";
         end if;
 
-        gpr_tag_a <= tag_a;
-        gpr_tag_b <= tag_b;
-        gpr_tag_c <= tag_c;
         gpr_bypass_a <= byp_a;
         gpr_bypass_b <= byp_b;
         gpr_bypass_c <= byp_c;
 
-        gpr_tag_stall <= (tag_a.valid and not byp_a) or
-                         (tag_b.valid and not byp_b) or
-                         (tag_c.valid and not byp_c);
+        gpr_tag_stall <= (tag_a.valid and not (or (byp_a))) or
+                         (tag_b.valid and not (or (byp_b))) or
+                         (tag_c.valid and not (or (byp_c)));
 
         incr_tag := curr_tag;
         write_tag.tag <= curr_tag;

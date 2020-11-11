@@ -40,7 +40,7 @@ entity execute1 is
         v_out : out Execute1ToVectorType;
 
 	e_out : out Execute1ToWritebackType;
-        next_wr_tag : out value_tag_t;
+        bypass_data : out bypass_data_t;
 
         dbg_msr_out : out std_ulogic_vector(63 downto 0);
 
@@ -253,9 +253,9 @@ begin
     dbg_msr_out <= ctrl.msr;
     log_rd_addr <= r.log_addr_spr;
 
-    a_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data1 = '1' else e_in.read_data1;
-    b_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data2 = '1' else e_in.read_data2;
-    c_in <= r.e.write_data when EX1_BYPASS and e_in.bypass_data3 = '1' else e_in.read_data3;
+    a_in <= e_in.read_data1;
+    b_in <= e_in.read_data2;
+    c_in <= e_in.read_data3;
 
     busy_out <= l_in.busy or r.busy or fp_in.busy or v_in.busy;
     valid_in <= e_in.valid and not busy_out;
@@ -1384,8 +1384,9 @@ begin
         v_out <= vv;
 	flush_out <= f_out.redirect;
 
-        next_wr_tag.valid <= v.e.write_tag.valid and v.e.write_enable;
-        next_wr_tag.tag <= v.e.write_tag.tag;
+        bypass_data.tag.valid <= v.e.write_tag.valid and v.e.write_enable;
+        bypass_data.tag.tag <= v.e.write_tag.tag;
+        bypass_data.data <= v.e.write_data;
 
         exception_log <= exception;
         irq_valid_log <= irq_valid;

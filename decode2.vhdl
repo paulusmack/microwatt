@@ -38,7 +38,8 @@ entity decode2 is
         c_in  : in CrFileToDecode2Type;
         c_out : out Decode2ToCrFileType;
 
-        execute_next_tag : in value_tag_t;
+        execute_bypass   : in bypass_data_t;
+        loadstore_bypass : in bypass_data_t;
 
         log_out : out std_ulogic_vector(9 downto 0)
 	);
@@ -407,16 +408,16 @@ architecture behaviour of decode2 is
     signal update_gpr_write_reg : gspr_index_t;
 
     signal gpr_a_read_valid : std_ulogic;
-    signal gpr_a_read :gspr_index_t;
-    signal gpr_a_bypass : std_ulogic;
+    signal gpr_a_read       : gspr_index_t;
+    signal gpr_a_bypass     : std_ulogic_vector(1 downto 0);
 
     signal gpr_b_read_valid : std_ulogic;
-    signal gpr_b_read : gspr_index_t;
-    signal gpr_b_bypass : std_ulogic;
+    signal gpr_b_read       : gspr_index_t;
+    signal gpr_b_bypass     : std_ulogic_vector(1 downto 0);
 
     signal gpr_c_read_valid : std_ulogic;
-    signal gpr_c_read : gspr_index_t;
-    signal gpr_c_bypass : std_ulogic;
+    signal gpr_c_read       : gspr_index_t;
+    signal gpr_c_bypass     : std_ulogic_vector(1 downto 0);
 
     signal cr_write_valid  : std_ulogic;
     signal cr_bypass       : std_ulogic;
@@ -460,7 +461,8 @@ begin
             gpr_c_read_in        => gpr_c_read,
 
             gpr_writing_tag      => r_in.write_tag,
-            execute_next_tag     => execute_next_tag,
+            execute_next_tag     => execute_bypass.tag,
+            loadstore_next_tag   => loadstore_bypass.tag,
 
             cr_read_in           => d_in.decode.input_cr,
             cr_write_in          => cr_write_valid,
@@ -599,13 +601,7 @@ begin
         v.e.fac := d_in.decode.facility;
         v.e.insn_type := d_in.decode.insn_type;
         v.e.read_reg1 := decoded_reg_a.reg;
-        v.e.read_data1 := decoded_reg_a.data;
-        v.e.bypass_data1 := gpr_a_bypass;
         v.e.read_reg2 := decoded_reg_b.reg;
-        v.e.read_data2 := decoded_reg_b.data;
-        v.e.bypass_data2 := gpr_b_bypass;
-        v.e.read_data3 := decoded_reg_c.data;
-        v.e.bypass_data3 := gpr_c_bypass;
         v.e.write_reg := decoded_reg_o.reg;
         v.e.write_reg_enable := decoded_reg_o.reg_valid;
         v.e.write_tag := gpr_write_tag;
@@ -675,6 +671,32 @@ begin
             v.e.need_fac_vsx := '1';
         end if;
 
+        -- See if any of the operands can get their value via the bypass path.
+        case gpr_a_bypass is
+            when "01" =>
+                v.e.read_data1 := execute_bypass.data;
+            when "10" =>
+                v.e.read_data1 := loadstore_bypass.data;
+            when others =>
+                v.e.read_data1 := decoded_reg_a.data;
+        end case;
+        case gpr_b_bypass is
+            when "01" =>
+                v.e.read_data2 := execute_bypass.data;
+            when "10" =>
+                v.e.read_data2 := loadstore_bypass.data;
+            when others =>
+                v.e.read_data2 := decoded_reg_b.data;
+        end case;
+        case gpr_c_bypass is
+            when "01" =>
+                v.e.read_data3 := execute_bypass.data;
+            when "10" =>
+                v.e.read_data3 := loadstore_bypass.data;
+            when others =>
+                v.e.read_data3 := decoded_reg_c.data;
+        end case;
+
         -- issue control
         control_valid_in <= d_in.valid;
         control_sgl_pipe <= d_in.decode.sgl_pipe;
@@ -733,9 +755,9 @@ begin
                             r.e.valid &
                             stopped_out &
                             stall_out &
-                            r.e.bypass_data3 &
-                            r.e.bypass_data2 &
-                            r.e.bypass_data1;
+                            (or (gpr_a_bypass)) &
+                            (or (gpr_b_bypass)) &
+                            (or (gpr_c_bypass));
             end if;
         end process;
         log_out <= log_data;

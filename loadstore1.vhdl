@@ -25,6 +25,7 @@ entity loadstore1 is
         l_in  : in Execute1ToLoadstore1Type;
         e_out : out Loadstore1ToExecute1Type;
         l_out : out Loadstore1ToWritebackType;
+        bypass_data : out bypass_data_t;
 
         d_out : out Loadstore1ToDcacheType;
         d_in  : in DcacheToLoadstore1Type;
@@ -1056,6 +1057,11 @@ begin
                 v.dsisr := dsisr;
             end if;
         end if;
+
+        -- bypass data path back to decode2
+        bypass_data.data <= v.write_data;
+        bypass_data.tag.valid <= v.write_tag.valid and v.write_enable;
+        bypass_data.tag.tag <= v.write_tag.tag;
 
         -- Busy calculation.
         stage3_busy_next <= r2.req.valid and (r2.req.dc_req or r2.req.mmu_op) and

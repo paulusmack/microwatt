@@ -561,6 +561,11 @@ begin
                     decoded_reg_a.reg(0) := not r.repeat;
                     decoded_reg_b.reg(0) := not r.repeat;
                     decoded_reg_o.reg(0) := not r.repeat;
+                when DUPD =>
+                    -- update-form loads, 2nd instruction writes RA
+                    if r.repeat = '1' then
+                        decoded_reg_o.reg := decoded_reg_a.reg;
+                    end if;
                 when others =>
             end case;
         end if;
@@ -703,13 +708,9 @@ begin
 
         gpr_write_valid <= v.e.write_reg_enable;
         gpr_write <= decoded_reg_o.reg;
-        update_gpr_write_valid <= d_in.decode.update;
-        update_gpr_write_reg <= decoded_reg_a.reg;
-        if v.e.lr = '1' then
-            -- there are no instructions that have both update=1 and lr=1
-            update_gpr_write_valid <= '1';
-            update_gpr_write_reg <= fast_spr_num(SPR_LR);
-        end if;
+
+        update_gpr_write_valid <= v.e.lr;
+        update_gpr_write_reg <= fast_spr_num(SPR_LR);
 
         gpr_a_read_valid <= decoded_reg_a.reg_valid;
         gpr_a_read <= decoded_reg_a.reg;

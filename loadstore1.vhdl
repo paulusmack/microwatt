@@ -49,8 +49,7 @@ architecture behave of loadstore1 is
     type state_t is (IDLE,              -- ready for instruction
                      MMU_LOOKUP,        -- waiting for MMU to look up translation
                      TLBIE_WAIT,        -- waiting for MMU to finish doing a tlbie
-                     FINISH_LFS,        -- write back converted SP data for lfs*
-                     COMPLETE           -- extra cycle to complete an operation
+                     FINISH_LFS         -- write back converted SP data for lfs*
                      );
 
     type byte_index_t is array(0 to 7) of unsigned(2 downto 0);
@@ -69,6 +68,7 @@ architecture behave of loadstore1 is
         mmu_op       : std_ulogic;
         instr_fault  : std_ulogic;
         load_zero    : std_ulogic;
+        do_update    : std_ulogic;
         noop         : std_ulogic;
         mode_32bit   : std_ulogic;
 	addr         : std_ulogic_vector(63 downto 0);
@@ -86,8 +86,6 @@ architecture behave of loadstore1 is
         is_vsx       : std_ulogic;
         left_justify : std_ulogic;
 	update       : std_ulogic;
-	update_reg   : gpr_index_t;
-        update_tag   : value_tag_t;
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
         atomic       : std_ulogic;
@@ -105,23 +103,22 @@ architecture behave of loadstore1 is
         word_splat   : std_ulogic;
         dword_index  : std_ulogic;
         two_dwords   : std_ulogic;
-        extra_cycle  : std_ulogic;
     end record;
     constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0', tlbie => '0',
                                           dcbz => '0', read_spr => '0', write_spr => '0', mmu_op => '0',
-                                          instr_fault => '0', load_zero => '0', noop => '0',
+                                          instr_fault => '0', load_zero => '0', do_update => '0', noop => '0',
                                           mode_32bit => '0', addr => (others => '0'), addr0 => (others => '0'),
                                           byte_sel => x"00", second_bytes => x"00",
                                           store_data => (others => '0'), write_reg => x"00", write_tag => value_tag_init,
                                           length => x"0", elt_length => x"0", byte_reverse => '0', brev_mask => "000",
                                           sign_extend => '0', is_vsx => '0', left_justify => '0',
-                                          update => '0', update_reg => 5x"00", update_tag => value_tag_init,
+                                          update => '0',
                                           xerc => xerc_init, reserve => '0',
                                           atomic => '0', atomic_last => '0', rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
                                           sprn => 10x"0", is_slbia => '0', align_intr => '0',
                                           use_splat => '0', do_splat => '0', word_splat => '0',
-                                          dword_index => '0', two_dwords => '0', extra_cycle => '0');
+                                          dword_index => '0', two_dwords => '0');
 
     type reg_stage1_t is record
         req : request_t;
@@ -148,7 +145,6 @@ architecture behave of loadstore1 is
         splat_data   : std_ulogic_vector(63 downto 0);
         dar          : std_ulogic_vector(63 downto 0);
         dsisr        : std_ulogic_vector(31 downto 0);
-        do_update    : std_ulogic;
         ld_sp_data   : std_ulogic_vector(31 downto 0);
         ld_sp_nz     : std_ulogic;
         ld_sp_lz     : std_ulogic_vector(5 downto 0);
@@ -276,7 +272,6 @@ begin
                 r3.state <= IDLE;
                 r3.complete <= '0';
                 r3.write_enable <= '0';
-                r3.do_update <= '0';
                 r3.stage1_en <= '1';
                 busy <= '0';
             else
@@ -380,8 +375,6 @@ begin
         v.byte_reverse := l_in.byte_reverse;
         v.sign_extend := l_in.sign_extend;
         v.update := l_in.update;
-        v.update_reg := l_in.update_reg;
-        v.update_tag := l_in.update_tag;
         v.xerc := l_in.xerc;
         v.reserve := l_in.reserve;
         v.rc := l_in.rc;
@@ -455,9 +448,15 @@ begin
         if l_in.op = OP_DCBZ then
             addr(6) := l_in.second;
         elsif l_in.second = '1' then
-            -- for the second half of a 16-byte transfer,
-            -- use the previous address plus 8.
-            addr := std_ulogic_vector(unsigned(r1.req.addr0(63 downto 3)) + 1) & r1.req.addr0(2 downto 0);
+            if l_in.update = '0' then
+                -- for the second half of a 16-byte transfer,
+                -- use the previous address plus 8.
+                addr := std_ulogic_vector(unsigned(r1.req.addr0(63 downto 3)) + 1) & r1.req.addr0(2 downto 0);
+            else
+                -- for an update-form load, use the previous address
+                -- as the value to write back to RA.
+                addr := r1.req.addr0;
+            end if;
         end if;
         if l_in.mode_32bit = '1' then
             addr(63 downto 32) := (others => '0');
@@ -497,7 +496,7 @@ begin
         -- check alignment for larx/stcx
         misaligned := or (addr_mask and addr(2 downto 0));
         v.align_intr := l_in.reserve and misaligned;
-        if l_in.repeat = '1' and l_in.second = '0' and addr(3) = '1' then
+        if l_in.repeat = '1' and l_in.second = '0' and l_in.update = '0' and addr(3) = '1' then
             -- length is really 16 not 8
             -- Make misaligned lq cause an alignment interrupt in LE mode,
             -- in order to avoid the case with RA = RT + 1 where the second half
@@ -516,20 +515,21 @@ begin
             when OP_STORE | OP_VRSTORE | OP_VSXST =>
                 v.store := '1';
             when OP_LOAD | OP_VRLOAD | OP_VSXLDV =>
-                v.load := '1';
-                -- Allow an extra cycle for RA update on loads
-                v.extra_cycle := l_in.update;
-                if HAS_FPU and l_in.is_32bit = '1' then
-                    -- Allow an extra cycle for SP->DP precision conversion
-                    v.load_sp := '1';
-                    v.extra_cycle := '1';
+                if l_in.update = '0' or l_in.second = '0' then
+                    v.load := '1';
+                    if HAS_FPU and l_in.is_32bit = '1' then
+                        -- Allow an extra cycle for SP->DP precision conversion
+                        v.load_sp := '1';
+                    end if;
+                else
+                    -- write back address to RA
+                    v.do_update := '1';
                 end if;
             when OP_VSXLDS =>
                 if HAS_VECVSX then
                     if v.length /= "0000" then
                         v.load := '1';
                         v.load_sp := l_in.is_32bit;
-                        v.extra_cycle := l_in.is_32bit;
                     else
                         v.load_zero := '1';
                     end if;
@@ -741,6 +741,7 @@ begin
         write_enable := '0';
         wr_sel := "11";
         sprval := (others => '0');
+        do_update := '0';
 
         -- load data formatting
         -- shift and byte-reverse data bytes
@@ -850,33 +851,26 @@ begin
                 write_enable := '1';
                 done := '1';
             end if;
+            if r2.req.do_update = '1' then
+                do_update := '1';
+                done := '1';
+            end if;
             if r2.req.noop = '1' then
                 done := '1';
             end if;
         end if;
-
-        do_update := r3.do_update;
-        v.do_update := '0';
 
         case r3.state is
         when IDLE =>
             if d_in.valid = '1' then
                 if r2.req.two_dwords = '0' or r2.req.dword_index = '1' then
                     write_enable := r2.req.load and not r2.req.load_sp;
-                    if r2.req.extra_cycle = '1' then
-                        if HAS_FPU and r2.req.load_sp = '1' then
-                            -- SP to DP conversion takes a cycle
-                            -- Write back rA update in this cycle if needed
-                            do_update := r2.req.update;
-                            v.state := FINISH_LFS;
-                        else
-                            -- loads with rA update need an extra cycle
-                            v.state := COMPLETE;
-                            v.do_update := r2.req.update;
-                        end if;
+                    if HAS_FPU and r2.req.load_sp = '1' then
+                        -- SP to DP conversion takes a cycle
+                        v.state := FINISH_LFS;
                     else
                         -- stores write back rA update in this cycle
-                        do_update := r2.req.update;
+                        do_update := r2.req.update and r2.req.store;
                         done := '1';
                     end if;
                 else
@@ -950,9 +944,6 @@ begin
             write_enable := '1';
             done := '1';
 
-        when COMPLETE =>
-            done := '1';
-
         end case;
 
         if done = '1' or exception = '1' then
@@ -966,8 +957,6 @@ begin
         v.write_tag := r2.req.write_tag;
         if do_update = '1' then
             wr_sel := "01";
-            v.write_reg := gpr_to_gspr(r2.req.update_reg);
-            v.write_tag := r2.req.update_tag;
         end if;
         case wr_sel is
         when "00" =>

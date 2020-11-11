@@ -68,7 +68,8 @@ package decode_types is
                       DRT,       -- double RT
                       DRTE,      -- double RT, endian twist
                       DABCT,     -- double RA, RB, RC, RT
-                      DABTR);    -- double RA, RB, RT, ls then ms
+                      DABTR,     -- double RA, RB, RT, ls then ms
+                      DUPD);     -- update-form load
 
     type decode_rom_t is record
 	unit         : unit_t;

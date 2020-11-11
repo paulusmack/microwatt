@@ -409,7 +409,6 @@ architecture behaviour of decode2 is
     signal cr_bypass_avail : std_ulogic;
 
     signal gpr_write_tag  : value_tag_t;
-    signal ugpr_write_tag : value_tag_t;
 
 begin
     control_0: entity work.control
@@ -432,9 +431,6 @@ begin
 
             gpr_write_valid_in => gpr_write_valid,
             gpr_write_in       => gpr_write,
-
-            update_gpr_write_valid => '0',
-            update_gpr_write_reg => x"00",
 
             gpr_a_read_valid_in  => gpr_a_read_valid,
             gpr_a_read_in        => gpr_a_read,
@@ -462,8 +458,7 @@ begin
             gpr_bypass_b => gpr_b_bypass,
             gpr_bypass_c => gpr_c_bypass,
 
-            gpr_write_tag => gpr_write_tag,
-            ugpr_write_tag => ugpr_write_tag
+            gpr_write_tag => gpr_write_tag
             );
 
     deferred <= r.e.valid and busy_in;
@@ -639,7 +634,6 @@ begin
         v.e.byte_reverse := d_in.decode.byte_reverse;
         v.e.sign_extend := d_in.decode.sign_extend;
         v.e.update := d_in.decode.update;
-        v.e.ugpr_write_tag := ugpr_write_tag;
         v.e.reserve := d_in.decode.reserve;
         v.e.br_pred := d_in.br_pred;
         v.e.result_sel := result_select(op);

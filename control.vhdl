@@ -25,9 +25,6 @@ entity control is
         gpr_write_valid_in  : in std_ulogic;
         gpr_write_in        : in gspr_index_t;
 
-        update_gpr_write_valid : in std_ulogic;
-        update_gpr_write_reg : in gspr_index_t;
-
         gpr_a_read_valid_in : in std_ulogic;
         gpr_a_read_in       : in gspr_index_t;
 
@@ -54,8 +51,7 @@ entity control is
         gpr_bypass_c        : out std_ulogic_vector(1 downto 0);
         cr_bypass           : out std_ulogic;
 
-        gpr_write_tag       : out value_tag_t;
-        ugpr_write_tag      : out value_tag_t
+        gpr_write_tag       : out value_tag_t
         );
 end entity control;
 
@@ -87,10 +83,7 @@ architecture rtl of control is
     type tag_regs_array is array(tag_number_t) of tag_register;
     signal tag_regs : tag_regs_array;
 
-    signal update_gpr_write : std_ulogic;
-
     signal write_tag  : value_tag_t;
-    signal update_tag : value_tag_t;
 
     signal gpr_tag_stall : std_ulogic;
 
@@ -131,14 +124,9 @@ begin
                     tag_regs(i).reg <= gpr_write_in;
                     tag_regs(i).valid <= '1';
                     tag_regs(i).recent <= '1';
-                elsif update_tag.valid = '1' and i = update_tag.tag then
-                    tag_regs(i).reg <= update_gpr_write_reg;
-                    tag_regs(i).valid <= '1';
-                    tag_regs(i).recent <= '1';
                 elsif gpr_writing_tag.valid = '1' and i = gpr_writing_tag.tag then
                     tag_regs(gpr_writing_tag.tag).valid <= '0';
-                elsif (write_tag.valid = '1' and tag_regs(i).reg = gpr_write_in) or
-                    (update_tag.valid = '1' and tag_regs(i).reg = update_gpr_write_reg) then
+                elsif write_tag.valid = '1' and tag_regs(i).reg = gpr_write_in then
                     tag_regs(i).recent <= '0';
                 end if;
             end loop;
@@ -226,14 +214,8 @@ begin
         if write_tag.valid = '1' then
             incr_tag := (curr_tag + 1) mod TAG_COUNT;
         end if;
-        update_tag.tag <= incr_tag;
-        update_tag.valid <= update_gpr_write and valid_out and not deferred;
-        if update_tag.valid = '1' then
-            incr_tag := (incr_tag + 1) mod TAG_COUNT;
-        end if;
         next_tag <= incr_tag;
         gpr_write_tag <= write_tag;
-        ugpr_write_tag <= update_tag;
     end process;
 
     control1 : process(all)
@@ -320,7 +302,6 @@ begin
         end if;
 
         gpr_write_valid <= gpr_write_valid_in and valid_tmp;
-        update_gpr_write <= update_gpr_write_valid and valid_tmp;
         cr_write_valid <= cr_write_in and valid_tmp;
 
         if valid_tmp = '1' and deferred = '0' then

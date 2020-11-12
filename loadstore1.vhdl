@@ -91,6 +91,7 @@ architecture behave of loadstore1 is
         atomic       : std_ulogic;
         atomic_last  : std_ulogic;
         rc           : std_ulogic;
+        write_cr_tag : value_tag_t;
         nc           : std_ulogic;              -- non-cacheable access
         virt_mode    : std_ulogic;
         priv_mode    : std_ulogic;
@@ -112,7 +113,7 @@ architecture behave of loadstore1 is
                                           store_data => (others => '0'), write_reg => x"00", write_tag => value_tag_init,
                                           length => x"0", elt_length => x"0", byte_reverse => '0', brev_mask => "000",
                                           sign_extend => '0', is_vsx => '0', left_justify => '0',
-                                          update => '0',
+                                          update => '0', write_cr_tag => value_tag_init,
                                           xerc => xerc_init, reserve => '0',
                                           atomic => '0', atomic_last => '0', rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
@@ -139,6 +140,7 @@ architecture behave of loadstore1 is
         write_tag    : value_tag_t;
         write_data   : std_ulogic_vector(63 downto 0);
         rc           : std_ulogic;
+        write_cr_tag : value_tag_t;
         xerc         : xer_common_t;
         store_done   : std_ulogic;
         load_data    : std_ulogic_vector(63 downto 0);
@@ -378,6 +380,7 @@ begin
         v.xerc := l_in.xerc;
         v.reserve := l_in.reserve;
         v.rc := l_in.rc;
+        v.write_cr_tag := l_in.write_cr_tag;
         v.nc := l_in.ci;
         v.virt_mode := l_in.virt_mode;
         v.priv_mode := l_in.priv_mode;
@@ -974,6 +977,7 @@ begin
         end case;
         v.xerc := r2.req.xerc;
         v.rc := r2.req.rc;
+        v.write_cr_tag := r2.req.write_cr_tag;
         v.store_done := d_in.store_done;
 
         -- Update outputs to dcache
@@ -1028,6 +1032,7 @@ begin
         l_out.write_data <= r3.write_data;
         l_out.xerc <= r3.xerc;
         l_out.rc <= r3.rc and r3.complete;
+        l_out.write_cr_tag <= r3.write_cr_tag;
         l_out.store_done <= r3.store_done;
 
         -- update exception info back to execute1

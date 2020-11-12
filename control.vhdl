@@ -35,12 +35,13 @@ entity control is
         gpr_c_read_in       : in gspr_index_t;
 
         gpr_writing_tag     : in value_tag_t;
+        cr_writing_tag      : in value_tag_t;
         execute_next_tag    : in value_tag_t;
+        execute_next_cr_tag : in value_tag_t;
         loadstore_next_tag  : in value_tag_t;
 
         cr_read_in          : in std_ulogic;
         cr_write_in         : in std_ulogic;
-        cr_bypassable       : in std_ulogic;
 
         valid_out           : out std_ulogic;
         stall_out           : out std_ulogic;
@@ -51,7 +52,8 @@ entity control is
         gpr_bypass_c        : out std_ulogic_vector(1 downto 0);
         cr_bypass           : out std_ulogic;
 
-        gpr_write_tag       : out value_tag_t
+        gpr_write_tag       : out value_tag_t;
+        cr_write_tag        : out value_tag_t
         );
 end entity control;
 
@@ -66,11 +68,6 @@ architecture rtl of control is
 
     signal r_int, rin_int : reg_internal_type := reg_internal_init;
 
-    signal stall_a_out  : std_ulogic;
-    signal stall_b_out  : std_ulogic;
-    signal stall_c_out  : std_ulogic;
-    signal cr_stall_out : std_ulogic;
-
     signal gpr_write_valid : std_ulogic := '0';
     signal cr_write_valid  : std_ulogic := '0';
 
@@ -84,33 +81,20 @@ architecture rtl of control is
     signal tag_regs : tag_regs_array;
 
     signal write_tag  : value_tag_t;
+    signal cr_wr_tag  : value_tag_t;
 
     signal gpr_tag_stall : std_ulogic;
+    signal cr_tag_stall  : std_ulogic;
 
     signal curr_tag : tag_number_t;
     signal next_tag : tag_number_t;
 
+    signal curr_cr_tag : tag_number_t;
+    signal next_cr_tag : tag_number_t;
+
+    signal cr_tags : std_ulogic_vector(tag_number_t);
+
 begin
-    cr_hazard0: entity work.cr_hazard
-        generic map (
-            PIPELINE_DEPTH => PIPELINE_DEPTH
-            )
-        port map (
-            clk                => clk,
-            busy_in            => busy_in,
-	    deferred           => deferred,
-            complete_in        => complete_in,
-            flush_in           => flush_in,
-            issuing            => valid_out,
-
-            cr_read_in         => cr_read_in,
-            cr_write_in        => cr_write_valid,
-            bypassable         => cr_bypassable,
-
-            stall_out          => cr_stall_out,
-            use_bypass         => cr_bypass
-            );
-
     control0: process(clk)
     begin
         if rising_edge(clk) then
@@ -129,17 +113,26 @@ begin
                 elsif write_tag.valid = '1' and tag_regs(i).reg = gpr_write_in then
                     tag_regs(i).recent <= '0';
                 end if;
+
+                if rst = '1' or flush_in = '1' then
+                    cr_tags(i) <= '0';
+                elsif cr_wr_tag.valid = '1' and i = cr_wr_tag.tag then
+                    cr_tags(i) <= '1';
+                elsif cr_writing_tag.valid = '1' and i = cr_writing_tag.tag then
+                    cr_tags(i) <= '0';
+                end if;
             end loop;
             if rst = '1' then
                 curr_tag <= 0;
+                curr_cr_tag <= 0;
             else
                 curr_tag <= next_tag;
+                curr_cr_tag <= next_cr_tag;
             end if;
         end if;
     end process;
 
     control_hazards : process(all)
-        variable gpr_stall : std_ulogic;
         variable tag_a : value_tag_t;
         variable tag_b : value_tag_t;
         variable tag_c : value_tag_t;
@@ -149,7 +142,11 @@ begin
         variable byp_a : std_ulogic_vector(1 downto 0);
         variable byp_b : std_ulogic_vector(1 downto 0);
         variable byp_c : std_ulogic_vector(1 downto 0);
+        variable tag_cr : value_tag_t;
+        variable byp_cr : std_ulogic;
+        variable tag_cw : value_tag_t;
     begin
+        -- GSPR hazards
         tag_a := value_tag_init;
         for i in tag_number_t loop
             if tag_regs(i).valid = '1' and tag_regs(i).recent = '1' and tag_regs(i).reg = gpr_a_read_in then
@@ -216,6 +213,30 @@ begin
         end if;
         next_tag <= incr_tag;
         gpr_write_tag <= write_tag;
+
+        -- CR hazards
+        tag_cr.tag := curr_cr_tag;
+        tag_cr.valid := cr_read_in and cr_tags(curr_cr_tag);
+        if tag_match(tag_cr, cr_writing_tag) then
+            tag_cr.valid := '0';
+        end if;
+        byp_cr := '0';
+        if EX1_BYPASS and tag_match(execute_next_cr_tag, tag_cr) then
+            byp_cr := '1';
+        end if;
+
+        cr_bypass <= byp_cr;
+        cr_tag_stall <= tag_cr.valid and not byp_cr;
+
+        tag_cw.tag := (curr_cr_tag + 1) mod TAG_COUNT;
+        tag_cw.valid := cr_write_valid and valid_out and not deferred;
+        if tag_cw.valid = '1' then
+            next_cr_tag <= tag_cw.tag;
+        else
+            next_cr_tag <= curr_cr_tag;
+        end if;
+        cr_write_tag <= tag_cw;
+        cr_wr_tag <= tag_cw;
     end process;
 
     control1 : process(all)
@@ -262,7 +283,7 @@ begin
                         end if;
                     else
                         -- let it go out if there are no GPR or CR hazards
-                        stall_tmp := gpr_tag_stall or cr_stall_out;
+                        stall_tmp := gpr_tag_stall or cr_tag_stall;
                     end if;
                 end if;
 
@@ -289,7 +310,7 @@ begin
                             end if;
                         else
                             -- let it go out if there are no GPR or CR hazards
-                            stall_tmp := gpr_tag_stall or cr_stall_out;
+                            stall_tmp := gpr_tag_stall or cr_tag_stall;
                         end if;
                     end if;
                 else

@@ -596,6 +596,7 @@ begin
             v.w.write_reg := e_in.e.write_reg;
             v.w.write_tag := e_in.e.write_tag;
             v.writes := e_in.e.write_reg_enable;
+            v.w.write_cr_tag := e_in.e.write_cr_tag;
             case e_in.e.insn_type is
             when OP_VPERM | OP_VPACK | OP_VMERGE | OP_XPERM | OP_VBPERM | OP_VMINMAX |
                 OP_VSHIFT | OP_VSHOCT =>
@@ -1108,6 +1109,7 @@ begin
         w_out.write_tag <= vst.w.write_tag;
         w_out.write_data <= vec_result;
         w_out.write_cr_enable <= vst.w.write_cr_enable;
+        w_out.write_cr_tag <= vst.w.write_cr_tag;
         w_out.write_cr_mask <= num_to_fxm(6);
         w_out.write_cr_data <= x"000000" & vec_cr6 & x"0";
 

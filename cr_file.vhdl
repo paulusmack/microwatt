@@ -61,7 +61,8 @@ begin
     begin
         if rising_edge(clk) then
             if w_in.write_cr_enable = '1' then
-                report "Writing " & to_hstring(w_in.write_cr_data) & " to CR mask " & to_hstring(w_in.write_cr_mask);
+                report "Writing " & to_hstring(w_in.write_cr_data) & " to CR mask " & to_hstring(w_in.write_cr_mask) &
+                    " tag " & integer'image(w_in.write_cr_tag.tag) & std_ulogic'image(w_in.write_cr_tag.valid);
 		crs <= crs_updated;
             end if;
 	    if w_in.write_xerc_enable = '1' then
@@ -80,6 +81,8 @@ begin
         end if;
         d_out.read_cr_data <= crs_updated;
         d_out.read_xerc_data <= xerc_updated;
+        d_out.write_tag.tag <= w_in.write_cr_tag.tag;
+        d_out.write_tag.valid <= w_in.write_cr_tag.valid and w_in.write_cr_enable;
     end process;
 
     sim_dump_test: if SIM generate

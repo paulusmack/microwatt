@@ -79,6 +79,7 @@ architecture behaviour of fpu is
         dest_tag     : value_tag_t;
         fe_mode      : std_ulogic;
         rc           : std_ulogic;
+        write_cr_tag : value_tag_t;
         is_cmp       : std_ulogic;
         single_prec  : std_ulogic;
         fpscr        : std_ulogic_vector(31 downto 0);
@@ -580,6 +581,7 @@ begin
     w_out.write_tag <= r.dest_tag;
     w_out.write_data <= fp_result;
     w_out.write_cr_enable <= r.instr_done and (r.rc or r.is_cmp);
+    w_out.write_cr_tag <= r.write_cr_tag;
     w_out.write_cr_mask <= r.cr_mask;
     w_out.write_cr_data <= r.cr_result & r.cr_result & r.cr_result & r.cr_result &
                            r.cr_result & r.cr_result & r.cr_result & r.cr_result;
@@ -652,6 +654,7 @@ begin
             v.longmask := e_in.single;
             v.int_result := '0';
             v.rc := e_in.rc;
+            v.write_cr_tag := e_in.wcr_tag;
             v.is_cmp := e_in.out_cr;
             if e_in.out_cr = '0' then
                 v.cr_mask := num_to_fxm(1);

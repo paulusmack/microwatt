@@ -41,6 +41,7 @@ entity execute1 is
 
 	e_out : out Execute1ToWritebackType;
         bypass_data : out bypass_data_t;
+        bypass_cr_data : out cr_bypass_data_t;
 
         dbg_msr_out : out std_ulogic_vector(63 downto 0);
 
@@ -394,15 +395,7 @@ begin
 	    v.e.xerc := e_in.xerc;
 	end if;
 
-        -- CR forwarding
         cr_in <= e_in.cr;
-        if EX1_BYPASS and e_in.bypass_cr = '1' and r.e.write_cr_enable = '1' then
-            for i in 0 to 7 loop
-                if r.e.write_cr_mask(i) = '1' then
-                    cr_in(i * 4 + 3 downto i * 4) <= r.e.write_cr_data(i * 4 + 3 downto i * 4);
-                end if;
-            end loop;
-        end if;
 
 	v.mul_in_progress := '0';
         v.div_in_progress := '0';
@@ -1295,6 +1288,7 @@ begin
         v.e.write_tag := current.write_tag;
 	v.e.write_enable := current.write_reg_enable and v.e.valid and not exception;
         v.e.rc := current.rc and v.e.valid and not exception;
+        v.e.write_cr_tag := current.write_cr_tag;
 
         -- Defer completion for one cycle when redirecting.
         -- This also ensures r.busy = 1 when ctrl.irq_state = WRITE_SRR1
@@ -1321,6 +1315,7 @@ begin
         lv.xerc := v.e.xerc;
         lv.reserve := e_in.reserve;
         lv.rc := e_in.rc;
+        lv.write_cr_tag := e_in.write_cr_tag;
         lv.insn := e_in.insn;
         -- decode l*cix and st*cix instructions here
         if e_in.insn(31 downto 26) = "011111" and e_in.insn(10 downto 9) = "11" and
@@ -1347,6 +1342,7 @@ begin
         fv.wr_tag := e_in.write_tag;
         fv.rc := e_in.rc;
         fv.out_cr := e_in.output_cr;
+        fv.wcr_tag := e_in.write_cr_tag;
 
         -- Outputs to vector unit
         vv.e := e_in;
@@ -1368,6 +1364,11 @@ begin
         bypass_data.tag.valid <= v.e.write_tag.valid and v.e.write_enable;
         bypass_data.tag.tag <= v.e.write_tag.tag;
         bypass_data.data <= v.e.write_data;
+
+        bypass_cr_data.tag.valid <= v.e.write_cr_tag.valid and v.e.write_cr_enable;
+        bypass_cr_data.tag.tag <= v.e.write_cr_tag.tag;
+        bypass_cr_data.data <= v.e.write_cr_data;
+        bypass_cr_data.mask <= v.e.write_cr_mask;
 
         exception_log <= exception;
         irq_valid_log <= irq_valid;

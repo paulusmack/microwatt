@@ -84,6 +84,7 @@ begin
 
             if e_in.write_cr_enable = '1' then
                 c_out.write_cr_enable <= '1';
+                c_out.write_cr_tag <= e_in.write_cr_tag;
                 c_out.write_cr_mask <= e_in.write_cr_mask;
                 c_out.write_cr_data <= e_in.write_cr_data;
             end if;
@@ -102,6 +103,7 @@ begin
 
             if fp_in.write_cr_enable = '1' then
                 c_out.write_cr_enable <= '1';
+                c_out.write_cr_tag <= fp_in.write_cr_tag;
                 c_out.write_cr_mask <= fp_in.write_cr_mask;
                 c_out.write_cr_data <= fp_in.write_cr_data;
             end if;
@@ -114,6 +116,7 @@ begin
             end if;
             if v_in.write_cr_enable = '1' then
                 c_out.write_cr_enable <= '1';
+                c_out.write_cr_tag <= v_in.write_cr_tag;
                 c_out.write_cr_mask <= v_in.write_cr_mask;
                 c_out.write_cr_data <= v_in.write_cr_data;
             end if;
@@ -132,6 +135,7 @@ begin
                 scf(1) := l_in.store_done;
                 scf(0) := l_in.xerc.so;
                 c_out.write_cr_enable <= '1';
+                c_out.write_cr_tag <= l_in.write_cr_tag;
                 c_out.write_cr_mask <= num_to_fxm(0);
                 c_out.write_cr_data(31 downto 28) <= scf;
             end if;
@@ -147,6 +151,7 @@ begin
                     sign := e_in.write_data(31);
                 end if;
                 c_out.write_cr_enable <= '1';
+                c_out.write_cr_tag <= e_in.write_cr_tag;
                 c_out.write_cr_mask <= num_to_fxm(0);
                 cf(3) := sign;
                 cf(2) := not sign and not zero;

@@ -15,7 +15,7 @@ architecture behave of multiply_tb is
     signal clk              : std_ulogic;
     constant clk_period     : time := 10 ns;
 
-    constant pipeline_depth : integer := 4;
+    constant pipeline_depth : integer := 17;
 
     signal m1               : MultiplyInputType := MultiplyInputInit;
     signal m2               : MultiplyOutputType;
@@ -31,7 +31,6 @@ architecture behave of multiply_tb is
 
 begin
     multiply_0: entity work.multiply
-        generic map (PIPELINE_DEPTH => pipeline_depth)
         port map (clk => clk, m_in => m1, m_out => m2);
 
     clk_process: process

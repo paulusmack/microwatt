@@ -394,6 +394,8 @@ begin
         variable decoded_reg_o : decode_output_reg_t;
         variable length : std_ulogic_vector(3 downto 0);
         variable op : insn_type_t;
+        variable illegal : std_ulogic;
+        variable spr : spr_num_t;
     begin
         v := r;
 
@@ -433,6 +435,55 @@ begin
             v.e.br_abs := insn_aa(d_in.insn) or d_in.insn(26);
         end if;
         op := d_in.decode.insn_type;
+
+        -- check for illegal instruction cases
+        illegal := '0';
+        if not HAS_FPU and d_in.decode.facility = FPU then
+            illegal := '1';
+        end if;
+        case d_in.decode.insn_type is
+            when OP_SC =>
+                -- check bit 1 of the instruction is 1 so we know this is sc;
+                -- 0 would mean scv, so generate an illegal instruction interrupt
+                if d_in.insn(1) = '0' then
+                    illegal := '1';
+                end if;
+            when OP_ATTN =>
+                -- check bits 1-10 of the instruction to make sure it's attn
+                -- if not then it is illegal
+                if d_in.insn(10 downto 1) /= "0100000000" then
+                    illegal := '1';
+                end if;
+            when OP_MFSPR =>
+                spr := decode_spr_num(d_in.insn);
+                if not (is_fast_spr(decoded_reg_a.reg) = '1' or is_valid_slow_spr(spr)) and
+                    d_in.insn(20) = '0' and
+                    (d_in.priv_mode = '0' or spr = 0 or spr = 4 or spr = 5 or spr = 6) then
+                    illegal := '1';
+                end if;
+            when OP_MTSPR =>
+                spr := decode_spr_num(d_in.insn);
+                if not (is_fast_spr(decoded_reg_o.reg) = '1' or is_valid_slow_spr(spr)) and
+                    d_in.insn(20) = '0' and
+                    (d_in.priv_mode = '0' or spr = 0 or spr = 4 or spr = 5 or spr = 6) then
+                    illegal := '1';
+                end if;
+            when OP_FPOP_I =>
+                if std_match(d_in.insn(10 downto 1), "1001000111") then
+                    -- mffs family, check flavour in bits 20..16
+                    case d_in.insn(20 downto 16) is
+                        when "00000" | "00001" | "10100" | "10101" |
+                             "10110" | "10111" | "11000" =>
+                            -- valid
+                        when others =>
+                            illegal := '1';
+                    end case;
+                end if;
+            when others =>
+        end case;
+        if d_in.decode.unit = NONE then
+            illegal := '1';
+        end if;
 
         if d_in.decode.repeat /= NONE then
             v.e.repeat := '1';
@@ -485,8 +536,15 @@ begin
 
         -- execute unit
         v.e.nia := d_in.nia;
-        v.e.unit := d_in.decode.unit;
-        v.e.fac := d_in.decode.facility;
+        if illegal = '0' then
+            v.e.unit := d_in.decode.unit;
+            v.e.fac := d_in.decode.facility;
+            v.e.insn_type := op;
+        else
+            v.e.unit := ALU;
+            v.e.fac := NONE;
+            v.e.insn_type := OP_ILLEGAL;
+        end if;
         v.e.instr_tag := instr_tag;
         v.e.read_reg1 := decoded_reg_a.reg;
         v.e.read_reg2 := decoded_reg_b.reg;
@@ -496,7 +554,6 @@ begin
         v.e.xerc := c_in.read_xerc_data;
         v.e.invert_a := d_in.decode.invert_a;
         v.e.addm1 := '0';
-        v.e.insn_type := op;
         v.e.invert_out := d_in.decode.invert_out;
         v.e.input_carry := d_in.decode.input_carry;
         v.e.output_carry := d_in.decode.output_carry;

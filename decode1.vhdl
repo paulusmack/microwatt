@@ -576,6 +576,7 @@ begin
         v.insn := f_in.insn;
         v.stop_mark := f_in.stop_mark;
         v.big_endian := f_in.big_endian;
+        v.priv_mode := f_in.priv_mode;
 
         if f_in.valid = '1' then
             report "Decode insn " & to_hstring(f_in.insn) & " at " & to_hstring(f_in.nia);

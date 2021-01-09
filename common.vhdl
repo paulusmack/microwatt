@@ -75,6 +75,7 @@ package common is
     -- numbers from 64 to 95.
     --
     function fast_spr_num(spr: spr_num_t) return gspr_index_t;
+    function is_valid_slow_spr(spr: spr_num_t) return boolean;
 
     -- Indices conversion functions
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t;
@@ -177,6 +178,7 @@ package common is
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(31 downto 0);
         big_endian: std_ulogic;
+        priv_mode: std_ulogic;
         next_predicted: std_ulogic;
     end record;
 
@@ -191,11 +193,12 @@ package common is
 	decode: decode_rom_t;
         br_pred: std_ulogic; -- Branch was predicted to be taken
         big_endian: std_ulogic;
+        priv_mode: std_ulogic;
     end record;
     constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
         (valid => '0', stop_mark => '0', nia => (others => '0'), insn => (others => '0'),
          ispr1 => (others => '0'), ispr2 => (others => '0'), ispro => (others => '0'),
-         decode => decode_rom_init, br_pred => '0', big_endian => '0');
+         decode => decode_rom_init, br_pred => '0', big_endian => '0', priv_mode => '0');
 
     type Decode1ToFetch1Type is record
         redirect     : std_ulogic;
@@ -645,6 +648,27 @@ package body common is
        end case;
        tmp := std_ulogic_vector(to_unsigned(n, 5));
        return "01" & tmp;
+    end;
+
+    function is_valid_slow_spr(spr: spr_num_t) return boolean is
+    begin
+        case spr is
+            when SPR_DSISR =>
+            when SPR_DAR =>
+            when SPR_TB =>
+            when SPR_TBU =>
+            when SPR_DEC =>
+            when SPR_CFAR =>
+            when SPR_PID =>
+            when SPR_PRTBL =>
+            when SPR_PVR =>
+            when 724 =>     -- LOG_ADDR
+            when 725 =>     -- LOG_DATA
+                -- the above are valid
+            when others =>
+                return false;
+        end case;
+        return true;
     end;
 
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t is

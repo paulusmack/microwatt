@@ -639,7 +639,6 @@ begin
         variable lv : Execute1ToLoadstore1Type;
 	variable irq_valid : std_ulogic;
 	variable exception : std_ulogic;
-        variable illegal : std_ulogic;
         variable is_branch : std_ulogic;
         variable is_direct_branch : std_ulogic;
         variable taken_branch : std_ulogic;
@@ -707,7 +706,6 @@ begin
 
         v.e.srr1 := (others => '0');
 	exception := '0';
-        illegal := '0';
         if valid_in = '1' then
             v.e.last_nia := e_in.nia;
         else
@@ -758,10 +756,6 @@ begin
                 v.e.srr1(47 - 45) := '1';
                 report "privileged instruction";
 
-            elsif not HAS_FPU and e_in.fac = FPU then
-                -- make lfd/stfd/lfs/stfs etc. illegal in no-FPU implementations
-                illegal := '1';
-
             elsif HAS_FPU and ctrl.msr(MSR_FP) = '0' and e_in.fac = FPU then
                 -- generate a floating-point unavailable interrupt
                 exception := '1';
@@ -770,37 +764,27 @@ begin
             end if;
         end if;
 
-	if valid_in = '1' and exception = '0' and illegal = '0' and e_in.unit = ALU then
+	if valid_in = '1' and exception = '0' and e_in.unit = ALU then
             v.cur_instr := e_in;
 	    v.e.valid := '1';
 
 	    case_0: case e_in.insn_type is
 
 	    when OP_ILLEGAL =>
-		-- we need two cycles to write srr0 and 1
-		-- will need more when we have to write HEIR
-		illegal := '1';
+                exception := '1';
+                v.e.intr_vec := 16#700#;
+                -- Since we aren't doing Hypervisor emulation assist (0xe40) we
+                -- set bit 44 to indicate we have an illegal
+                v.e.srr1(47 - 44) := '1';
+                report "illegal";
 	    when OP_SC =>
-		-- check bit 1 of the instruction is 1 so we know this is sc;
-                -- 0 would mean scv, so generate an illegal instruction interrupt
-		-- we need two cycles to write srr0 and 1
-                if e_in.insn(1) = '1' then
-                    exception := '1';
-                    v.e.intr_vec := 16#C00#;
-                    v.e.last_nia := next_nia;
-                    report "sc";
-                else
-                    illegal := '1';
-                end if;
+                exception := '1';
+                v.e.intr_vec := 16#C00#;
+                v.e.last_nia := next_nia;
+                report "sc";
 	    when OP_ATTN =>
-                -- check bits 1-10 of the instruction to make sure it's attn
-                -- if not then it is illegal
-                if e_in.insn(10 downto 1) = "0100000000" then
-                    v.terminate := '1';
-                    report "ATTN";
-                else
-                    illegal := '1';
-                end if;
+                v.terminate := '1';
+                report "ATTN";
 	    when OP_NOP | OP_DCBF | OP_DCBST | OP_DCBT | OP_DCBTST | OP_ICBT =>
 		-- Do nothing
 	    when OP_ADD =>
@@ -935,10 +919,7 @@ begin
                         v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
                     when others =>
                         -- mfspr from unimplemented SPRs should be a nop in
-                        -- supervisor mode and a program interrupt for user mode
-                        if is_fast_spr(e_in.read_reg1) = '0' and ctrl.msr(MSR_PR) = '1' then
-                            illegal := '1';
-                        end if;
+                        -- supervisor mode
                     end case;
                 end if;
                 spr_result <= spr_val;
@@ -989,10 +970,7 @@ begin
                         v.log_addr_spr := c_in(31 downto 0);
 		    when others =>
                         -- mtspr to unimplemented SPRs should be a nop in
-                        -- supervisor mode and a program interrupt for user mode
-                        if ctrl.msr(MSR_PR) = '1' then
-                            illegal := '1';
-                        end if;
+                        -- supervisor mode
 		    end case;
 		end if;
 	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR | OP_EXTSWSLI =>
@@ -1022,7 +1000,7 @@ begin
 
             when others =>
 		v.terminate := '1';
-		report "illegal";
+		report "unknown insn_type";
 	    end case;
 
             -- Mispredicted branches cause a redirect
@@ -1043,12 +1021,10 @@ begin
                 v.e.br_taken := taken_branch;
             end if;
 
-        elsif valid_in = '1' and exception = '0' and illegal = '0' then
+        elsif valid_in = '1' and exception = '0' then
             -- instruction for other units, i.e. LDST
             if e_in.unit = LDST then
                 lv.valid := '1';
-            elsif e_in.unit = NONE then
-                illegal := '1';
             elsif HAS_FPU and e_in.unit = FPU then
                 fv.valid := '1';
             end if;
@@ -1103,15 +1079,6 @@ begin
             end if;
             v.e.valid := '1';
 	end if;
-
-        if illegal = '1' then
-            exception := '1';
-            v.e.intr_vec := 16#700#;
-            -- Since we aren't doing Hypervisor emulation assist (0xe40) we
-            -- set bit 44 to indicate we have an illegal
-            v.e.srr1(47 - 44) := '1';
-            report "illegal";
-        end if;
 
         v.e.interrupt := exception;
 

@@ -25,6 +25,38 @@ void print_test_number(int i)
 	putchar(':');
 }
 
+#define TB	268
+
+static inline unsigned long mfspr(int sprnum)
+{
+	long val;
+
+	__asm__ volatile("mfspr %0,%1" : "=r" (val) : "i" (sprnum));
+	return val;
+}
+
+long read_time(int *p)
+{
+	long tb1, tb2;
+
+	tb1 = mfspr(TB);
+	*(volatile int *)p;
+	tb2 = mfspr(TB);
+	return tb2 - tb1;
+}
+
+long test_dcbf(void)
+{
+	int x = 0;
+	long crt, mrt;
+
+	read_time(&x);
+	crt = read_time(&x);
+	__asm__ volatile("dcbf 0,%0" : : "r" (&x));
+	mrt = read_time(&x);
+	return mrt < crt + 3;
+}
+
 int main(void)
 {
 	int fail = 0;
@@ -61,6 +93,13 @@ int main(void)
 
 	print_test_number(5);
 	if (test_bdnzl() != 0) {
+		fail = 1;
+		puts(FAIL);
+	} else
+		puts(PASS);
+
+	print_test_number(6);
+	if (test_dcbf() != 0) {
 		fail = 1;
 		puts(FAIL);
 	} else

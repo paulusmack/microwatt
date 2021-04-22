@@ -26,7 +26,7 @@ entity toplevel is
         LOG_LENGTH         : natural := 512;
         USE_LITEETH        : boolean  := false;
         UART_IS_16550      : boolean  := false;
-        HAS_UART1          : boolean  := true;
+        HAS_UART1          : boolean  := false;
         USE_LITESDCARD     : boolean := false;
         NGPIO              : natural := 32
         );
@@ -37,12 +37,6 @@ entity toplevel is
         -- UART0 signals:
         uart_main_tx : out std_ulogic;
         uart_main_rx : in  std_ulogic;
-
-	-- UART1 signals:
-	uart_pmod_tx    : out std_ulogic;
-	uart_pmod_rx    : in std_ulogic;
-	uart_pmod_cts_n : in std_ulogic;
-	uart_pmod_rts_n : out std_ulogic;
 
         -- LEDs
         led0_b  : out std_ulogic;
@@ -68,8 +62,6 @@ entity toplevel is
         shield_io3       : inout std_ulogic;
         shield_io4       : inout std_ulogic;
         shield_io5       : inout std_ulogic;
-        shield_io6       : inout std_ulogic;
-        shield_io7       : inout std_ulogic;
         shield_io8       : inout std_ulogic;
         shield_io9       : inout std_ulogic;
         shield_io10      : inout std_ulogic;
@@ -92,7 +84,12 @@ entity toplevel is
         shield_io39      : inout std_ulogic;
         shield_io40      : inout std_ulogic;
         shield_io41      : inout std_ulogic;
-        shield_io42      : inout std_ulogic;
+        shield_io43      : inout std_ulogic;
+        shield_io44      : inout std_ulogic;
+
+        -- Pmod ports
+        pmod_jb_4        : inout std_ulogic;
+        pmod_jb_8        : inout std_ulogic;
 
         -- Ethernet
         eth_ref_clk      : out std_ulogic;
@@ -241,7 +238,7 @@ begin
             LOG_LENGTH         => LOG_LENGTH,
             HAS_LITEETH        => USE_LITEETH,
             UART0_IS_16550     => UART_IS_16550,
-            HAS_UART1          => HAS_UART1,
+            HAS_UART1          => false,
             HAS_SD_CARD        => USE_LITESDCARD,
             NGPIO              => NGPIO
             )
@@ -253,10 +250,6 @@ begin
             -- UART signals
             uart0_txd         => uart_main_tx,
             uart0_rxd         => uart_main_rx,
-
-	    -- UART1 signals
-	    uart1_txd         => uart_pmod_tx,
-	    uart1_rxd         => uart_pmod_rx,
 
             -- SPI signals
             spi_flash_sck     => spi_sck,
@@ -292,8 +285,6 @@ begin
 
             alt_reset            => core_alt_reset
             );
-
-    uart_pmod_rts_n <= '0';
 
     -- SPI Flash
     --
@@ -723,6 +714,7 @@ begin
     led4 <= system_clk_locked;
     led5 <= eth_clk_locked;
     led6 <= not soc_rst;
+    led7 <= '0';
 
     -- GPIO
     gpio_in(0) <= shield_io0;
@@ -731,8 +723,8 @@ begin
     gpio_in(3) <= shield_io3;
     gpio_in(4) <= shield_io4;
     gpio_in(5) <= shield_io5;
-    gpio_in(6) <= shield_io6;
-    gpio_in(7) <= shield_io7;
+    gpio_in(6) <= pmod_jb_4;
+    gpio_in(7) <= pmod_jb_8;
     gpio_in(8) <= shield_io8;
     gpio_in(9) <= shield_io9;
     gpio_in(10) <= shield_io10;
@@ -755,8 +747,8 @@ begin
     gpio_in(27) <= shield_io39;
     gpio_in(28) <= shield_io40;
     gpio_in(29) <= shield_io41;
-    gpio_in(30) <= shield_io42;
-    gpio_in(31) <= gpio_out(31);
+    gpio_in(30) <= shield_io43;
+    gpio_in(31) <= shield_io44;
 
     shield_io0 <= gpio_out(0) when gpio_dir(0) = '1' else 'Z';
     shield_io1 <= gpio_out(1) when gpio_dir(1) = '1' else 'Z';
@@ -764,8 +756,8 @@ begin
     shield_io3 <= gpio_out(3) when gpio_dir(3) = '1' else 'Z';
     shield_io4 <= gpio_out(4) when gpio_dir(4) = '1' else 'Z';
     shield_io5 <= gpio_out(5) when gpio_dir(5) = '1' else 'Z';
-    shield_io6 <= gpio_out(6) when gpio_dir(6) = '1' else 'Z';
-    shield_io7 <= gpio_out(7) when gpio_dir(7) = '1' else 'Z';
+    pmod_jb_4  <= gpio_out(6) when gpio_dir(6) = '1' else 'Z';
+    pmod_jb_8  <= gpio_out(7) when gpio_dir(7) = '1' else 'Z';
     shield_io8 <= gpio_out(8) when gpio_dir(8) = '1' else 'Z';
     shield_io9 <= gpio_out(9) when gpio_dir(9) = '1' else 'Z';
     shield_io10 <= gpio_out(10) when gpio_dir(10) = '1' else 'Z';
@@ -788,7 +780,7 @@ begin
     shield_io39 <= gpio_out(27) when gpio_dir(27) = '1' else 'Z';
     shield_io40 <= gpio_out(28) when gpio_dir(28) = '1' else 'Z';
     shield_io41 <= gpio_out(29) when gpio_dir(29) = '1' else 'Z';
-    shield_io42 <= gpio_out(30) when gpio_dir(30) = '1' else 'Z';
-    led7 <= gpio_out(31) and gpio_dir(31);
+    shield_io43 <= gpio_out(30) when gpio_dir(30) = '1' else 'Z';
+    shield_io44 <= gpio_out(31) when gpio_dir(31) = '1' else 'Z';
 
 end architecture behaviour;

@@ -45,6 +45,9 @@ entity execute1 is
 	icache_inval : out std_ulogic;
 	terminate_out : out std_ulogic;
 
+        -- PMU event bus
+        events      : inout PMUEventType;
+
         log_out : out std_ulogic_vector(14 downto 0);
         log_rd_addr : out std_ulogic_vector(31 downto 0);
         log_rd_data : in std_ulogic_vector(63 downto 0);
@@ -123,6 +126,10 @@ architecture behaviour of execute1 is
     signal random_raw  : std_ulogic_vector(63 downto 0);
     signal random_cond : std_ulogic_vector(63 downto 0);
     signal random_err  : std_ulogic;
+
+    -- PMU signals
+    signal x_to_pmu : Execute1ToPMUType;
+    signal pmu_to_x : PMUToExecute1Type;
 
     -- signals for logging
     signal exception_log : std_ulogic;
@@ -255,6 +262,14 @@ begin
             err => random_err
             );
 
+    pmu_0: entity work.pmu
+        port map (
+            clk => clk,
+            rst => rst,
+            p_in => x_to_pmu,
+            p_out => pmu_to_x
+            );
+
     dbg_msr_out <= ctrl.msr;
     log_rd_addr <= r.log_addr_spr;
 
@@ -262,6 +277,14 @@ begin
     b_in <= e_in.read_data2;
     c_in <= e_in.read_data3;
     cr_in <= e_in.cr;
+
+    x_to_pmu.occur <= events;
+    x_to_pmu.nia <= current.nia;
+    x_to_pmu.addr <= (others => '0');
+    x_to_pmu.addr_v <= '0';
+    x_to_pmu.spr_num <= e_in.insn(20 downto 16);
+    x_to_pmu.spr_val <= c_in;
+    x_to_pmu.run <= '1';
 
     -- XER forwarding. To avoid having to track XER hazards, we use
     -- the previously latched value.  Since the XER common bits
@@ -643,6 +666,7 @@ begin
         variable is_direct_branch : std_ulogic;
         variable taken_branch : std_ulogic;
         variable abs_branch : std_ulogic;
+        variable sprn : spr_num_t;
         variable spr_val : std_ulogic_vector(63 downto 0);
         variable do_trace : std_ulogic;
         variable hold_wr_data : std_ulogic;
@@ -670,6 +694,15 @@ begin
         v.cntz_in_progress := '0';
         v.mul_finish := '0';
 
+        x_to_pmu.mfspr <= '0';
+        x_to_pmu.mtspr <= '0';
+        x_to_pmu.tbbits(3) <= ctrl.tb(63 - 47);
+        x_to_pmu.tbbits(2) <= ctrl.tb(63 - 51);
+        x_to_pmu.tbbits(1) <= ctrl.tb(63 - 55);
+        x_to_pmu.tbbits(0) <= ctrl.tb(63 - 63);
+        x_to_pmu.pmm_msr <= ctrl.msr(MSR_PMM);
+        x_to_pmu.pr_msr <= ctrl.msr(MSR_PR);
+
         spr_result <= (others => '0');
         spr_val := (others => '0');
 
@@ -680,7 +713,11 @@ begin
 
 	irq_valid := '0';
 	if ctrl.msr(MSR_EE) = '1' then
-	    if ctrl.dec(63) = '1' then
+            if pmu_to_x.intr = '1' then
+                v.e.intr_vec := 16#f00#;
+                report "IRQ valid: PMU";
+                irq_valid := '1';
+	    elsif ctrl.dec(63) = '1' then
 		v.e.intr_vec := 16#900#;
 		report "IRQ valid: DEC";
 		irq_valid := '1';
@@ -883,8 +920,8 @@ begin
             when OP_DARN =>
 	    when OP_MFMSR =>
 	    when OP_MFSPR =>
-		report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
-		    "=" & to_hstring(a_in);
+                sprn := decode_spr_num(e_in.insn);
+		report "MFSPR to SPR " & integer'image(sprn) & "=" & to_hstring(a_in);
 		if is_fast_spr(e_in.read_reg1) = '1' then
 		    spr_val := a_in;
                     if decode_spr_num(e_in.insn) = SPR_XER then
@@ -897,8 +934,14 @@ begin
 			spr_val(63-44) := xerc_in.ov32;
 			spr_val(63-45) := xerc_in.ca32;
                     end if;
-		else
+                elsif e_in.valid_spr = '0' then
+                    -- make the mfspr effectively a no-op
                     spr_val := c_in;
+                elsif sprn >= 768 and sprn <= 799 then
+                    -- PMU SPR
+                    x_to_pmu.mfspr <= '1';
+                    spr_val := pmu_to_x.spr_val;
+		else
                     case decode_spr_num(e_in.insn) is
 		    when SPR_TB =>
 			spr_val := ctrl.tb;
@@ -918,8 +961,7 @@ begin
                         spr_val := log_rd_data;
                         v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
                     when others =>
-                        -- mfspr from unimplemented SPRs should be a nop in
-                        -- supervisor mode
+                        -- should never get here
                     end case;
                 end if;
                 spr_result <= spr_val;
@@ -951,8 +993,8 @@ begin
                     end if;
                 end if;
 	    when OP_MTSPR =>
-		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
-		    "=" & to_hstring(c_in);
+                sprn := decode_spr_num(e_in.insn);
+		report "MTSPR to SPR " & integer'image(sprn) & "=" & to_hstring(c_in);
 		if is_fast_spr(e_in.write_reg) then
 		    if decode_spr_num(e_in.insn) = SPR_XER then
 			v.e.xerc.so := c_in(63-32);
@@ -963,6 +1005,9 @@ begin
 		    end if;
 		else
 		    -- slow spr
+                    if sprn >= 768 and sprn <= 799 then
+                        x_to_pmu.mtspr <= e_in.valid_spr;
+                    end if;
 		    case decode_spr_num(e_in.insn) is
 		    when SPR_DEC =>
 			ctrl_tmp.dec <= c_in;

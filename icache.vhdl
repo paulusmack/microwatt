@@ -65,6 +65,9 @@ entity icache is
 	flush_in     : in std_ulogic;
 	inval_in     : in std_ulogic;
 
+        -- PMU event bus
+        events       : inout PMUEventType;
+
         wishbone_out : out wishbone_master_out;
         wishbone_in  : in wishbone_slave_out;
 

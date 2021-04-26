@@ -148,6 +148,9 @@ architecture behave of core is
 
     signal msr : std_ulogic_vector(63 downto 0);
 
+    -- PMU event bus
+    signal events : PMUEventType := PMUEventInit;
+
     -- Debug status
     signal dbg_core_is_stopped: std_ulogic;
 
@@ -241,6 +244,7 @@ begin
             flush_in => fetch1_flush,
             inval_in => dbg_icache_rst or ex1_icache_inval,
             stall_in => icache_stall_in,
+            events => events,
 	    stall_out => icache_stall_out,
             wishbone_out => wishbone_insn_out,
             wishbone_in => wishbone_insn_in,
@@ -354,6 +358,7 @@ begin
 	    icache_inval => ex1_icache_inval,
             dbg_msr_out => msr,
             run_out => run_out,
+            events => events,
             terminate_out => terminate,
             log_out => log_data(134 downto 120),
             log_rd_addr => log_rd_addr,
@@ -443,6 +448,7 @@ begin
             w_out => writeback_to_register_file,
             c_out => writeback_to_cr_file,
             f_out => writeback_to_fetch1,
+            events => events,
             interrupt_out => do_interrupt,
             complete_out => complete
             );

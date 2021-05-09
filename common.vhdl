@@ -378,6 +378,7 @@ package common is
         dcbz : std_ulogic;
         flush : std_ulogic;
         touch : std_ulogic;
+        sync : std_ulogic;
 	nc : std_ulogic;
         reserve : std_ulogic;
         atomic : std_ulogic;                            -- part of a multi-transfer atomic op

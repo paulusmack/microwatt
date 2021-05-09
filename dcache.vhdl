@@ -186,7 +186,7 @@ architecture rtl of dcache is
 		  OP_LOAD_MISS,     -- Load missing cache
 		  OP_LOAD_NC,       -- Non-cachable load
 		  OP_STORE,         -- Store, whether hitting or missing cache
-		  OP_MISC);         -- Flush
+		  OP_MISC);         -- Flush or sync
 
     -- Cache state machine
     type state_t is (IDLE,	       -- Normal load hit processing
@@ -289,6 +289,7 @@ architecture rtl of dcache is
         dcbz      : std_ulogic;
         flush     : std_ulogic;
         touch     : std_ulogic;
+        sync      : std_ulogic;
         real_addr : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
         data      : std_ulogic_vector(63 downto 0);
         byte_sel  : std_ulogic_vector(7 downto 0);
@@ -943,6 +944,8 @@ begin
                 else
                     op := OP_NOP;
                 end if;
+            elsif r0.req.sync = '1' then
+                op := OP_MISC;
             elsif access_ok = '0' then
                 op := OP_BAD;
             elsif r0.req.flush = '1' then
@@ -1092,7 +1095,7 @@ begin
                 report "completing ld/st with error";
             end if;
 
-            -- Slow ops (load miss, NC, stores)
+            -- Slow ops (load miss, NC, stores, sync)
             if r1.slow_valid = '1' then
                 report "completing store or load miss data=" & to_hstring(data_out);
             end if;
@@ -1362,6 +1365,7 @@ begin
                     req.dcbz := r0.req.dcbz;
                     req.flush := r0.req.flush;
                     req.touch := r0.req.touch;
+                    req.sync := r0.req.sync;
                     req.real_addr := ra;
                     -- Force data to 0 for dcbz
                     if r0.req.dcbz = '1' then
@@ -1470,7 +1474,15 @@ begin
                         r1.wb.stb <= '1';
 
                     when OP_MISC =>
-                        r1.state <= FLUSH_CYCLE;
+                        if r0.req.sync = '1' then
+                            -- sync/lwsync can complete now that the state machine
+                            -- is idle.
+                            r1.full <= '0';
+                            r1.slow_valid <= '1';
+                            r1.ls_valid <= '1';
+                        else
+                            r1.state <= FLUSH_CYCLE;
+                        end if;
 
 		    -- OP_NONE and OP_BAD do nothing
                     -- OP_BAD & OP_NOP were handled above already

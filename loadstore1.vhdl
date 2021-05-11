@@ -55,6 +55,8 @@ architecture behave of loadstore1 is
         dc_req       : std_ulogic;
         load         : std_ulogic;
         store        : std_ulogic;
+        flush        : std_ulogic;
+        touch        : std_ulogic;
         tlbie        : std_ulogic;
         dcbz         : std_ulogic;
         read_spr     : std_ulogic;
@@ -94,10 +96,12 @@ architecture behave of loadstore1 is
         two_dwords   : std_ulogic;
         nia          : std_ulogic_vector(63 downto 0);
     end record;
-    constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0', tlbie => '0',
-                                          dcbz => '0', read_spr => '0', write_spr => '0', mmu_op => '0',
-                                          instr_fault => '0', load_zero => '0', do_update => '0', noop => '0',
-                                          mode_32bit => '0', addr => (others => '0'), addr0 => (others => '0'),
+    constant request_init : request_t := (valid => '0', dc_req => '0', load => '0', store => '0',
+                                          flush => '0', touch => '0',
+                                          tlbie => '0', dcbz => '0', read_spr => '0', write_spr => '0',
+                                          mmu_op => '0', instr_fault => '0', load_zero => '0',
+                                          do_update => '0', noop => '0', mode_32bit => '0',
+                                          addr => (others => '0'), addr0 => (others => '0'),
                                           byte_sel => x"00", second_bytes => x"00",
                                           store_data => (others => '0'), instr_tag => instr_tag_init,
                                           write_reg => 7x"00", length => x"0",
@@ -465,6 +469,15 @@ begin
                     -- write back address to RA
                     v.do_update := '1';
                 end if;
+            when OP_DCBF =>
+                v.load := '1';
+                v.flush := '1';
+            when OP_DCBT =>
+                v.load := '1';
+                v.touch := '1';
+            when OP_DCBTST =>
+                v.store := '1';
+                v.touch := '1';
             when OP_DCBZ =>
                 v.dcbz := '1';
                 v.align_intr := v.nc;
@@ -759,7 +772,8 @@ begin
         when IDLE =>
             if d_in.valid = '1' then
                 if r2.req.two_dwords = '0' or r2.req.dword_index = '1' then
-                    write_enable := r2.req.load and not r2.req.load_sp;
+                    write_enable := r2.req.load and not r2.req.load_sp and
+                                    not r2.req.flush and not r2.req.touch;
                     if HAS_FPU and r2.req.load_sp = '1' then
                         -- SP to DP conversion takes a cycle
                         v.state := FINISH_LFS;
@@ -887,6 +901,8 @@ begin
             d_out.valid <= stage1_dcreq;
             d_out.load <= stage1_req.load;
             d_out.dcbz <= stage1_req.dcbz;
+            d_out.flush <= stage1_req.flush;
+            d_out.touch <= stage1_req.touch;
             d_out.nc <= stage1_req.nc;
             d_out.reserve <= stage1_req.reserve;
             d_out.atomic <= stage1_req.atomic;
@@ -899,6 +915,8 @@ begin
             d_out.valid <= req;
             d_out.load <= r2.req.load;
             d_out.dcbz <= r2.req.dcbz;
+            d_out.flush <= r2.req.flush;
+            d_out.touch <= r2.req.touch;
             d_out.nc <= r2.req.nc;
             d_out.reserve <= r2.req.reserve;
             d_out.atomic <= r2.req.atomic;

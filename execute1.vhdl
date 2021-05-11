@@ -824,7 +824,7 @@ begin
                 else
                     illegal := '1';
                 end if;
-	    when OP_NOP | OP_DCBF | OP_DCBST | OP_DCBT | OP_DCBTST | OP_ICBT =>
+	    when OP_NOP | OP_DCBST | OP_ICBT =>
 		-- Do nothing
 	    when OP_ADD =>
                 if e_in.output_carry = '1' then

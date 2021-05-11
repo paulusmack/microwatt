@@ -376,6 +376,8 @@ package common is
         hold : std_ulogic;
 	load : std_ulogic;				-- is this a load
         dcbz : std_ulogic;
+        flush : std_ulogic;
+        touch : std_ulogic;
 	nc : std_ulogic;
         reserve : std_ulogic;
         atomic : std_ulogic;                            -- part of a multi-transfer atomic op
@@ -386,6 +388,9 @@ package common is
 	data : std_ulogic_vector(63 downto 0);          -- valid the cycle after .valid = 1
         byte_sel : std_ulogic_vector(7 downto 0);
     end record;
+    constant Loadstore1ToDcacheInit : Loadstore1ToDcacheType :=
+        (addr => (others => '0'), data => (others => '0'), byte_sel => x"00",
+         others => '0');
 
     type DcacheToLoadstore1Type is record
 	valid : std_ulogic;

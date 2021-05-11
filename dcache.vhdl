@@ -181,19 +181,19 @@ architecture rtl of dcache is
     -- Type of operation on a "valid" input
     type op_t is (OP_NONE,
 		  OP_BAD,           -- NC cache hit, TLB miss, prot/RC failure
-                  OP_STCX_FAIL,     -- conditional store w/o reservation
+                  OP_NOP,           -- nothing to do, just complete the op
 		  OP_LOAD_HIT,      -- Cache hit on load
 		  OP_LOAD_MISS,     -- Load missing cache
 		  OP_LOAD_NC,       -- Non-cachable load
-		  OP_STORE_HIT,     -- Store hitting cache
-		  OP_STORE_MISS);   -- Store missing cache
-		      
+		  OP_STORE,         -- Store, whether hitting or missing cache
+		  OP_MISC);         -- Flush
+
     -- Cache state machine
     type state_t is (IDLE,	       -- Normal load hit processing
 		     RELOAD_WAIT_ACK,  -- Cache reload wait ack
 		     STORE_WAIT_ACK,   -- Store wait ack
-		     NC_LOAD_WAIT_ACK);-- Non-cachable load wait ack
-
+		     NC_LOAD_WAIT_ACK, -- Non-cachable load wait ack
+                     FLUSH_CYCLE);     -- Cycle for invalidating cache line
 
     --
     -- Dcache operations:
@@ -287,9 +287,12 @@ architecture rtl of dcache is
         op        : op_t;
         valid     : std_ulogic;
         dcbz      : std_ulogic;
+        flush     : std_ulogic;
+        touch     : std_ulogic;
         real_addr : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
         data      : std_ulogic_vector(63 downto 0);
         byte_sel  : std_ulogic_vector(7 downto 0);
+        is_hit    : std_ulogic;
         hit_way   : way_t;
         same_tag  : std_ulogic;
         mmu_req   : std_ulogic;
@@ -368,6 +371,7 @@ architecture rtl of dcache is
     signal req_index   : index_t;
     signal req_row     : row_t;
     signal req_hit_way : way_t;
+    signal req_is_hit  : std_ulogic;
     signal req_tag     : cache_tag_t;
     signal req_op      : op_t;
     signal req_data    : std_ulogic_vector(63 downto 0);
@@ -557,12 +561,9 @@ begin
             assert (d_in.valid and m_in.valid) = '0' report
                 "request collision loadstore vs MMU";
             if m_in.valid = '1' then
+                r.req := Loadstore1ToDcacheInit;
                 r.req.valid := '1';
                 r.req.load := not (m_in.tlbie or m_in.tlbld);
-                r.req.dcbz := '0';
-                r.req.nc := '0';
-                r.req.reserve := '0';
-                r.req.virt_mode := '0';
                 r.req.priv_mode := '1';
                 r.req.addr := m_in.addr;
                 r.req.data := m_in.pte;
@@ -911,6 +912,7 @@ begin
 
 	-- The way that matched on a hit	       
 	req_hit_way <= hit_way;
+        req_is_hit <= is_hit;
 
         -- The way to replace on a miss
         if r1.write_tag = '1' then
@@ -932,19 +934,34 @@ begin
         nc := r0.req.nc or perm_attr.nocache;
         op := OP_NONE;
         if go = '1' then
-            if access_ok = '0' then
+            if r0.req.touch = '1' then
+                if access_ok = '1' and is_hit = '0' and nc = '0' then
+                    op := OP_LOAD_MISS;
+                elsif access_ok = '1' and is_hit = '1' and nc = '0' then
+                    -- Make this OP_LOAD_HIT so the PLRU gets updated
+                    op := OP_LOAD_HIT;
+                else
+                    op := OP_NOP;
+                end if;
+            elsif access_ok = '0' then
                 op := OP_BAD;
+            elsif r0.req.flush = '1' then
+                if is_hit = '0' then
+                    op := OP_NOP;
+                else
+                    op := OP_MISC;
+                end if;
             elsif cancel_store = '1' then
-                op := OP_STCX_FAIL;
+                op := OP_NOP;
             else
                 opsel := r0.req.load & nc & is_hit;
                 case opsel is
                     when "101" => op := OP_LOAD_HIT;
                     when "100" => op := OP_LOAD_MISS;
                     when "110" => op := OP_LOAD_NC;
-                    when "001" => op := OP_STORE_HIT;
-                    when "000" => op := OP_STORE_MISS;
-                    when "010" => op := OP_STORE_MISS;
+                    when "001" => op := OP_STORE;
+                    when "000" => op := OP_STORE;
+                    when "010" => op := OP_STORE;
                     when "011" => op := OP_BAD;
                     when "111" => op := OP_BAD;
                     when others => op := OP_NONE;
@@ -1211,8 +1228,8 @@ begin
 	    else
 		r1.hit_load_valid <= '0';
 	    end if;
-            if req_op = OP_LOAD_HIT or req_op = OP_STORE_HIT then
-                r1.cache_hit <= '1';
+            if req_op = OP_LOAD_HIT or req_op = OP_STORE then
+                r1.cache_hit <= req_is_hit;
             else
                 r1.cache_hit <= '0';
             end if;
@@ -1229,11 +1246,7 @@ begin
                 r1.cache_paradox <= '0';
             end if;
 
-            if req_op = OP_STCX_FAIL then
-                r1.stcx_fail <= '1';
-            else
-                r1.stcx_fail <= '0';
-            end if;
+            r1.stcx_fail <= cancel_store;
 
             -- Record TLB hit information for updating TLB PLRU
             r1.tlb_hit <= tlb_hit;
@@ -1311,7 +1324,7 @@ begin
                 r1.ls_valid <= '0';
                 -- complete tlbies and TLB loads in the third cycle
                 r1.mmu_done <= r0_valid and (r0.tlbie or r0.tlbld);
-                if req_op = OP_LOAD_HIT or req_op = OP_STCX_FAIL then
+                if req_op = OP_LOAD_HIT or req_op = OP_NOP then
                     if r0.mmu_req = '0' then
                         r1.ls_valid <= '1';
                     else
@@ -1347,6 +1360,8 @@ begin
                     req.valid := req_go;
                     req.mmu_req := r0.mmu_req;
                     req.dcbz := r0.req.dcbz;
+                    req.flush := r0.req.flush;
+                    req.touch := r0.req.touch;
                     req.real_addr := ra;
                     -- Force data to 0 for dcbz
                     if r0.req.dcbz = '1' then
@@ -1363,12 +1378,13 @@ begin
                         req.byte_sel := r0.req.byte_sel;
                     end if;
                     req.hit_way := req_hit_way;
+                    req.is_hit := req_is_hit;
                     req.same_tag := req_same_tag;
 
                     -- Store the incoming request from r0, if it is a slow request
                     -- Note that r1.full = 1 implies req_op = OP_NONE
                     if req_op = OP_LOAD_MISS or req_op = OP_LOAD_NC or
-                        req_op = OP_STORE_MISS or req_op = OP_STORE_HIT then
+                        req_op = OP_STORE or req_op = OP_MISC then
                         r1.req <= req;
                         r1.full <= '1';
                     end if;
@@ -1389,7 +1405,7 @@ begin
                     r1.reload_tag <= get_tag(req.real_addr);
                     r1.req.same_tag <= '1';
 
-                    if req.op = OP_STORE_HIT then
+                    if req.is_hit = '1' then
                         r1.store_way <= req.hit_way;
                     end if;
 
@@ -1418,13 +1434,20 @@ begin
 			r1.state <= RELOAD_WAIT_ACK;
                         r1.write_tag <= '1';
 
+                        -- If this is a touch, complete the instruction
+                        if req.touch = '1' then
+                            r1.full <= '0';
+                            r1.slow_valid <= '1';
+                            r1.ls_valid <= '1';
+                        end if;
+
 		    when OP_LOAD_NC =>
                         r1.wb.cyc <= '1';
                         r1.wb.stb <= '1';
 			r1.wb.we <= '0';
 			r1.state <= NC_LOAD_WAIT_ACK;
 
-                    when OP_STORE_HIT | OP_STORE_MISS =>
+                    when OP_STORE =>
                         if req.dcbz = '0' then
                             r1.state <= STORE_WAIT_ACK;
                             r1.acks_pending <= to_unsigned(1, 3);
@@ -1435,26 +1458,26 @@ begin
                             else
                                 r1.mmu_done <= '1';
                             end if;
-                            if req.op = OP_STORE_HIT then
-                                r1.write_bram <= '1';
-                            end if;
+                            r1.write_bram <= req.is_hit;
                         else
                             -- dcbz is handled much like a load miss except
                             -- that we are writing to memory instead of reading
                             r1.state <= RELOAD_WAIT_ACK;
-                            if req.op = OP_STORE_MISS then
-                                r1.write_tag <= '1';
-                            end if;
+                            r1.write_tag <= not req.is_hit;
                         end if;
                         r1.wb.we <= '1';
                         r1.wb.cyc <= '1';
                         r1.wb.stb <= '1';
 
+                    when OP_MISC =>
+                        r1.state <= FLUSH_CYCLE;
+
 		    -- OP_NONE and OP_BAD do nothing
-                    -- OP_BAD & OP_STCX_FAIL were handled above already
+                    -- OP_BAD & OP_NOP were handled above already
 		    when OP_NONE =>
                     when OP_BAD =>
-                    when OP_STCX_FAIL =>
+                    when OP_NOP =>
+
 		    end case;
 
                 when RELOAD_WAIT_ACK =>
@@ -1529,10 +1552,10 @@ begin
                             r1.wb.sel <= req.byte_sel;
                         end if;
                         if acks < 7 and req.same_tag = '1' and
-                            (req.op = OP_STORE_MISS or req.op = OP_STORE_HIT) then
+                            req.op = OP_STORE then
                             r1.wb.stb <= '1';
                             stbs_done := false;
-                            if req.op = OP_STORE_HIT then
+                            if req.is_hit = '1' then
                                 r1.write_bram <= '1';
                             end if;
                             r1.full <= '0';
@@ -1578,6 +1601,13 @@ begin
 			r1.wb.cyc <= '0';
 			r1.wb.stb <= '0';
 		    end if;
+
+                when FLUSH_CYCLE =>
+                    cache_valids(r1.store_index)(r1.store_way) <= '0';
+                    r1.full <= '0';
+                    r1.slow_valid <= '1';
+                    r1.ls_valid <= '1';
+                    r1.state <= IDLE;
                 end case;
 	    end if;
 	end if;

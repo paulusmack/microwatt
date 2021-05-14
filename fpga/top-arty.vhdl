@@ -140,6 +140,7 @@ architecture behaviour of toplevel is
 
     -- Control/status
     signal core_alt_reset : std_ulogic;
+    signal run_out        : std_ulogic;
 
     -- Status LED
     signal led0_b_pwm : std_ulogic;
@@ -213,6 +214,7 @@ begin
             -- System signals
             system_clk        => system_clk,
             rst               => soc_rst,
+            run_out           => run_out,
 
             -- UART signals
             uart0_txd         => uart_main_tx,
@@ -687,6 +689,7 @@ begin
     led4 <= system_clk_locked;
     led5 <= eth_clk_locked;
     led6 <= not soc_rst;
+    led7 <= run_out;
 
     -- GPIO
     gpio_in(0) <= shield_io(0);

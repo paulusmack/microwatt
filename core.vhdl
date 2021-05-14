@@ -48,6 +48,7 @@ entity core is
 
 	ext_irq		: in std_ulogic;
 
+        run_out         : out std_ulogic;
 	terminated_out   : out std_logic
         );
 end core;
@@ -352,6 +353,7 @@ begin
             bypass_cr_data => execute1_cr_bypass,
 	    icache_inval => ex1_icache_inval,
             dbg_msr_out => msr,
+            run_out => run_out,
             terminate_out => terminate,
             log_out => log_data(134 downto 120),
             log_rd_addr => log_rd_addr,

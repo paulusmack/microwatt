@@ -456,15 +456,17 @@ begin
                 end if;
             when OP_MFSPR =>
                 spr := decode_spr_num(d_in.insn);
-                if not (is_fast_spr(decoded_reg_a.reg) = '1' or is_valid_slow_spr(spr)) and
-                    d_in.insn(20) = '0' and
+                v.e.valid_spr := is_fast_spr(decoded_reg_a.reg) or
+                                 (is_valid_slow_spr(spr) and not is_writeonly_spr(spr));
+                if v.e.valid_spr = '0' and d_in.insn(20) = '0' and
                     (d_in.priv_mode = '0' or spr = 0 or spr = 4 or spr = 5 or spr = 6) then
                     illegal := '1';
                 end if;
             when OP_MTSPR =>
                 spr := decode_spr_num(d_in.insn);
-                if not (is_fast_spr(decoded_reg_o.reg) = '1' or is_valid_slow_spr(spr)) and
-                    d_in.insn(20) = '0' and
+                v.e.valid_spr := is_fast_spr(decoded_reg_o.reg) or
+                                 (is_valid_slow_spr(spr) and not is_readonly_spr(spr));
+                if v.e.valid_spr = '0' and d_in.insn(20) = '0' and
                     (d_in.priv_mode = '0' or spr = 0 or spr = 4 or spr = 5 or spr = 6) then
                     illegal := '1';
                 end if;

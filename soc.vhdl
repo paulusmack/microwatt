@@ -87,6 +87,8 @@ entity soc is
 	rst          : in  std_ulogic;
 	system_clk   : in  std_ulogic;
 
+        run_out      : out std_ulogic;
+
 	-- "Large" (64-bit) DRAM wishbone
 	wb_dram_in       : out wishbone_master_out;
 	wb_dram_out      : in wishbone_slave_out := wishbone_slave_out_init;
@@ -338,6 +340,7 @@ begin
 	port map(
 	    clk => system_clk,
 	    rst => rst_core,
+            run_out => run_out,
 	    alt_reset => alt_reset_d,
 	    wishbone_insn_in => wishbone_icore_in,
 	    wishbone_insn_out => wishbone_icore_out,

@@ -37,6 +37,8 @@ package common is
     constant SPR_DAR    : spr_num_t := 19;
     constant SPR_TB     : spr_num_t := 268;
     constant SPR_TBU    : spr_num_t := 269;
+    constant SPR_CTRL   : spr_num_t := 136;
+    constant SPR_CTRLW  : spr_num_t := 152;
     constant SPR_DEC    : spr_num_t := 22;
     constant SPR_SRR0   : spr_num_t := 26;
     constant SPR_SRR1   : spr_num_t := 27;
@@ -76,7 +78,9 @@ package common is
     -- numbers from 64 to 95.
     --
     function fast_spr_num(spr: spr_num_t) return gspr_index_t;
-    function is_valid_slow_spr(spr: spr_num_t) return boolean;
+    function is_valid_slow_spr(spr: spr_num_t) return std_ulogic;
+    function is_readonly_spr(spr: spr_num_t) return std_ulogic;
+    function is_writeonly_spr(spr: spr_num_t) return std_ulogic;
 
     -- Indices conversion functions
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t;
@@ -155,6 +159,7 @@ package common is
 
     -- This needs to die...
     type ctrl_t is record
+        run: std_ulogic;
 	tb: std_ulogic_vector(63 downto 0);
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
@@ -260,6 +265,7 @@ package common is
         sub_select : std_ulogic_vector(2 downto 0);     -- sub-result selection
         repeat : std_ulogic;                            -- set if instruction is cracked into two ops
         second : std_ulogic;                            -- set if this is the second op
+        valid_spr : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
@@ -273,7 +279,7 @@ package common is
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
          result_sel => "000", sub_select => "000",
-         repeat => '0', second => '0', others => (others => '0'));
+         repeat => '0', second => '0', valid_spr => '0', others => (others => '0'));
 
     type MultiplyInputType is record
 	valid: std_ulogic;
@@ -661,9 +667,11 @@ package body common is
        return "01" & tmp;
     end;
 
-    function is_valid_slow_spr(spr: spr_num_t) return boolean is
+    function is_valid_slow_spr(spr: spr_num_t) return std_ulogic is
     begin
         case spr is
+            when SPR_CTRL =>
+            when SPR_CTRLW =>
             when SPR_DSISR =>
             when SPR_DAR =>
             when SPR_TB =>
@@ -677,9 +685,31 @@ package body common is
             when 725 =>     -- LOG_DATA
                 -- the above are valid
             when others =>
-                return false;
+                return '0';
         end case;
-        return true;
+        return '1';
+    end;
+
+    function is_readonly_spr(spr: spr_num_t) return std_ulogic is
+    begin
+        case spr is
+            when SPR_CTRL =>
+                -- the above are readonly
+            when others =>
+                return '0';
+        end case;
+        return '1';
+    end;
+
+    function is_writeonly_spr(spr: spr_num_t) return std_ulogic is
+    begin
+        case spr is
+            when SPR_CTRLW =>
+                -- the above are writeonly
+            when others =>
+                return '0';
+        end case;
+        return '1';
     end;
 
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t is

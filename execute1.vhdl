@@ -24,6 +24,7 @@ entity execute1 is
 	-- asynchronous
 	flush_in : in std_ulogic;
 	busy_out : out std_ulogic;
+        run_out : out std_ulogic;
 
 	e_in  : in Decode2ToExecute1Type;
         l_in  : in Loadstore1ToExecute1Type;
@@ -82,8 +83,8 @@ architecture behaviour of execute1 is
     signal xerc_in : xer_common_t;
 
     signal valid_in : std_ulogic;
-    signal ctrl: ctrl_t := (others => (others => '0'));
-    signal ctrl_tmp: ctrl_t := (others => (others => '0'));
+    signal ctrl: ctrl_t := (run => '1', others => (others => '0'));
+    signal ctrl_tmp: ctrl_t := (run => '1', others => (others => '0'));
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
     signal rot_sign_ext: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
@@ -276,6 +277,7 @@ begin
     valid_in <= e_in.valid and not busy_out and not flush_in;
 
     terminate_out <= r.terminate;
+    run_out <= ctrl.run;
 
     current <= e_in when r.busy = '0' else r.cur_instr;
 
@@ -298,6 +300,7 @@ begin
                 ctrl.tb <= (others => '0');
                 ctrl.dec <= (others => '0');
                 ctrl.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
+                ctrl.run <= '1';
             else
                 r <= rin;
                 ctrl <= ctrl_tmp;
@@ -642,6 +645,7 @@ begin
         variable is_direct_branch : std_ulogic;
         variable taken_branch : std_ulogic;
         variable abs_branch : std_ulogic;
+        variable sprn : spr_num_t;
         variable spr_val : std_ulogic_vector(63 downto 0);
         variable do_trace : std_ulogic;
         variable fv : Execute1ToFPUType;
@@ -879,8 +883,8 @@ begin
             when OP_DARN =>
 	    when OP_MFMSR =>
 	    when OP_MFSPR =>
-		report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
-		    "=" & to_hstring(a_in);
+                sprn := decode_spr_num(e_in.insn);
+		report "MFSPR to SPR " & integer'image(sprn) & "=" & to_hstring(a_in);
 		if is_fast_spr(e_in.read_reg1) = '1' then
 		    spr_val := a_in;
                     if decode_spr_num(e_in.insn) = SPR_XER then
@@ -895,9 +899,14 @@ begin
                     elsif decode_spr_num(e_in.insn) = SPR_VRSAVE then
                         spr_val(63 downto 32) := (others => '0');
                     end if;
-		else
+                elsif e_in.valid_spr = '0' then
+                    -- make the mfspr effectively a no-op
                     spr_val := c_in;
+		else
                     case decode_spr_num(e_in.insn) is
+                    when SPR_CTRL =>
+                        spr_val(0) := ctrl.run;
+                        spr_val(15) := ctrl.run;
 		    when SPR_TB =>
 			spr_val := ctrl.tb;
 		    when SPR_TBU =>
@@ -916,8 +925,7 @@ begin
                         spr_val := log_rd_data;
                         v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
                     when others =>
-                        -- mfspr from unimplemented SPRs should be a nop in
-                        -- supervisor mode
+                        -- should never get here
                     end case;
                 end if;
                 spr_result <= spr_val;
@@ -949,8 +957,8 @@ begin
                     end if;
                 end if;
 	    when OP_MTSPR =>
-		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
-		    "=" & to_hstring(c_in);
+                sprn := decode_spr_num(e_in.insn);
+		report "MTSPR to SPR " & integer'image(sprn) & "=" & to_hstring(c_in);
 		if is_fast_spr(e_in.write_reg) then
 		    if decode_spr_num(e_in.insn) = SPR_XER then
 			v.e.xerc.so := c_in(63-32);
@@ -962,6 +970,8 @@ begin
 		else
 		    -- slow spr
 		    case decode_spr_num(e_in.insn) is
+                    when SPR_CTRLW =>
+                        ctrl_tmp.run <= c_in(0);
 		    when SPR_DEC =>
 			ctrl_tmp.dec <= c_in;
                     when 724 =>     -- LOG_ADDR SPR

@@ -52,6 +52,8 @@ package common is
     constant SPR_SPRG3U : spr_num_t := 259;
     constant SPR_HSPRG0 : spr_num_t := 304;
     constant SPR_HSPRG1 : spr_num_t := 305;
+    constant SPR_PPR    : spr_num_t := 896;
+    constant SPR_PPR32  : spr_num_t := 898;
     constant SPR_PID    : spr_num_t := 48;
     constant SPR_PTCR   : spr_num_t := 464;
     constant SPR_PVR	: spr_num_t := 287;
@@ -164,6 +166,7 @@ package common is
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
         cfar: std_ulogic_vector(63 downto 0);
+        ppr: std_ulogic_vector(2 downto 0);
     end record;
 
     type Fetch1ToIcacheType is record
@@ -683,6 +686,8 @@ package body common is
             when SPR_PVR =>
             when 724 =>     -- LOG_ADDR
             when 725 =>     -- LOG_DATA
+            when SPR_PPR =>
+            when SPR_PPR32 =>
                 -- the above are valid
             when others =>
                 return '0';

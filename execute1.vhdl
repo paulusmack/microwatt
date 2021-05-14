@@ -83,8 +83,8 @@ architecture behaviour of execute1 is
     signal xerc_in : xer_common_t;
 
     signal valid_in : std_ulogic;
-    signal ctrl: ctrl_t := (run => '1', others => (others => '0'));
-    signal ctrl_tmp: ctrl_t := (run => '1', others => (others => '0'));
+    signal ctrl: ctrl_t := (run => '1', ppr => "100", others => (others => '0'));
+    signal ctrl_tmp: ctrl_t := (run => '1', ppr => "100", others => (others => '0'));
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
     signal rot_sign_ext: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
@@ -301,6 +301,7 @@ begin
                 ctrl.dec <= (others => '0');
                 ctrl.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
                 ctrl.run <= '1';
+                ctrl.ppr <= "100";
             else
                 r <= rin;
                 ctrl <= ctrl_tmp;
@@ -649,6 +650,7 @@ begin
         variable spr_val : std_ulogic_vector(63 downto 0);
         variable do_trace : std_ulogic;
         variable fv : Execute1ToFPUType;
+        variable pprval : std_ulogic_vector(2 downto 0);
     begin
         is_branch := '0';
         is_direct_branch := '0';
@@ -813,8 +815,34 @@ begin
             when OP_ADDG6S =>
             when OP_CMPRB =>
             when OP_CMPEQB =>
-            when OP_AND | OP_OR | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS |
+            when OP_AND | OP_XOR | OP_POPCNT | OP_PRTY | OP_CMPB | OP_EXTS |
                     OP_BPERM | OP_BCD =>
+
+            when OP_OR =>
+                -- Decode special or rx,rx,rx forms
+                -- Disambiguate or from ori, oris, or., orc[.] and nor[.]
+                if e_in.insn(27) = '1' and e_in.insn(0) = '1' and
+                    e_in.insn(25 downto 21) = e_in.insn(15 downto 11) and
+                    e_in.insn(20 downto 16) = e_in.insn(15 downto 11) and
+                    e_in.invert_a = '0' and e_in.invert_out = '0' then
+                    case e_in.insn(15 downto 11) is
+                        when "11111" =>
+                            ctrl_tmp.ppr <= "001";
+                        when "00001" =>
+                            ctrl_tmp.ppr <= "010";
+                        when "00110" =>
+                            ctrl_tmp.ppr <= "011";
+                        when "00010" =>
+                            ctrl_tmp.ppr <= "100";
+                        when "00101" =>
+                            if ctrl.msr(MSR_PR) = '1' then
+                                ctrl_tmp.ppr <= "100";
+                            else
+                                ctrl_tmp.ppr <= "101";
+                            end if;
+                        when others =>
+                    end case;
+                end if;
 
 	    when OP_B =>
                 is_branch := '1';
@@ -916,6 +944,10 @@ begin
 			spr_val := ctrl.dec;
                     when SPR_CFAR =>
                         spr_val := ctrl.cfar;
+                    when SPR_PPR =>
+                        spr_val(52 downto 50) := ctrl.ppr;
+                    when SPR_PPR32 =>
+                        spr_val(20 downto 18) := ctrl.ppr;
                     when SPR_PVR =>
                         spr_val(63 downto 32) := (others => '0');
                         spr_val(31 downto 0) := PVR_MICROWATT;
@@ -974,6 +1006,18 @@ begin
                         ctrl_tmp.run <= c_in(0);
 		    when SPR_DEC =>
 			ctrl_tmp.dec <= c_in;
+                    when SPR_PPR | SPR_PPR32 =>
+                        if e_in.insn(17) = '0' then
+                            pprval := c_in(52 downto 50);       -- PPR
+                        else
+                            pprval := c_in(20 downto 18);       -- PPR32
+                        end if;
+                        if not (pprval = "000" or
+                                (ctrl.msr(MSR_PR) = '1' and unsigned(pprval) > to_unsigned(4, 3))) then
+                            ctrl_tmp.ppr <= pprval;
+                        elsif pprval = "101" then
+                            ctrl_tmp.ppr <= "100";
+                        end if;
                     when 724 =>     -- LOG_ADDR SPR
                         v.log_addr_spr := c_in(31 downto 0);
 		    when others =>

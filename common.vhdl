@@ -53,6 +53,7 @@ package common is
     constant SPR_PID    : spr_num_t := 48;
     constant SPR_PTCR   : spr_num_t := 464;
     constant SPR_PVR	: spr_num_t := 287;
+    constant SPR_VRSAVE : spr_num_t := 256;
 
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
@@ -645,6 +646,8 @@ package body common is
            n := 12;
        when SPR_TAR =>
            n := 13;
+       when SPR_VRSAVE =>
+           n := 14;
        when others =>
            n := 0;
            return "0000000";

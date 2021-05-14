@@ -931,6 +931,8 @@ begin
 			spr_val(63-35 downto 63-43) := "000000000";
 			spr_val(63-44) := xerc_in.ov32;
 			spr_val(63-45) := xerc_in.ca32;
+                    elsif decode_spr_num(e_in.insn) = SPR_VRSAVE then
+                        spr_val(63 downto 32) := (others => '0');
                     end if;
 		else
                     spr_val := c_in;

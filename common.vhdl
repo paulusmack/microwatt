@@ -40,6 +40,7 @@ package common is
     constant SPR_CTRL   : spr_num_t := 136;
     constant SPR_CTRLW  : spr_num_t := 152;
     constant SPR_DEC    : spr_num_t := 22;
+    constant SPR_GSR    : spr_num_t := 158;
     constant SPR_SRR0   : spr_num_t := 26;
     constant SPR_SRR1   : spr_num_t := 27;
     constant SPR_CFAR   : spr_num_t := 28;
@@ -54,9 +55,13 @@ package common is
     constant SPR_HSPRG1 : spr_num_t := 305;
     constant SPR_PPR    : spr_num_t := 896;
     constant SPR_PPR32  : spr_num_t := 898;
+    constant SPR_PSPB   : spr_num_t := 159;
     constant SPR_PID    : spr_num_t := 48;
+    constant SPR_PIR    : spr_num_t := 1023;
     constant SPR_PTCR   : spr_num_t := 464;
     constant SPR_PVR	: spr_num_t := 287;
+    constant SPR_TIDR   : spr_num_t := 144;
+    constant SPR_TIR    : spr_num_t := 446;
     constant SPR_VRSAVE : spr_num_t := 256;
 
     -- GPR indices in the register file (GPR only)
@@ -686,8 +691,13 @@ package body common is
             when SPR_PVR =>
             when 724 =>     -- LOG_ADDR
             when 725 =>     -- LOG_DATA
+            when SPR_PIR =>
             when SPR_PPR =>
             when SPR_PPR32 =>
+            when SPR_PSPB =>
+            when SPR_TIDR =>
+            when SPR_TIR =>
+            when SPR_GSR =>
                 -- the above are valid
             when others =>
                 return '0';
@@ -699,6 +709,9 @@ package body common is
     begin
         case spr is
             when SPR_CTRL =>
+            when SPR_PIR =>
+            when SPR_PVR =>
+            when SPR_TIR =>
                 -- the above are readonly
             when others =>
                 return '0';
@@ -710,6 +723,7 @@ package body common is
     begin
         case spr is
             when SPR_CTRLW =>
+            when SPR_GSR =>
                 -- the above are writeonly
             when others =>
                 return '0';

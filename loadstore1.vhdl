@@ -93,7 +93,8 @@ architecture behave of loadstore1 is
         load_sp      : std_ulogic;
         sprn         : std_ulogic_vector(9 downto 0);
         is_slbia     : std_ulogic;
-        align_intr   : std_ulogic;
+        badop_intr   : std_ulogic;
+        ncat_intr    : std_ulogic;
         dword_index  : std_ulogic;
         two_dwords   : std_ulogic;
         nia          : std_ulogic_vector(63 downto 0);
@@ -113,8 +114,8 @@ architecture behave of loadstore1 is
                                           atomic => '0', atomic_first => '0', atomic_last => '0',
                                           rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
-                                          sprn => 10x"0", is_slbia => '0', align_intr => '0',
-                                          dword_index => '0', two_dwords => '0',
+                                          sprn => 10x"0", is_slbia => '0', badop_intr => '0',
+                                          ncat_intr => '0', dword_index => '0', two_dwords => '0',
                                           nia => (others => '0'));
 
     type reg_stage1_t is record
@@ -294,7 +295,7 @@ begin
                 r1 <= r1in;
                 r2 <= r2in;
                 r3 <= r3in;
-                flushing <= (flushing or (r1in.req.valid and r1in.req.align_intr)) and
+                flushing <= (flushing or (r1in.req.valid and r1in.req.badop_intr)) and
                             not r3in.interrupt;
             end if;
             stage1_dreq <= stage1_dcreq;
@@ -442,7 +443,8 @@ begin
 
         -- check alignment for larx/stcx
         misaligned := or (addr_mask and addr(2 downto 0));
-        v.align_intr := l_in.reserve and misaligned;
+        v.badop_intr := l_in.reserve and (misaligned or v.nc);
+        v.ncat_intr := l_in.reserve and v.nc;
         if l_in.repeat = '1' and l_in.second = '0' and l_in.update = '0' and addr(3) = '1' then
             -- length is really 16 not 8
             -- Make misaligned lq cause an alignment interrupt in LE mode,
@@ -451,7 +453,7 @@ begin
             -- The equivalent BE case doesn't occur because RA = RT is illegal.
             misaligned := '1';
             if l_in.reserve = '1' or (l_in.op = OP_LOAD and l_in.byte_reverse = '0') then
-                v.align_intr := '1';
+                v.badop_intr := '1';
             end if;
         end if;
 
@@ -486,7 +488,7 @@ begin
                 v.touch := '1';
             when OP_DCBZ =>
                 v.dcbz := '1';
-                v.align_intr := v.nc;
+                v.badop_intr := v.nc;
             when OP_TLBIE =>
                 v.tlbie := '1';
                 v.addr := l_in.addr2;    -- address from RB for tlbie
@@ -504,7 +506,7 @@ begin
                 v.mmu_op := '1';
             when others =>
         end case;
-        v.dc_req := l_in.valid and (v.load or v.store or v.sync or v.dcbz) and not v.align_intr;
+        v.dc_req := l_in.valid and (v.load or v.store or v.sync or v.dcbz) and not v.badop_intr;
 
         -- Work out controls for load and store formatting
         brev_lenm1 := "000";
@@ -540,7 +542,7 @@ begin
         if flushing = '1' then
             -- Make this a no-op request rather than simply invalid.
             -- It will never get to stage 3 since there is a request ahead of
-            -- it with align_intr = 1.
+            -- it with badop_intr = 1.
             req.dc_req := '0';
         end if;
 
@@ -762,8 +764,8 @@ begin
                     sprval := m_in.sprval;
                 end if;
             end if;
-            if r2.req.align_intr = '1' then
-                -- generate alignment interrupt
+            if r2.req.badop_intr = '1' then
+                -- generate alignment interrupt or DSI
                 exception := '1';
             end if;
             if r2.req.load_zero = '1' then
@@ -860,8 +862,14 @@ begin
         v.interrupt := exception;
         if exception = '1' then
             v.nia := r2.req.nia;
-            if r2.req.align_intr = '1' then
-                v.intr_vec := 16#600#;
+            if r2.req.badop_intr = '1' then
+                if r2.req.ncat_intr = '0' then
+                    v.intr_vec := 16#600#;
+                else
+                    -- larx/stcx to non-cacheable
+                    v.intr_vec := 16#300#;
+                    v.srr1(47 - 37) := '1';
+                end if;
                 v.dar := r2.req.addr;
             elsif r2.req.instr_fault = '0' then
                 v.dar := r2.req.addr;

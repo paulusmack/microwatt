@@ -84,6 +84,7 @@ architecture behave of loadstore1 is
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
         atomic       : std_ulogic;
+        atomic_first : std_ulogic;
         atomic_last  : std_ulogic;
         rc           : std_ulogic;
         nc           : std_ulogic;              -- non-cacheable access
@@ -109,7 +110,8 @@ architecture behave of loadstore1 is
                                           elt_length => x"0", byte_reverse => '0', brev_mask => "000",
                                           sign_extend => '0', update => '0',
                                           xerc => xerc_init, reserve => '0',
-                                          atomic => '0', atomic_last => '0', rc => '0', nc => '0',
+                                          atomic => '0', atomic_first => '0', atomic_last => '0',
+                                          rc => '0', nc => '0',
                                           virt_mode => '0', priv_mode => '0', load_sp => '0',
                                           sprn => 10x"0", is_slbia => '0', align_intr => '0',
                                           dword_index => '0', two_dwords => '0',
@@ -455,6 +457,7 @@ begin
 
         v.atomic := not misaligned;
         v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);
+        v.atomic_first := not misaligned and not l_in.second;
 
         case l_in.op is
             when OP_SYNC =>
@@ -910,6 +913,7 @@ begin
             d_out.nc <= stage1_req.nc;
             d_out.reserve <= stage1_req.reserve;
             d_out.atomic <= stage1_req.atomic;
+            d_out.atomic_first <= stage1_req.atomic_first;
             d_out.atomic_last <= stage1_req.atomic_last;
             d_out.addr <= stage1_req.addr;
             d_out.byte_sel <= stage1_req.byte_sel;
@@ -925,6 +929,7 @@ begin
             d_out.nc <= r2.req.nc;
             d_out.reserve <= r2.req.reserve;
             d_out.atomic <= r2.req.atomic;
+            d_out.atomic_first <= r2.req.atomic_first;
             d_out.atomic_last <= r2.req.atomic_last;
             d_out.addr <= r2.req.addr;
             d_out.byte_sel <= r2.req.byte_sel;

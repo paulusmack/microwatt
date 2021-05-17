@@ -193,6 +193,7 @@ architecture rtl of dcache is
 		     RELOAD_WAIT_ACK,  -- Cache reload wait ack
 		     STORE_WAIT_ACK,   -- Store wait ack
 		     NC_LOAD_WAIT_ACK, -- Non-cachable load wait ack
+                     DO_STCX,          -- Check for stcx. validity
                      FLUSH_CYCLE);     -- Cycle for invalidating cache line
 
     --
@@ -287,6 +288,9 @@ architecture rtl of dcache is
         op        : op_t;
         valid     : std_ulogic;
         dcbz      : std_ulogic;
+        reserve   : std_ulogic;
+        first_dw  : std_ulogic;
+        last_dw   : std_ulogic;
         flush     : std_ulogic;
         touch     : std_ulogic;
         sync      : std_ulogic;
@@ -363,10 +367,12 @@ architecture rtl of dcache is
     --
     type reservation_t is record
         valid : std_ulogic;
-        addr  : std_ulogic_vector(63 downto LINE_OFF_BITS);
+        addr  : std_ulogic_vector(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS);
     end record;
 
     signal reservation : reservation_t;
+    signal kill_rsrv   : std_ulogic;
+    signal kill_rsrv2  : std_ulogic;
 
     -- Async signals on incoming request
     signal req_index   : index_t;
@@ -380,10 +386,6 @@ architecture rtl of dcache is
     signal req_go      : std_ulogic;
 
     signal early_req_row  : row_t;
-
-    signal cancel_store : std_ulogic;
-    signal set_rsrv     : std_ulogic;
-    signal clear_rsrv   : std_ulogic;
 
     signal r0_valid   : std_ulogic;
     signal r0_stall   : std_ulogic;
@@ -422,10 +424,13 @@ architecture rtl of dcache is
     type tlb_plru_out_t is array(tlb_index_t) of std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
     signal tlb_plru_victim : tlb_plru_out_t;
 
+    signal snoop_active  : std_ulogic;
     signal snoop_tag_set : cache_tags_set_t;
     signal snoop_valid   : std_ulogic;
-    signal snoop_wrtag   : cache_tag_t;
-    signal snoop_index   : index_t;
+    signal snoop_paddr   : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+    signal snoop_addr    : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
+    signal snoop_hits    : cache_way_valids_t;
+    signal req_snoop_hit : std_ulogic;
 
     --
     -- Helper functions to decode incoming requests
@@ -793,22 +798,39 @@ begin
         end if;
     end process;
 
+    -- Snoop logic
+    -- Don't snoop our own cycles
+    snoop_addr <= (snoop_in.adr'left downto 0 => snoop_in.adr, others => '0');
+    snoop_active <= snoop_in.cyc and snoop_in.stb and snoop_in.we and
+                    not (r1.wb.cyc and not wishbone_in.stall);
+    kill_rsrv <= '1' when (snoop_active = '1' and
+                           snoop_addr(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS) = reservation.addr)
+                 else '0';
+
     -- Cache tag RAM second read port, for snooping
     cache_tag_read_2 : process(clk)
-        variable addr : std_ulogic_vector(REAL_ADDR_BITS - 1 downto 0);
     begin
         if rising_edge(clk) then
-            addr := (others => '0');
-            addr(snoop_in.adr'left downto 0) := snoop_in.adr;
-            snoop_tag_set <= cache_tags(get_index(addr));
-            snoop_wrtag <= get_tag(addr);
-            snoop_index <= get_index(addr);
-            -- Don't snoop our own cycles
-            snoop_valid <= '0';
-            if not (r1.wb.cyc = '1' and wishbone_in.stall = '0') then
-                snoop_valid <= snoop_in.cyc and snoop_in.stb and snoop_in.we;
-            end if;
+            snoop_tag_set <= cache_tags(get_index(snoop_addr));
+            snoop_paddr <= snoop_addr;
+            snoop_valid <= snoop_active;
         end if;
+    end process;
+
+    -- Compare the previous cycle's snooped store address to the reservation,
+    -- to catch the case where a write happens on cycle 1 of a cached larx
+    kill_rsrv2 <= '1' when (snoop_valid = '1' and
+                            snoop_paddr(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS) = reservation.addr)
+                  else '0';
+
+    snoop_tag_match : process(all)
+    begin
+        snoop_hits <= (others => '0');
+        for i in way_t loop
+            if snoop_valid = '1' and read_tag(i, snoop_tag_set) = get_tag(snoop_paddr) then
+                snoop_hits(i) <= '1';
+            end if;
+        end loop;
     end process;
 
     -- Cache request parsing and hit detection
@@ -827,6 +849,8 @@ begin
         variable hit_way_set : hit_way_set_t;
         variable rel_matches : std_ulogic_vector(TLB_NUM_WAYS - 1 downto 0);
         variable rel_match   : std_ulogic;
+        variable snp_matches : std_ulogic_vector(TLB_NUM_WAYS - 1 downto 0);
+        variable snoop_match : std_ulogic;
     begin
 	-- Extract line, row and tag from request
         req_index <= get_index(r0.req.addr);
@@ -842,8 +866,10 @@ begin
         hit_way := 0;
         is_hit := '0';
         rel_match := '0';
+        snoop_match := '0';
         if r0.req.virt_mode = '1' then
             rel_matches := (others => '0');
+            snp_matches := (others => '0');
             for j in tlb_way_t loop
                 hit_way_set(j) := 0;
                 s_hit := '0';
@@ -857,6 +883,9 @@ begin
                         tlb_valid_way(j) = '1' then
                         hit_way_set(j) := i;
                         s_hit := '1';
+                        if snoop_hits(i) = '1' then
+                            snp_matches(j) := '1';
+                        end if;
                     end if;
                 end loop;
                 hit_set(j) := s_hit;
@@ -868,6 +897,7 @@ begin
                 is_hit := hit_set(tlb_hit_way);
                 hit_way := hit_way_set(tlb_hit_way);
                 rel_match := rel_matches(tlb_hit_way);
+                snoop_match := snp_matches(tlb_hit_way);
             end if;
         else
             s_tag := get_tag(r0.req.addr);
@@ -876,6 +906,9 @@ begin
                     read_tag(i, cache_tag_set) = s_tag then
                     hit_way := i;
                     is_hit := '1';
+                    if snoop_hits(i) = '1' then
+                        snoop_match := '1';
+                    end if;
                 end if;
             end loop;
             if s_tag = r1.reload_tag then
@@ -883,6 +916,13 @@ begin
             end if;
         end if;
         req_same_tag <= rel_match;
+
+        -- This is 1 if the snooped write from the previous cycle hits the same
+        -- cache line that is being accessed in this cycle.
+        req_snoop_hit <= '0';
+        if get_index(snoop_paddr) = req_index and snoop_match = '1' then
+            req_snoop_hit <= '1';
+        end if;
 
         -- See if the request matches the line currently being reloaded
         if r1.state = RELOAD_WAIT_ACK and req_index = r1.store_index and
@@ -954,8 +994,6 @@ begin
                 else
                     op := OP_MISC;
                 end if;
-            elsif cancel_store = '1' then
-                op := OP_NOP;
             else
                 opsel := r0.req.load & nc & is_hit;
                 case opsel is
@@ -991,45 +1029,6 @@ begin
 
     -- Wire up wishbone request latch out of stage 1
     wishbone_out <= r1.wb;
-
-    -- Handle load-with-reservation and store-conditional instructions
-    reservation_comb: process(all)
-    begin
-        cancel_store <= '0';
-        set_rsrv <= '0';
-        clear_rsrv <= '0';
-        if r0_valid = '1' and r0.req.reserve = '1' then
-            -- XXX generate alignment interrupt if address is not aligned
-            -- XXX or if r0.req.nc = '1'
-            if r0.req.load = '1' then
-                -- load with reservation
-                set_rsrv <= r0.req.atomic_last;
-            else
-                -- store conditional
-                clear_rsrv <= r0.req.atomic_last;
-                if reservation.valid = '0' or
-                    r0.req.addr(63 downto LINE_OFF_BITS) /= reservation.addr then
-                    cancel_store <= '1';
-                end if;
-            end if;
-        end if;
-    end process;
-
-    reservation_reg: process(clk)
-    begin
-        if rising_edge(clk) then
-            if rst = '1' then
-                reservation.valid <= '0';
-            elsif r0_valid = '1' and access_ok = '1' then
-                if clear_rsrv = '1' then
-                    reservation.valid <= '0';
-                elsif set_rsrv = '1' then
-                    reservation.valid <= '1';
-                    reservation.addr <= r0.req.addr(63 downto LINE_OFF_BITS);
-                end if;
-            end if;
-        end if;
-    end process;
 
     -- Return data for loads & completion control logic
     --
@@ -1249,8 +1248,6 @@ begin
                 r1.cache_paradox <= '0';
             end if;
 
-            r1.stcx_fail <= cancel_store;
-
             -- Record TLB hit information for updating TLB PLRU
             r1.tlb_hit <= tlb_hit;
             r1.tlb_hit_way <= tlb_hit_way;
@@ -1314,6 +1311,7 @@ begin
                 r1.wb.stb <= '0';
                 r1.ls_valid <= '0';
                 r1.mmu_done <= '0';
+                reservation.valid <= '0';
 
 		-- Not useful normally but helps avoiding tons of sim warnings
 		r1.wb.adr <= (others => '0');
@@ -1323,6 +1321,7 @@ begin
                 r1.write_bram <= '0';
                 r1.inc_acks <= '0';
                 r1.dec_acks <= '0';
+                r1.stcx_fail <= '0';
 
                 r1.ls_valid <= '0';
                 -- complete tlbies and TLB loads in the third cycle
@@ -1334,11 +1333,24 @@ begin
                         r1.mmu_done <= '1';
                     end if;
                 end if;
+                -- The kill_rsrv2 term covers the case where the reservation
+                -- address was set at the beginning of this cycle, and a store
+                -- to that address happened in the previous cycle.
+                if kill_rsrv = '1' or kill_rsrv2 = '1' then
+                    reservation.valid <= '0';
+                end if;
+                if req_go = '1' and access_ok = '1' and r0.req.load = '1' and
+                    r0.req.reserve = '1' and r0.req.atomic_first = '1' then
+                    reservation.addr <= ra(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS);
+                    if req_is_hit = '1' then
+                        reservation.valid <= not req_snoop_hit;
+                    end if;
+                end if;
 
                 -- Do invalidations from snooped stores to memory
                 for i in way_t loop
-                    if snoop_valid = '1' and read_tag(i, snoop_tag_set) = snoop_wrtag then
-                        cache_valids(snoop_index)(i) <= '0';
+                    if snoop_hits(i) = '1' then
+                        cache_valids(get_index(snoop_paddr))(i) <= '0';
                     end if;
                 end loop;
 
@@ -1363,6 +1375,9 @@ begin
                     req.valid := req_go;
                     req.mmu_req := r0.mmu_req;
                     req.dcbz := r0.req.dcbz;
+                    req.reserve := r0.req.reserve;
+                    req.first_dw := r0.req.atomic_first;
+                    req.last_dw := r0.req.atomic_last;
                     req.flush := r0.req.flush;
                     req.touch := r0.req.touch;
                     req.sync := r0.req.sync;
@@ -1452,7 +1467,11 @@ begin
 			r1.state <= NC_LOAD_WAIT_ACK;
 
                     when OP_STORE =>
-                        if req.dcbz = '0' then
+                        if req.reserve = '1' then
+                            -- stcx needs to wait until next cycle
+                            -- for the reservation address check
+                            r1.state <= DO_STCX;
+                        elsif req.dcbz = '0' then
                             r1.state <= STORE_WAIT_ACK;
                             r1.acks_pending <= to_unsigned(1, 3);
                             r1.full <= '0';
@@ -1463,15 +1482,18 @@ begin
                                 r1.mmu_done <= '1';
                             end if;
                             r1.write_bram <= req.is_hit;
+                            r1.wb.we <= '1';
+                            r1.wb.cyc <= '1';
+                            r1.wb.stb <= '1';
                         else
                             -- dcbz is handled much like a load miss except
                             -- that we are writing to memory instead of reading
                             r1.state <= RELOAD_WAIT_ACK;
                             r1.write_tag <= not req.is_hit;
+                            r1.wb.we <= '1';
+                            r1.wb.cyc <= '1';
+                            r1.wb.stb <= '1';
                         end if;
-                        r1.wb.we <= '1';
-                        r1.wb.cyc <= '1';
-                        r1.wb.stb <= '1';
 
                     when OP_MISC =>
                         if r0.req.sync = '1' then
@@ -1525,6 +1547,13 @@ begin
                             end if;
                             r1.forward_sel <= (others => '1');
                             r1.use_forward1 <= '1';
+                            -- NB: for lqarx, set the reservation on the first
+                            -- dword so that a snooped store between the two
+                            -- dwords will kill the reservation.
+                            if req.reserve = '1' and req.first_dw = '1' then
+                                reservation.valid <= '1';
+                                reservation.addr <= req.real_addr(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS);
+                            end if;
 			end if;
 
 			-- Check for completion
@@ -1613,6 +1642,45 @@ begin
 			r1.wb.cyc <= '0';
 			r1.wb.stb <= '0';
 		    end if;
+
+                when DO_STCX =>
+                    if reservation.valid = '0' or kill_rsrv = '1' or
+                        r1.req.real_addr(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS) /= reservation.addr then
+                        -- Wrong address, didn't have reservation, or lost reservation
+                        -- Abandon the wishbone cycle if started and fail the stcx.
+                        r1.stcx_fail <= '1';
+                        r1.full <= '0';
+                        r1.ls_valid <= '1';
+                        r1.state <= IDLE;
+                        r1.wb.cyc <= '0';
+                        r1.wb.stb <= '0';
+                        reservation.valid <= '0';
+                    elsif r1.wb.cyc = '0' then
+                        -- Right address and have reservation, so start the
+                        -- wishbone cycle
+                        r1.wb.we <= '1';
+                        r1.wb.cyc <= '1';
+                        r1.wb.stb <= '1';
+                    else
+                        if wishbone_in.stall = '0' then
+                            -- Store has been accepted, so now we can write the
+                            -- cache data RAM
+                            r1.write_bram <= req.is_hit;
+                            r1.wb.stb <= '0';
+                        end if;
+                        if wishbone_in.ack = '1' then
+                            r1.state <= IDLE;
+                            r1.wb.cyc <= '0';
+                            r1.wb.stb <= '0';
+                            r1.full <= '0';
+                            r1.slow_valid <= '1';
+                            r1.ls_valid <= '1';
+                            -- For stqcx., kill the reservation on the last dword
+                            if r1.req.last_dw = '1' then
+                                reservation.valid <= '0';
+                            end if;
+                        end if;
+                    end if;
 
                 when FLUSH_CYCLE =>
                     cache_valids(r1.store_index)(r1.store_way) <= '0';

@@ -25,17 +25,19 @@ architecture behaviour of multiply is
     signal m20_p, m21_p, m22_p, m23_p : std_ulogic_vector(47 downto 0);
     signal s0_pc, s1_pc : std_ulogic_vector(47 downto 0);
     signal product_lo : std_ulogic_vector(31 downto 0);
-    signal product : std_ulogic_vector(127 downto 0);
+    signal product : std_ulogic_vector(79 downto 0);
+    signal product_d : std_ulogic_vector(127 downto 0);
     signal addend : std_ulogic_vector(127 downto 0);
     signal s0_carry, p0_carry : std_ulogic_vector(3 downto 0);
     signal p0_mask : std_ulogic_vector(47 downto 0);
     signal p0_pat, p0_patb : std_ulogic;
-    signal p1_pat, p1_patb : std_ulogic;
+    signal p0_pat_d, p0_patb_d : std_ulogic;
+    signal p1_pat_d, p1_patb_d : std_ulogic;
 
+    signal req_32bit_d : std_ulogic;
     signal req_32bit, r32_1 : std_ulogic;
     signal req_not, rnot_1 : std_ulogic;
-    signal valid_1 : std_ulogic;
-    signal overflow, ovf_in : std_ulogic;
+    signal valid_1, valid_2 : std_ulogic;
 
 begin
     addend <= m_in.addend;
@@ -905,7 +907,7 @@ begin
             MASK => x"000000000000",
             MREG => 0,
             OPMODEREG => 0,
-            PREG => 0,
+            PREG => 1,
             USE_MULT => "none",
             USE_PATTERN_DETECT => "PATDET"
             )
@@ -931,15 +933,15 @@ begin
             CED => '0',
             CEINMODE => '0',
             CEM => '0',
-            CEP => '0',
+            CEP => '1',
             CLK => clk,
             D => (others => '0'),
             INMODE => "00000",
             MULTSIGNIN => '0',
             OPMODE => "0010011",
-            P => product(127 downto 80),
-            PATTERNDETECT => p1_pat,
-            PATTERNBDETECT => p1_patb,
+            P => product_d(127 downto 80),
+            PATTERNDETECT => p1_pat_d,
+            PATTERNBDETECT => p1_patb_d,
             PCIN => s1_pc,
             RSTA => '0',
             RSTALLCARRYIN => '0',
@@ -959,29 +961,32 @@ begin
         variable ov : std_ulogic;
     begin
         -- set overflow if the high bits are neither all zeroes nor all ones
-        if req_32bit = '0' then
-            ov := not ((p1_pat and p0_pat) or (p1_patb and p0_patb));
+        if req_32bit_d = '0' then
+            ov := not ((p1_pat_d and p0_pat_d) or (p1_patb_d and p0_patb_d));
         else
-            ov := not ((p1_pat and p0_pat and not product(31)) or
-                       (p1_patb and p0_patb and product(31)));
+            ov := not ((p1_pat_d and p0_pat_d and not product_d(31)) or
+                       (p1_patb_d and p0_patb_d and product_d(31)));
         end if;
-        ovf_in <= ov;
 
-        m_out.result <= product;
-        m_out.overflow <= overflow;
+        m_out.result <= product_d;
+        m_out.overflow <= ov;
     end process;
 
     process(clk)
     begin
         if rising_edge(clk) then
             product_lo <= m10_p(8 downto 0) & m01_p(5 downto 0) & m00_p(16 downto 0);
-            m_out.valid <= valid_1;
+            m_out.valid <= valid_2;
+            valid_2 <= valid_1;
             valid_1 <= m_in.valid;
+            req_32bit_d <= req_32bit;
             req_32bit <= r32_1;
             r32_1 <= m_in.is_32bit;
             req_not <= rnot_1;
             rnot_1 <= m_in.not_result;
-            overflow <= ovf_in;
+            product_d(79 downto 0) <= product;
+            p0_pat_d <= p0_pat;
+            p0_patb_d <= p0_patb;
         end if;
     end process;
 

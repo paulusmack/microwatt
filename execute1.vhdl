@@ -63,7 +63,6 @@ architecture behaviour of execute1 is
         prev_op : insn_type_t;
         br_taken : std_ulogic;
 	mul_in_progress : std_ulogic;
-        mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
         cntz_in_progress : std_ulogic;
         log_addr_spr : std_ulogic_vector(31 downto 0);
@@ -73,7 +72,7 @@ architecture behaviour of execute1 is
          cur_instr => Decode2ToExecute1Init,
          busy => '0', terminate => '0',
          fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL, br_taken => '0',
-         mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
+         mul_in_progress => '0', div_in_progress => '0', cntz_in_progress => '0',
          others => (others => '0'));
 
     signal r, rin : reg_type;
@@ -669,14 +668,12 @@ begin
         variable abs_branch : std_ulogic;
         variable spr_val : std_ulogic_vector(63 downto 0);
         variable do_trace : std_ulogic;
-        variable hold_wr_data : std_ulogic;
         variable fv : Execute1ToFPUType;
     begin
         is_branch := '0';
         is_direct_branch := '0';
         taken_branch := '0';
         abs_branch := '0';
-        hold_wr_data := '0';
 
 	v := r;
 	v.e := Execute1ToWritebackInit;
@@ -692,7 +689,6 @@ begin
 	v.mul_in_progress := '0';
         v.div_in_progress := '0';
         v.cntz_in_progress := '0';
-        v.mul_finish := '0';
 
         spr_result <= (others => '0');
         spr_val := (others => '0');
@@ -1091,41 +1087,27 @@ begin
 	    if (r.mul_in_progress = '1' and multiply_to_x.valid = '1') or
 	       (r.div_in_progress = '1' and divider_to_x.valid = '1') then
 		if r.mul_in_progress = '1' then
-                    overflow := '0';
+                    overflow := multiply_to_x.overflow;
 		else
 		    overflow := divider_to_x.overflow;
 		end if;
-                if r.mul_in_progress = '1' and current.oe = '1' then
-                    -- have to wait until next cycle for overflow indication
-                    v.mul_finish := '1';
-                    v.busy := '1';
-                else
-                    -- We must test oe because the RC update code in writeback
-                    -- will use the xerc value to set CR0:SO so we must not clobber
-                    -- xerc if OE wasn't set.
-                    if current.oe = '1' then
-                        v.e.xerc.ov := overflow;
-                        v.e.xerc.ov32 := overflow;
-                        if overflow = '1' then
-                            v.e.xerc.so := '1';
-                        end if;
+                -- We must test oe because the RC update code in writeback
+                -- will use the xerc value to set CR0:SO so we must not clobber
+                -- xerc if OE wasn't set.
+                if current.oe = '1' then
+                    v.e.xerc.ov := overflow;
+                    v.e.xerc.ov32 := overflow;
+                    if overflow = '1' then
+                        v.e.xerc.so := '1';
                     end if;
-                    v.e.valid := '1';
                 end if;
-	    else
-		v.busy := '1';
+                v.e.valid := '1';
+ 	    else
+ 		v.busy := '1';
 		v.mul_in_progress := r.mul_in_progress;
 		v.div_in_progress := r.div_in_progress;
-	    end if;
-        elsif r.mul_finish = '1' then
-            hold_wr_data := '1';
-            v.e.xerc.ov := multiply_to_x.overflow;
-            v.e.xerc.ov32 := multiply_to_x.overflow;
-            if multiply_to_x.overflow = '1' then
-                v.e.xerc.so := '1';
             end if;
-            v.e.valid := '1';
-	end if;
+        end if;
 
         if illegal = '1' then
             exception := '1';
@@ -1159,11 +1141,7 @@ begin
             v.fp_exception_next := '0';
         end if;
 
-        if hold_wr_data = '0' then
-            v.e.write_data := alu_result;
-        else
-            v.e.write_data := r.e.write_data;
-        end if;
+        v.e.write_data := alu_result;
         v.e.write_reg := current.write_reg;
 	v.e.write_enable := current.write_reg_enable and v.e.valid and not exception;
         v.e.rc := current.rc and v.e.valid and not exception;

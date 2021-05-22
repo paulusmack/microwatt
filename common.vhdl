@@ -375,6 +375,7 @@ package common is
 	valid : std_ulogic;
         hold : std_ulogic;
 	load : std_ulogic;				-- is this a load
+        store : std_ulogic;
         dcbz : std_ulogic;
         flush : std_ulogic;
         touch : std_ulogic;

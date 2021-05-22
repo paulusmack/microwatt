@@ -906,6 +906,7 @@ begin
         if stage1_issue_enable = '1' then
             d_out.valid <= stage1_dcreq;
             d_out.load <= stage1_req.load;
+            d_out.store <= stage1_req.store;
             d_out.dcbz <= stage1_req.dcbz;
             d_out.flush <= stage1_req.flush;
             d_out.touch <= stage1_req.touch;
@@ -922,6 +923,7 @@ begin
         else
             d_out.valid <= req;
             d_out.load <= r2.req.load;
+            d_out.store <= r2.req.store;
             d_out.dcbz <= r2.req.dcbz;
             d_out.flush <= r2.req.flush;
             d_out.touch <= r2.req.touch;

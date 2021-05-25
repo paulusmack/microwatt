@@ -794,12 +794,9 @@ begin
             end if;
             if d_in.error = '1' then
                 if d_in.cache_paradox = '1' then
-                    -- signal an interrupt straight away
+                    -- signal a machine check interrupt straight away
                     exception := '1';
                     dsisr(63 - 38) := not r2.req.load;
-                    -- XXX there is no architected bit for this
-                    -- (probably should be a machine check in fact)
-                    dsisr(63 - 35) := d_in.cache_paradox;
                 else
                     -- Look up the translation for TLB miss
                     -- and also for permission error and RC error
@@ -868,11 +865,15 @@ begin
                 v.dar := r2.req.addr;
             elsif r2.req.instr_fault = '0' then
                 v.dar := r2.req.addr;
-                if m_in.segerr = '0' then
+                if d_in.error = '1' and d_in.cache_paradox = '1' then
+                    -- machine check for cache hit on noncacheable access
+                    v.intr_vec := 16#200#;
+                    v.dsisr := dsisr;
+                elsif m_in.err = '1' and m_in.segerr = '1' then
+                    v.intr_vec := 16#380#;
+                else
                     v.intr_vec := 16#300#;
                     v.dsisr := dsisr;
-                else
-                    v.intr_vec := 16#380#;
                 end if;
             else
                 if m_in.segerr = '0' then

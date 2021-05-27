@@ -282,7 +282,8 @@ begin
     c_in <= e_in.read_data3;
     cr_in <= e_in.cr;
 
-    x_to_pmu.occur <= events;
+    -- XXX make sure unused events are 0 to avoid errors from vivado
+    x_to_pmu.occur <= (instr_complete => events.instr_complete, others => '0');
     x_to_pmu.nia <= current.nia;
     x_to_pmu.addr <= (others => '0');
     x_to_pmu.addr_v <= '0';

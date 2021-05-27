@@ -87,6 +87,8 @@ architecture behaviour of decode2 is
             return ('0', (others => '0'), instr_addr);
         elsif HAS_FPU and t = FRA then
             return ('1', fpr_to_gspr(insn_fra(insn_in)), reg_data);
+        elsif HAS_VECVSX and t = VRA then
+            return ('1', vr_to_gspr(insn_vra(insn_in)), reg_data);
         else
             return ('0', (others => '0'), (others => '0'));
         end if;
@@ -103,6 +105,12 @@ architecture behaviour of decode2 is
             when FRB =>
                 if HAS_FPU then
                     ret := ('1', fpr_to_gspr(insn_frb(insn_in)), reg_data);
+                else
+                    ret := ('0', (others => '0'), (others => '0'));
+                end if;
+            when VRB =>
+                if HAS_VECVSX then
+                    ret := ('1', vr_to_gspr(insn_vrb(insn_in)), reg_data);
                 else
                     ret := ('0', (others => '0'), (others => '0'));
                 end if;
@@ -162,6 +170,12 @@ architecture behaviour of decode2 is
             when FRC =>
                 if HAS_FPU then
                     return ('1', fpr_to_gspr(insn_frc(insn_in)), reg_data);
+                else
+                    return ('0', (others => '0'), (others => '0'));
+                end if;
+            when VRC =>
+                if HAS_VECVSX then
+                    return ('1', vr_to_gspr(insn_vrc(insn_in)), reg_data);
                 else
                     return ('0', (others => '0'), (others => '0'));
                 end if;

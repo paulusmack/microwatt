@@ -30,6 +30,7 @@ entity execute1 is
 	e_in  : in Decode2ToExecute1Type;
         l_in  : in Loadstore1ToExecute1Type;
         fp_in : in FPUToExecute1Type;
+        v_in  : in VectorToExecute1Type;
 
 	ext_irq_in : std_ulogic;
         interrupt_in : std_ulogic;
@@ -37,6 +38,7 @@ entity execute1 is
 	-- asynchronous
         l_out : out Execute1ToLoadstore1Type;
         fp_out : out Execute1ToFPUType;
+        v_out : out Execute1ToVectorType;
 
 	e_out : out Execute1ToWritebackType;
         bypass_data : out bypass_data_t;
@@ -295,9 +297,17 @@ begin
     -- writeback.
     xerc_in <= r.e.xerc when r.e.write_xerc_enable = '1' or r.busy = '1' else e_in.xerc;
 
+    -- We can send multiple instructions to loadstore1 or vector as long as
+    -- there is only one unit that has any outstanding instructions at any
+    -- time.  In other words, while loadstore1 has any outstanding instructions
+    -- (l_in.in_progress = '1') we can execute more LDST instructions but no
+    -- others.  And while vector has any outstanding instructions, we can look
+    -- at VSU instructions but no others.  This is to make sure the completions
+    -- arrive at writeback in order.
     with e_in.unit select busy_out <=
-        l_in.busy or r.busy or fp_in.busy when LDST,
-        l_in.busy or l_in.in_progress or r.busy or fp_in.busy when others;
+        l_in.busy or r.busy or fp_in.busy or v_in.busy or v_in.in_progress when LDST,
+        l_in.busy or l_in.in_progress or r.busy or fp_in.busy or v_in.busy when VSU,
+        l_in.busy or l_in.in_progress or r.busy or fp_in.busy or v_in.busy or v_in.in_progress when others;
 
     valid_in <= e_in.valid and not busy_out and not flush_in;
 
@@ -673,6 +683,7 @@ begin
         variable spr_val : std_ulogic_vector(63 downto 0);
         variable do_trace : std_ulogic;
         variable fv : Execute1ToFPUType;
+        variable vv : Execute1ToVectorType;
         variable pprval : std_ulogic_vector(2 downto 0);
     begin
         is_branch := '0';
@@ -688,6 +699,7 @@ begin
 
         lv := Execute1ToLoadstore1Init;
         fv := Execute1ToFPUInit;
+        vv.valid := '0';
 
         x_to_multiply.valid <= '0';
         x_to_divider.valid <= '0';
@@ -1144,6 +1156,8 @@ begin
                 lv.valid := '1';
             elsif HAS_FPU and e_in.unit = FPU then
                 fv.valid := '1';
+            elsif HAS_VECVSX and e_in.unit = VSU then
+                vv.valid := '1';
             end if;
             -- Handling an ITLB miss doesn't count as having executed an instruction
             if e_in.insn_type = OP_FETCH_FAILED then
@@ -1277,6 +1291,21 @@ begin
         fv.rc := e_in.rc;
         fv.out_cr := e_in.output_cr;
 
+        -- Outputs to vector unit
+        vv.instr_tag := e_in.instr_tag;
+        vv.insn_type := e_in.insn_type;
+        vv.nia := e_in.nia;
+        vv.write_reg := e_in.write_reg;
+        vv.write_reg_enable := e_in.write_reg_enable;
+        vv.output_cr := e_in.output_cr;
+        vv.xerc := xerc_in;
+        vv.insn := e_in.insn;
+        vv.repeat := e_in.repeat;
+        vv.second := e_in.second;
+        vv.vra := a_in;
+        vv.vrb := b_in;
+        vv.vrc := c_in;
+
 	-- Update registers
 	rin <= v;
 
@@ -1285,6 +1314,7 @@ begin
 	e_out <= r.e;
         e_out.msr <= msr_copy(ctrl.msr);
         fp_out <= fv;
+        v_out <= vv;
 
         exception_log <= exception;
         irq_valid_log <= irq_valid;

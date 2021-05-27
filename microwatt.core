@@ -22,6 +22,7 @@ filesets:
       - control.vhdl
       - execute1.vhdl
       - fpu.vhdl
+      - vector.vhdl
       - loadstore1.vhdl
       - mmu.vhdl
       - dcache.vhdl

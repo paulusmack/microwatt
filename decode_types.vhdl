@@ -21,6 +21,7 @@ package decode_types is
                          OP_VRLOAD, OP_VRSTORE,
                          OP_VSXLDS, OP_VSXLDV, OP_VSXLDSPLT, OP_VSXST,
                          OP_VSXLDLEN, OP_VSXSTLEN,
+                         OP_VPERM,
 			 OP_XOR,
                          OP_BCD, OP_ADDG6S,
                          OP_FETCH_FAILED
@@ -60,6 +61,7 @@ package decode_types is
                       DRSE,      -- double RS, endian twist
                       DRT,       -- double RT
                       DRTE,      -- double RT, endian twist
+                      DABCT,     -- double RA, RB, RC, RT
                       DUPD);     -- update-form load
 
     type decode_rom_t is record

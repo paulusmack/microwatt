@@ -128,6 +128,8 @@ architecture behaviour of decode1 is
         2#11000000000# to 2#11000011111# => '1',        -- maddhd
         2#11000100000# to 2#11000111111# => '1',        -- maddhdu
         2#11001100000# to 2#11001111111# => '1',        -- maddld
+        2#10101100000# to 2#10101111111# => '1',        -- vperm
+        2#11101100000# to 2#11101111111# => '1',        -- vpermr
         others => '0'
         );
 
@@ -138,6 +140,8 @@ architecture behaviour of decode1 is
         2#110000#  =>       (ALU, NONE, OP_MUL_H64,   RA,         RB,          RCR,  RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0', NONE), -- maddhd
         2#110001#  =>       (ALU, NONE, OP_MUL_H64,   RA,         RB,          RCR,  RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- maddhdu
         2#110011#  =>       (ALU, NONE, OP_MUL_L64,   RA,         RB,          RCR,  RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0', NONE), -- maddld
+        2#101011#  =>       (VSU, VEC,  OP_VPERM,     VRA,        VRB,         VRC,  VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vperm
+        2#111011#  =>       (VSU, VEC,  OP_VPERM,     VRA,        VRB,         VRC,  VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpermr
         others   => decode_rom_init
         );
 

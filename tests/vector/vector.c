@@ -3,6 +3,7 @@
 #include <stdbool.h>
 
 #include "console.h"
+#include "lfsr.h"
 
 extern unsigned long callit(unsigned long arg1, unsigned long arg2,
 			    unsigned long (*fn)(unsigned long, unsigned long));
@@ -71,6 +72,19 @@ void print_hex(unsigned long val, int ndigits)
 		else
 			putchar(x + '0');
 	}
+}
+
+void print_buf(unsigned char *buf, unsigned long len, const char *what)
+{
+	unsigned long i;
+
+	print_string(what);
+	print_string(" =");
+	for (i = 0; i < len; ++i) {
+		print_string(" ");
+		print_hex(buf[i], 2);
+	}
+	print_string("\r\n");
 }
 
 // i < 100
@@ -220,6 +234,77 @@ int vector_test_2(void)
 	return 0;
 }
 
+unsigned char a[16] __attribute__((__aligned__(16)));
+unsigned char b[16] __attribute__((__aligned__(16)));
+unsigned char c[16] __attribute__((__aligned__(16)));
+unsigned char result[16] __attribute__((__aligned__(16)));
+
+unsigned long do_vperm(unsigned long x, unsigned long y)
+{
+	switch (x) {
+	case 0:
+		asm("vperm 1,2,3,4");
+		break;
+	case 1:
+		asm("lvx 0,0,%0; lvx 1,0,%1; lvx 2,0,%2; vperm 3,0,1,2; stvx 3,0,%3" : :
+		    "r" (a), "r" (b), "r" (c), "r" (result) : "memory");
+		break;
+	case 2:
+		asm("lvx 0,0,%0; lvx 1,0,%1; lvx 2,0,%2; vpermr 3,0,1,2; stvx 3,0,%3" : :
+		    "r" (a), "r" (b), "r" (c), "r" (result) : "memory");
+		break;
+	default:
+		return 0xff000 | x;
+	}
+	return 0;
+}
+
+/* test vperm and vpermr */
+int vector_test_3(void)
+{
+	unsigned long ret, i, j, v;
+	unsigned long lfsr = 1;
+
+	for (i = 0; i < 16; ++i) {
+		a[i] = 0xa0 + i;
+		b[i] = 0xb0 + i;
+	}
+	disable_vec();
+	ret = callit(0, 0, do_vperm);
+	if (ret != 0xf20)
+		return ret | 0x1000;
+	enable_vec();
+	for (j = 0; j < 10; ++j) {
+		for (i = 0; i < 16; ++i) {
+			lfsr = mylfsr(32, lfsr);
+			c[i] = lfsr & 0x1f;
+		}
+		ret = callit(1, 0, do_vperm);
+		if (ret)
+			return ret | 0x2000;
+		for (i = 0; i < 16; ++i) {
+			if (c[i] & 0x10)
+				v = b[~c[i] & 0xf];
+			else
+				v = a[~c[i] & 0xf];
+			if (result[i] != v)
+				return 0x100 | (j << 4) | i;
+		}
+		ret = callit(2, 0, do_vperm);
+		if (ret)
+			return ret | 0x3000;
+		for (i = 0; i < 16; ++i) {
+			if (c[i] & 0x10)
+				v = a[c[i] & 0xf];
+			else
+				v = b[c[i] & 0xf];
+			if (result[i] != v)
+				return 0x200 | (j << 4) | i;
+		}
+	}
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -244,6 +329,7 @@ int main(void)
 
 	do_test(1, vector_test_1);
 	do_test(2, vector_test_2);
+	do_test(3, vector_test_3);
 
 	return fail;
 }

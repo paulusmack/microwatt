@@ -566,6 +566,12 @@ begin
                     if r.repeat = d_in.big_endian then
                         decoded_reg_o.reg(0) := '1';
                     end if;
+                when DABCT =>
+                    -- do RA,RA|1; RB,RB|1; RC,RC|1; RT,RT|1
+                    decoded_reg_a.reg(0) := r.repeat;
+                    decoded_reg_b.reg(0) := r.repeat;
+                    decoded_reg_c.reg(0) := r.repeat;
+                    decoded_reg_o.reg(0) := r.repeat;
                 when DUPD =>
                     -- update-form loads, 2nd instruction writes RA
                     if r.repeat = '1' then

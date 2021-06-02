@@ -335,8 +335,7 @@ begin
         vst.result   when "001",
         vcmp_result  when "010",
         vbpermq_res  when "011",
-        vsum_result  when "100",
-        sat_result   when "101",
+        sat_result   when "100",
         vperm_result when others;
 
     vector_0: process(clk)
@@ -403,12 +402,8 @@ begin
         variable signbit      : std_ulogic;
         variable sum1         : std_ulogic_vector(32 downto 0);
         variable sum2         : std_ulogic_vector(32 downto 0);
-        variable saturate     : std_ulogic_vector(7 downto 0);
-        variable sat_msb      : std_ulogic_vector(7 downto 0);
-        variable sat_lsb      : std_ulogic_vector(7 downto 0);
-        variable overflow     : std_ulogic;
-        variable ovf_hi       : std_ulogic;
-        variable ovf_lo       : std_ulogic;
+        variable bconst       : std_ulogic_vector(4 downto 0);
+        variable const_b0     : std_ulogic;
     begin
         v := vst;
         v.e.busy := '0';
@@ -439,6 +434,8 @@ begin
         b_sh := b_in;
         store_ab0 := e_in.valid and not e_in.second;
         store_ab1 := e_in.valid and e_in.second;
+        const_b0 := '0';
+        bconst := "00000";
 
         lenm1 := std_ulogic_vector(unsigned(e_in.data_len(2 downto 0)) - 1);
         -- compute log_2(data_len), knowing data_len is one-hot
@@ -537,15 +534,18 @@ begin
                             end loop;
                         when "01100" =>
                             -- vspltisb
-                            v.b0 := std_ulogic_vector(resize(signed(e_in.insn(20 downto 16)), 64));
+                            bconst := e_in.insn(20 downto 16);
+                            const_b0 := '1';
                             v.perm_sel := x"0808080808080808";
                         when "01101" =>
                             -- vspltish
-                            v.b0 := std_ulogic_vector(resize(signed(e_in.insn(20 downto 16)), 64));
+                            bconst := e_in.insn(20 downto 16);
+                            const_b0 := '1';
                             v.perm_sel := x"0908090809080908";
                         when "01110" =>
                             -- vspltisw
-                            v.b0 := std_ulogic_vector(resize(signed(e_in.insn(20 downto 16)), 64));
+                            bconst := e_in.insn(20 downto 16);
+                            const_b0 := '1';
                             v.perm_sel := x"0b0a09080b0a0908";
                         when "00000" =>
                             -- vmrghb
@@ -759,6 +759,7 @@ begin
                 when OP_VSHOCT =>
                     -- we do LS then MS because the shift count is in the
                     -- LS half of VRB
+                    const_b0 := '1';
                     if e_in.second = '0' then
                         oshift := unsigned(b_in(6 downto 3));
                         v.oshift := oshift;
@@ -802,9 +803,10 @@ begin
 
         if store_ab0 = '1' then
             v.a0 := a_sh;
-            v.b0 := b_sh;
-            if e_in.insn_type = OP_VSHOCT then
-                v.b0 := (others => '0');
+            if const_b0 = '0' then
+                v.b0 := b_sh;
+            else
+                v.b0 := std_ulogic_vector(resize(signed(bconst), 64));
             end if;
         end if;
         if store_ab1 = '1' then
@@ -900,8 +902,12 @@ begin
         if e_in.valid = '1' then
             v.is_subtract := e_in.insn(10);
             v.is_signed := e_in.is_signed;
-            v.is_sat := e_in.sign_extend;
             v.log_len := log_len;
+            if e_in.insn_type = OP_VARITH then
+                v.is_sat := e_in.sign_extend;
+            else
+                v.is_sat := '0';
+            end if;
         end if;
         cin := e_in.insn(10);           -- 1 for vsub, 0 for vadd
         if e_in.second = '1' and e_in.insn(9 downto 6) = "0100" then
@@ -934,6 +940,7 @@ begin
             -- save full sum and input sign bits for overflow detection
             v.vsum := vsum;
             for i in 0 to 7 loop
+                m := i * 9;
                 v.vop_sign_a(i) := vop_a(m + 7);
                 v.vop_sign_b(i) := vop_b(m + 7);
             end loop;
@@ -1037,8 +1044,10 @@ begin
                     v.result := move_result;
                 when "011" =>
                     v.result := gather_res;
-                when others =>
+                when "100" =>
                     v.result := vsel_result;
+                when others =>
+                    v.result := vsum_result;
             end case;
         end if;
 
@@ -1052,6 +1061,7 @@ begin
 
         -- Set up outputs to writeback
         v.w.valid := (vst.part1 and e_in.valid) or vst.part2;
+        v.e.done := v.w.valid;
         v.w.instr_tag := vst.itag;
         v.w.write_enable := v.w.valid and vst.writes;
         v.w.write_reg := vst.wr_reg;
@@ -1061,6 +1071,11 @@ begin
         v.w.write_cr_enable := vst.part2 and vst.wr_cr;
         v.w.write_cr_mask := num_to_fxm(6);
         v.w.write_cr_data := x"000000" & vec_cr6 & x"0";
+
+        -- Update SAT
+        if v.w.valid = '1' and arith_ovf /= x"00" then
+            v.sat := '1';
+        end if;
 
         w_out <= vst.w;
         e_out <= vst.e;

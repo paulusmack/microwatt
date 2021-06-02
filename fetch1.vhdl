@@ -32,6 +32,7 @@ entity fetch1 is
 	i_out         : out Fetch1ToIcacheType;
 
         -- outputs to logger
+        stall_trig    : out std_ulogic;
         log_out       : out std_ulogic_vector(42 downto 0)
 	);
 end entity fetch1;
@@ -47,6 +48,7 @@ architecture behaviour of fetch1 is
     signal r_int, r_next_int : reg_internal_t;
     signal advance_nia : std_ulogic;
     signal log_nia : std_ulogic_vector(42 downto 0);
+    signal stall_count : unsigned(9 downto 0);
 
     constant BTC_ADDR_BITS : integer := 10;
     constant BTC_TAG_BITS : integer := 62 - BTC_ADDR_BITS;
@@ -80,6 +82,7 @@ begin
                 r.priv_mode <= r_next.priv_mode;
                 r.big_endian <= r_next.big_endian;
                 r_int.mode_32bit <= r_next_int.mode_32bit;
+                stall_count <= to_unsigned(0, 10);
             end if;
             if advance_nia = '1' then
                 r.predicted <= r_next.predicted;
@@ -92,9 +95,17 @@ begin
             -- always send the up-to-date stop mark and req
             r.stop_mark <= stop_in;
             r.req <= not rst;
+            if stall_in = '1' then
+                if stall_count < 1023 then
+                    stall_count <= stall_count + 1;
+                end if;
+            else
+                stall_count <= to_unsigned(0, 10);
+            end if;
 	end if;
     end process;
     log_out <= log_nia;
+    stall_trig <= '1' when stall_count >= 256 else '0';
 
     btc : if HAS_BTC generate
         signal btc_memory : btc_mem_type;

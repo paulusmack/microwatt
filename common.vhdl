@@ -683,8 +683,9 @@ package common is
     type VectorToExecute1Type is record
         busy        : std_ulogic;
         in_progress : std_ulogic;
+        done        : std_ulogic;
     end record;
-    constant VectorToExecute1Init : VectorToExecute1Type := (busy => '0', in_progress => '0');
+    constant VectorToExecute1Init : VectorToExecute1Type := (busy => '0', in_progress => '0', done => '0');
 
     type VectorToWritebackType is record
         valid           : std_ulogic;

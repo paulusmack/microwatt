@@ -1349,7 +1349,7 @@ begin
                             exception_log &
                             irq_valid_log &
                             interrupt_in &
-                            "00" &
+                            v_in.in_progress & v_in.done &
                             r.e.write_enable &
                             r.e.valid &
                             (r.e.redirect or r.e.interrupt) &

@@ -25,12 +25,14 @@ struct log_entry {
 	u64	ic_insn: 32;
 	u64	ic_valid: 1;
 	u64	d1_valid: 1;
-	u64	d1_unit: 2;
+	u64	d1_unit: 3;
 	u64	d1_part_nia: 4;
 	u64	d1_insn_type: 7;
-	u64	d2_bypass_a: 1;
-	u64	d2_bypass_b: 1;
+	u64	d2_second: 1;
+	u64	d2_repeat: 1;
 	u64	d2_bypass_c: 1;
+	u64	d2_bypass_b: 1;
+	u64	d2_bypass_a: 1;
 	u64	d2_stall_out: 1;
 	u64	d2_stopped_out: 1;
 	u64	d2_valid: 1;
@@ -39,9 +41,10 @@ struct log_entry {
 	u64	e1_stall_out: 1;
 	u64	e1_redirect: 1;
 	u64	e1_valid: 1;
-	u64	e1_write_enable: 1;
-	u64	e1_unused: 2;
 
+	u64	e1_write_enable: 1;
+	u64	e1_vdone: 1;
+	u64	e1_vip: 1;
 	u64	e1_irq_state: 1;
 	u64	e1_irq: 1;
 	u64	e1_exception: 1;
@@ -49,7 +52,7 @@ struct log_entry {
 	u64	e1_msr_ir: 1;
 	u64	e1_msr_pr: 1;
 	u64	e1_msr_ee: 1;
-	u64	pad1: 5;
+	u64	pad1: 2;
 	u64	ls_state: 3;
 	u64	ls_dw_done: 1;
 	u64	ls_min_done: 1;
@@ -83,7 +86,7 @@ struct log_entry {
 #define FLGA(i, y, z)	(log.i? y: z)
 #define PNIA(f)		(full_nia[log.f] & 0xff)
 
-const char *units[4] = { "--", "al", "ls", "fp" };
+const char *units[8] = { "--", "al", "ls", "fp", "vs", "?5", "?6", "?7" };
 const char *ops[128] =
 {
 	"illegal", "nop    ", "add    ", "and    ", "attn   ", "b      ", "bc     ", "bcreg  ",
@@ -141,9 +144,9 @@ int main(int ac, char **av)
 		full_nia[log.nia_lo & 0xf] = (log.nia_hi? 0xc000000000000000: 0) |
 			(log.nia_lo << 2);
 		if (lineno % 20 == 1) {
-			printf("        fetch1 NIA      icache                         decode1       decode2   execute1         loadstore  dcache       CR   GSPR\n");
-			printf("     ----------------   TAHW S -WB-- pN --insn--    pN un op         pN byp    FR IIE MSR  WC   SD MM CE   SRTO DE -WB-- c ms reg val\n");
-			printf("                        LdMy t csnSa IA             IA it            IA abc    le srx EPID em   tw rd mx   tAwp vr csnSa 0 k\n");
+			printf("        fetch1 NIA      icache                         decode1       decode2     execute1      vec  loadstore  dcache       CR   GSPR\n");
+			printf("     ----------------   TAHW S -WB-- pN --insn--    pN un op         pN byp R    FR IIE MSR  WCVV   SD MM CE   SRTO DE -WB-- c ms reg val\n");
+			printf("                        LdMy t csnSa IA             IA it            IA abc p    le srx EPID emid   tw rd mx   tAwp vr csnSa 0 k\n");
 		}
 		printf("%4ld %c0000%.11llx %c ", lineno,
 		       (log.nia_hi? 'c': '0'),
@@ -180,14 +183,15 @@ int main(int ac, char **av)
 		printf(" %c%c ",
 		       FLAG(d1_valid, '>'),
 		       FLAG(d2_stall_out, '|'));
-		printf("%.2llx %c%c%c %c%c ",
+		printf("%.2llx %c%c%c %c %c%c ",
 		       PNIA(d2_part_nia),
 		       FLAG(d2_bypass_a, 'a'),
 		       FLAG(d2_bypass_b, 'b'),
 		       FLAG(d2_bypass_c, 'c'),
+		       FLAG(d2_repeat, FLGA(d2_second, '2', '1')),
 		       FLAG(d2_valid, '>'),
 		       FLAG(e1_stall_out, '|'));
-		printf("%c%c %c%c%c %c%c%c%c %c%c ",
+		printf("%c%c %c%c%c %c%c%c%c %c%c%c%c ",
 		       FLAG(e1_flush_out, 'F'),
 		       FLAG(e1_redirect, 'R'),
 		       FLAG(e1_irq_state, 'w'),
@@ -198,7 +202,9 @@ int main(int ac, char **av)
 		       FLAG(e1_msr_ir, 'I'),
 		       FLAG(e1_msr_dr, 'D'),
 		       FLAG(e1_write_enable, 'W'),
-		       FLAG(e1_valid, 'C'));
+		       FLAG(e1_valid, 'C'),
+		       FLAG(e1_vip, 'v'),
+		       FLAG(e1_vdone, 'V'));
 		printf("%c %d%d %c%c %c%c %c ",
 		       FLAG(ls_stall_out, '|'),
 		       log.ls_state,

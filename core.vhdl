@@ -166,6 +166,7 @@ architecture behave of core is
     signal log_rd_addr : std_ulogic_vector(31 downto 0);
     signal log_wr_addr : std_ulogic_vector(31 downto 0);
     signal log_rd_data : std_ulogic_vector(63 downto 0);
+    signal stall_trig  : std_ulogic;
 
     function keep_h(disable : boolean) return string is
     begin
@@ -228,6 +229,7 @@ begin
             d_in => decode1_to_fetch1,
             w_in => writeback_to_fetch1,
             i_out => fetch1_to_icache,
+            stall_trig => stall_trig,
             log_out => log_data(42 downto 0)
             );
 
@@ -278,7 +280,7 @@ begin
             f_in => icache_to_decode1,
             d_out => decode1_to_decode2,
             f_out => decode1_to_fetch1,
-            log_out => log_data(110 downto 97)
+            log_out => log_data(111 downto 97)
             );
 
     decode1_stall_in <= decode2_stall_out;
@@ -306,7 +308,7 @@ begin
             c_out => decode2_to_cr_file,
             execute_bypass => execute1_bypass,
             execute_cr_bypass => execute1_cr_bypass,
-            log_out => log_data(120 downto 111)
+            log_out => log_data(123 downto 112)
             );
     decode2_busy_in <= ex1_busy_out;
 
@@ -374,7 +376,7 @@ begin
             run_out => run_out,
             events => events,
             terminate_out => terminate,
-            log_out => log_data(134 downto 121),
+            log_out => log_data(137 downto 124),
             log_rd_addr => log_rd_addr,
             log_rd_data => log_rd_data,
             log_wr_addr => log_wr_addr
@@ -481,7 +483,7 @@ begin
             complete_out => complete
             );
 
-    log_data(139 downto 135) <= "00000";
+    log_data(139 downto 138) <= "00";
 
     debug_0: entity work.core_debug
         generic map (
@@ -511,6 +513,7 @@ begin
             log_read_addr => log_rd_addr,
             log_read_data => log_rd_data,
             log_write_addr => log_wr_addr,
+            stall_trig => stall_trig,
 	    terminated_out => terminated_out
 	    );
 

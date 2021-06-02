@@ -825,6 +825,41 @@ int vsx_test_5(void)
 	return 0;
 }
 
+unsigned long t6op1[2] = { 0x6c2f343662696c2f, 0x322e6f732e343664 };
+unsigned long t6op2[2] = { 0x2e6f732e3436646c, 0x5f4342494c470032 };
+unsigned long t6op3[2] = { 0, 0 };
+unsigned long t6op4[2] = { 0x00000000ffffffff, 0x00ff00ff80ff00ff };
+
+int vsx_test_6(void)
+{
+	unsigned long cr;
+	unsigned long tmp[2];
+
+	enable_vec();
+	enable_vsx();
+	/* sequence from ld.so that stalled */
+	asm("lxvd2x 32,0,%1; lxvd2x 45,0,%2; vspltisw 1,0; vcmpequb 13,0,13; "
+	    "vcmpequb 0,0,1; xxlorc 32,32,45; vcmpequb. 13,0,1; stxvd2x 13,0,%3; "
+	    "mfcr %0"
+	    : "=r" (cr) : "r" (&t6op1), "r" (&t6op2), "r" (&tmp)
+	    : "v0", "v1", "v13", "cr6", "memory");
+
+	/* test xxpermdi a little */
+	asm("lxvd2x 48,0,%0; lxvd2x 53,0,%1; xxpermdi 11,48,53,1; stxvd2x 11,0,%2"
+	    : : "r" (&t6op3), "r" (&t6op4), "r" (&tmp) : "memory");
+	if (tmp[0] != t6op3[0]) {
+		print_hex(tmp[0], 16);
+		print_string(" ");
+		return 1;
+	}
+	if (tmp[1] != t6op4[1]) {
+		print_hex(tmp[1], 16);
+		print_string(" ");
+		return 2;
+	}
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -858,6 +893,7 @@ int main(void)
 	do_test(3, vsx_test_3);
 	do_test(4, vsx_test_4);
 	do_test(5, vsx_test_5);
+	do_test(6, vsx_test_6);
 
 	return fail;
 }

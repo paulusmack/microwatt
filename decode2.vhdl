@@ -41,7 +41,7 @@ entity decode2 is
         execute_bypass    : in bypass_data_t;
         execute_cr_bypass : in cr_bypass_data_t;
 
-        log_out : out std_ulogic_vector(9 downto 0)
+        log_out : out std_ulogic_vector(11 downto 0)
 	);
 end entity decode2;
 
@@ -314,19 +314,20 @@ architecture behaviour of decode2 is
         -- The following are used in the vector unit to select vec_result
         OP_VCMP     => "010",
         OP_VBPERM   => "011",
-        OP_VSUM     => "100",
-        OP_VARITH   => "101",
+        OP_VARITH   => "100",
         OP_VPERM    => "111",
         OP_VPACK    => "111",
         OP_VMERGE   => "111",
         OP_VSHIFT   => "111",
         OP_VMINMAX  => "111",
         OP_VSHOCT   => "111",
+        OP_XPERM    => "111",
         OP_LVS      => "001",
         OP_VLOG     => "001",
         OP_VMOVE    => "001",
         OP_VGATHER  => "001",
         OP_VSEL     => "001",
+        OP_VSUM     => "001",
         OP_MFVSCR   => "000",
         others      => "000"            -- default to adder_result
         );
@@ -357,6 +358,7 @@ architecture behaviour of decode2 is
         OP_VMOVE   => "010",
         OP_VGATHER => "011",
         OP_VSEL    => "100",
+        OP_VSUM    => "101",
         others     => "000"
         );
 
@@ -738,7 +740,13 @@ begin
         gpr_c_read_valid <= decoded_reg_c.reg_valid;
         gpr_c_read <= decoded_reg_c.reg;
 
-        cr_write_valid <= d_in.decode.output_cr or decode_rc(d_in.decode.rc, d_in.insn);
+        -- Doubled ops that write CR (e.g. vcmp*., stqcx.) write it on the second op,
+        -- not the first.
+        if v.e.repeat = '1' and r.repeat = '0' then
+            cr_write_valid <= '0';
+        else
+            cr_write_valid <= d_in.decode.output_cr or decode_rc(d_in.decode.rc, d_in.insn);
+        end if;
         -- Since ops that write CR only write some of the fields,
         -- any op that writes CR effectively also reads it.
         cr_read_valid <= cr_write_valid or d_in.decode.input_cr;
@@ -763,7 +771,7 @@ begin
     end process;
 
     d2_log: if LOG_LENGTH > 0 generate
-        signal log_data : std_ulogic_vector(9 downto 0);
+        signal log_data : std_ulogic_vector(11 downto 0);
     begin
         dec2_log : process(clk)
         begin
@@ -774,7 +782,9 @@ begin
                             stall_out &
                             gpr_a_bypass &
                             gpr_b_bypass &
-                            gpr_c_bypass;
+                            gpr_c_bypass &
+                            r.e.repeat &
+                            r.e.second;
             end if;
         end process;
         log_out <= log_data;

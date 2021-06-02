@@ -25,7 +25,7 @@ entity decode1 is
         f_in      : in IcacheToDecode1Type;
         f_out     : out Decode1ToFetch1Type;
         d_out     : out Decode1ToDecode2Type;
-        log_out   : out std_ulogic_vector(13 downto 0)
+        log_out   : out std_ulogic_vector(14 downto 0)
 	);
 end entity decode1;
 
@@ -252,23 +252,23 @@ architecture behaviour of decode1 is
         2#0000_00010# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vadduwm
         2#0000_00011# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vaddudm
         2#0000_00100# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vadduqm
-        2#0000_01000# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vaddubs
-        2#0000_01001# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vadduhs
-        2#0000_01010# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vadduws
-        2#0000_01100# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '1', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vaddsbs
-        2#0000_01101# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vaddshs
-        2#0000_01110# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vaddsws
+        2#0000_01000# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vaddubs
+        2#0000_01001# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vadduhs
+        2#0000_01010# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vadduws
+        2#0000_01100# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '1', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vaddsbs
+        2#0000_01101# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vaddshs
+        2#0000_01110# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vaddsws
         2#0000_10000# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsububm
         2#0000_10001# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubuhm
         2#0000_10010# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubuwm
         2#0000_10011# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubudm
         2#0000_10100# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vsubuqm
-        2#0000_11000# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsububs
-        2#0000_11001# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubuhs
-        2#0000_11010# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubuws
-        2#0000_11100# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '1', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vsubsbs
-        2#0000_11101# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vsubshs
-        2#0000_11110# =>    (ALU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vsubsws
+        2#0000_11000# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsububs
+        2#0000_11001# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubuhs
+        2#0000_11010# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsubuws
+        2#0000_11100# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '1', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vsubsbs
+        2#0000_11101# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vsubshs
+        2#0000_11110# =>    (VSU, VEC,  OP_VARITH,    VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vsubsws
         2#0011_11100# =>    (ALU, VEC,  OP_POPCNT,    NONE,       NONE,        VRB,  VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpopcntb
         2#0011_11101# =>    (ALU, VEC,  OP_POPCNT,    NONE,       NONE,        VRB,  VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpopcnth
         2#0011_11110# =>    (ALU, VEC,  OP_POPCNT,    NONE,       NONE,        VRB,  VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpopcntw
@@ -1021,14 +1021,14 @@ begin
     end process;
 
     d1_log: if LOG_LENGTH > 0 generate
-        signal log_data : std_ulogic_vector(13 downto 0);
+        signal log_data : std_ulogic_vector(14 downto 0);
     begin
         dec1_log : process(clk)
         begin
             if rising_edge(clk) then
                 log_data <= std_ulogic_vector(to_unsigned(insn_type_t'pos(r.decode.insn_type), 7)) &
                             r.nia(5 downto 2) &
-                            std_ulogic_vector(to_unsigned(unit_t'pos(r.decode.unit), 2)) &
+                            std_ulogic_vector(to_unsigned(unit_t'pos(r.decode.unit), 3)) &
                             r.valid;
             end if;
         end process;

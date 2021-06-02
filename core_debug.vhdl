@@ -44,6 +44,7 @@ entity core_debug is
         log_read_addr   : in std_ulogic_vector(31 downto 0);
         log_read_data   : out std_ulogic_vector(63 downto 0);
         log_write_addr  : out std_ulogic_vector(31 downto 0);
+        stall_trig      : in std_ulogic;
 
 	-- Misc
 	terminated_out  : out std_ulogic
@@ -262,7 +263,7 @@ begin
 
     begin
         -- Use MSB of read addresses to stop the logging
-        log_wr_enable <= not (log_read_addr(31) or log_dmi_addr(31) or log_dmi_trigger(1));
+        log_wr_enable <= not (log_read_addr(31) or log_dmi_addr(31) or log_dmi_trigger(1) or stall_trig);
 
         log_ram: process(clk)
         begin

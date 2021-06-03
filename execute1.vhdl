@@ -238,7 +238,7 @@ begin
 	port map (
             clk => clk,
 	    rs => c_in,
-	    count_right => e_in.insn(10),
+	    count_right => e_in.insn(10) and e_in.insn(30),
 	    is_32bit => e_in.is_32bit,
 	    result => countzero_result
 	    );

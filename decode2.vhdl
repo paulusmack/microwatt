@@ -567,17 +567,15 @@ begin
                     (d_in.priv_mode = '0' or spr = 0 or spr = 4 or spr = 5 or spr = 6) then
                     illegal := '1';
                 end if;
-            when OP_FPOP_I =>
-                if std_match(d_in.insn(10 downto 1), "1001000111") then
-                    -- mffs family, check flavour in bits 20..16
-                    case d_in.insn(20 downto 16) is
-                        when "00000" | "00001" | "10100" | "10101" |
-                             "10110" | "10111" | "11000" =>
-                            -- valid
-                        when others =>
-                            illegal := '1';
-                    end case;
-                end if;
+            when OP_MFFS =>
+                -- mffs family, check flavour in bits 20..16
+                case d_in.insn(20 downto 16) is
+                    when "00000" | "00001" | "10100" | "10101" |
+                        "10110" | "10111" | "11000" =>
+                    -- valid
+                    when others =>
+                        illegal := '1';
+                end case;
             when others =>
         end case;
         if d_in.decode.unit = NONE then

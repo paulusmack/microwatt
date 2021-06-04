@@ -74,6 +74,8 @@ architecture behaviour of fpu is
         instr_done   : std_ulogic;
         do_intr      : std_ulogic;
         op           : insn_type_t;
+        neg_b        : std_ulogic;
+        neg_result   : std_ulogic;
         insn         : std_ulogic_vector(31 downto 0);
         nia          : std_ulogic_vector(63 downto 0);
         instr_tag    : instr_tag_t;
@@ -110,6 +112,7 @@ architecture behaviour of fpu is
         madd_cmp     : std_ulogic;
         add_bsmall   : std_ulogic;
         is_multiply  : std_ulogic;
+        is_divide    : std_ulogic;
         is_sqrt      : std_ulogic;
         first        : std_ulogic;
         count        : unsigned(1 downto 0);
@@ -658,21 +661,26 @@ begin
             v.int_result := '0';
             v.rc := e_in.rc;
             v.is_cmp := e_in.out_cr;
+            v.neg_b := e_in.neg_b;
+            v.neg_result := e_in.neg_res;
             if e_in.out_cr = '0' then
                 v.cr_mask := num_to_fxm(1);
             else
                 v.cr_mask := num_to_fxm(to_integer(unsigned(insn_bf(e_in.insn))));
             end if;
-            int_input := '0';
-            if e_in.op = OP_FPOP_I then
-                int_input := '1';
-            end if;
+            case e_in.op is
+                when OP_FPCFI | OP_FPMRG | OP_MFFS | OP_MTFSF =>
+                    int_input := '1';
+                when others =>
+                    int_input := '0';
+            end case;
             v.quieten_nan := '1';
             v.tiny := '0';
             v.denorm := '0';
             v.round_mode := '0' & r.fpscr(FPSCR_RN+1 downto FPSCR_RN);
             v.is_subtract := '0';
             v.is_multiply := '0';
+            v.is_divide := '0';
             v.is_sqrt := '0';
             v.add_bsmall := '0';
             v.doing_ftdiv := "00";
@@ -780,88 +788,76 @@ begin
                 v.invalid := '0';
                 v.negate := '0';
                 if e_in.valid = '1' then
-                    case e_in.insn(5 downto 1) is
-                        when "00000" =>
-                            if e_in.insn(8) = '1' then
-                                if e_in.insn(6) = '0' then
-                                    v.state := DO_FTDIV;
-                                else
-                                    v.state := DO_FTSQRT;
-                                end if;
-                            elsif e_in.insn(7) = '1' then
-                                v.state := DO_MCRFS;
-                            else
-                                v.opsel_a := AIN_B;
-                                v.state := DO_FCMP;
-                            end if;
-                        when "00110" =>
-                            if e_in.insn(10) = '0' then
-                                if e_in.insn(8) = '0' then
-                                    v.state := DO_MTFSB;
-                                else
-                                    v.state := DO_MTFSFI;
-                                end if;
-                            else
-                                v.state := DO_FMRG;
-                            end if;
-                        when "00111" =>
-                            if e_in.insn(8) = '0' then
-                                v.state := DO_MFFS;
-                            else
-                                v.state := DO_MTFSF;
-                            end if;
-                        when "01000" =>
+                    case e_in.op is
+                        when OP_FPTDIV =>
+                            v.state := DO_FTDIV;
+                        when OP_FPTSQRT =>
+                            v.state := DO_FTSQRT;
+                        when OP_MCRFS =>
+                            v.state := DO_MCRFS;
+                        when OP_FPCMP =>
                             v.opsel_a := AIN_B;
-                            if e_in.insn(9 downto 8) /= "11" then
-                                v.state := DO_FMR;
-                            else
-                                v.state := DO_FRI;
-                            end if;
-                        when "01100" =>
+                            v.state := DO_FCMP;
+                        when OP_MTFSB =>
+                            v.state := DO_MTFSB;
+                        when OP_MTFSFI =>
+                            v.state := DO_MTFSFI;
+                        when OP_FPMRG =>
+                            v.state := DO_FMRG;
+                        when OP_MFFS =>
+                            v.state := DO_MFFS;
+                        when OP_MTFSF =>
+                            v.state := DO_MTFSF;
+                        when OP_FPMR =>
+                            v.opsel_a := AIN_B;
+                            v.state := DO_FMR;
+                        when OP_FPRI =>
+                            v.opsel_a := AIN_B;
+                            v.state := DO_FRI;
+                        when OP_FPRSP =>
                             v.opsel_a := AIN_B;
                             v.state := DO_FRSP;
-                        when "01110" =>
+                        when OP_FPCTI =>
                             v.opsel_a := AIN_B;
-                            if int_input = '1' then
-                                -- fcfid[u][s]
-                                v.state := DO_FCFID;
-                            else
-                                v.state := DO_FCTI;
-                            end if;
-                        when "01111" =>
+                            v.state := DO_FCTI;
+                        when OP_FPCFI =>
+                            v.opsel_a := AIN_B;
+                            v.state := DO_FCFID;
+                        when OP_FPCTIZ =>
                             v.round_mode := "001";
                             v.opsel_a := AIN_B;
                             v.state := DO_FCTI;
-                        when "10010" =>
+                        when OP_FPDIV =>
+                            v.is_divide := '1';
                             v.opsel_a := AIN_A;
                             if v.b.mantissa(54) = '0' and v.a.mantissa(54) = '1' then
                                 v.opsel_a := AIN_B;
                             end if;
                             v.state := DO_FDIV;
-                        when "10100" | "10101" =>
+                        when OP_FPADD =>
                             v.opsel_a := AIN_A;
                             v.state := DO_FADD;
-                        when "10110" =>
+                        when OP_FPSQRT =>
                             v.is_sqrt := '1';
                             v.opsel_a := AIN_B;
                             v.state := DO_FSQRT;
-                        when "10111" =>
+                        when OP_FPSEL =>
                             v.state := DO_FSEL;
-                        when "11000" =>
+                        when OP_FPRE =>
                             v.opsel_a := AIN_B;
                             v.state := DO_FRE;
-                        when "11001" =>
+                        when OP_FPMUL =>
                             v.is_multiply := '1';
                             v.opsel_a := AIN_A;
                             if v.c.mantissa(54) = '0' and v.a.mantissa(54) = '1' then
                                 v.opsel_a := AIN_C;
                             end if;
                             v.state := DO_FMUL;
-                        when "11010" =>
+                        when OP_FPRSE =>
                             v.is_sqrt := '1';
                             v.opsel_a := AIN_B;
                             v.state := DO_FRSQRTE;
-                        when "11100" | "11101" | "11110" | "11111" =>
+                        when OP_FPMADD =>
                             if v.a.mantissa(54) = '0' then
                                 v.opsel_a := AIN_A;
                             elsif v.c.mantissa(54) = '0' then
@@ -1202,14 +1198,14 @@ begin
                 v.fpscr(FPSCR_FI) := '0';
                 v.use_a := '1';
                 v.use_b := '1';
-                is_add := r.a.negative xor r.b.negative xor r.insn(1);
+                is_add := r.a.negative xor r.b.negative xor not r.neg_b;
                 if r.a.class = FINITE and r.b.class = FINITE then
                     v.is_subtract := not is_add;
                     v.add_bsmall := r.exp_cmp;
                     v.opsel_a := AIN_B;
                     if r.exp_cmp = '0' then
                         v.shift := r.a.exponent - r.b.exponent;
-                        v.result_sign := r.b.negative xnor r.insn(1);
+                        v.result_sign := r.b.negative xor r.neg_b;
                         if r.a.exponent = r.b.exponent then
                             v.state := ADD_2;
                         else
@@ -1238,7 +1234,7 @@ begin
                     else
                         -- result is +/- B
                         v.opsel_a := AIN_B;
-                        v.negate := not r.insn(1);
+                        v.negate := r.neg_b;
                         v.state := EXC_RESULT;
                     end if;
                 end if;
@@ -1450,7 +1446,7 @@ begin
                 v.use_a := '1';
                 v.use_b := '1';
                 v.use_c := '1';
-                is_add := r.a.negative xor r.c.negative xor r.b.negative xor r.insn(1);
+                is_add := r.a.negative xor r.c.negative xor r.b.negative xor not r.neg_b;
                 if r.a.class = FINITE and r.c.class = FINITE and
                     (r.b.class = FINITE or r.b.class = ZERO) then
                     v.is_subtract := not is_add;
@@ -1463,13 +1459,13 @@ begin
                         v.state := RENORM_C;
                     elsif r.b.class = ZERO then
                         -- no addend, degenerates to multiply
-                        v.result_sign := r.a.negative xor r.c.negative xor r.insn(2);
+                        v.result_sign := r.a.negative xor r.c.negative xor r.neg_result;
                         f_to_multiply.valid <= '1';
                         v.is_multiply := '1';
                         v.state := MULT_1;
                     elsif r.madd_cmp = '0' then
                         -- addend is bigger, do multiply first
-                        v.result_sign := not (r.b.negative xor r.insn(1) xor r.insn(2));
+                        v.result_sign := r.b.negative xor r.neg_b xor r.neg_result;
                         f_to_multiply.valid <= '1';
                         v.state := FMADD_1;
                     else
@@ -1477,7 +1473,7 @@ begin
                         -- addend to the multiplier
                         v.shift := r.b.exponent - mulexp + to_signed(64, EXP_BITS);
                         -- for subtract, multiplier does B - A * C
-                        v.result_sign := not (r.a.negative xor r.c.negative xor r.insn(2) xor is_add);
+                        v.result_sign := not (r.a.negative xor r.c.negative xor r.neg_result xor is_add);
                         v.result_exp := r.b.exponent;
                         v.state := FMADD_2;
                     end if;
@@ -1497,7 +1493,7 @@ begin
                         else
                             -- result is infinity
                             v.result_class := INFINITY;
-                            v.result_sign := r.a.negative xor r.c.negative xor r.insn(2);
+                            v.result_sign := r.a.negative xor r.c.negative xor r.neg_result;
                             arith_done := '1';
                         end if;
                     else
@@ -1505,10 +1501,10 @@ begin
                         -- Result is +/-B in all of those cases
                         v.opsel_a := AIN_B;
                         if r.b.class /= ZERO or is_add = '1' then
-                            v.negate := not (r.insn(1) xor r.insn(2));
+                            v.negate := r.neg_b xor r.neg_result;
                         else
                             -- have to be careful about rule for 0 - 0 result sign
-                            v.negate := r.b.negative xor (r.round_mode(1) and r.round_mode(0)) xor r.insn(2);
+                            v.negate := r.b.negative xor (r.round_mode(1) and r.round_mode(0)) xor r.neg_result;
                         end if;
                         v.state := EXC_RESULT;
                     end if;
@@ -1517,7 +1513,7 @@ begin
             when RENORM_A =>
                 renormalize := '1';
                 v.state := RENORM_A2;
-                if r.insn(4) = '1' then
+                if r.is_divide = '0' then
                     v.opsel_a := AIN_C;
                 else
                     v.opsel_a := AIN_B;
@@ -1527,9 +1523,9 @@ begin
                 -- r.opsel_a = AIN_C for fmul/fmadd, AIN_B for fdiv
                 set_a := '1';
                 v.result_exp := new_exp;
-                if r.insn(4) = '1' then
+                if r.is_divide = '0' then
                     if r.c.mantissa(54) = '1' then
-                        if r.insn(3) = '0' or r.b.class = ZERO then
+                        if r.is_multiply = '1' then
                             v.first := '1';
                             v.state := MULT_1;
                         else
@@ -1574,7 +1570,7 @@ begin
             when RENORM_C2 =>
                 set_c := '1';
                 v.result_exp := new_exp;
-                if r.insn(3) = '0' or r.b.class = ZERO then
+                if r.is_multiply = '1' then
                     v.first := '1';
                     v.state := MULT_1;
                 else
@@ -1677,7 +1673,7 @@ begin
 
             when FMADD_1 =>
                 -- Addend is bigger here
-                v.result_sign := not (r.b.negative xor r.insn(1) xor r.insn(2));
+                v.result_sign := r.b.negative xor r.neg_b xor r.neg_result;
                 -- note v.shift is at most -2 here
                 v.shift := r.result_exp - r.b.exponent;
                 opsel_r <= RES_MULT;
@@ -1752,17 +1748,16 @@ begin
                 -- r.opsel_a = AIN_B
                 -- wait one cycle for inverse_table[B] lookup
                 v.first := '1';
-                if r.insn(4) = '0' then
-                    if r.insn(3) = '0' then
+                case r.op is
+                    when OP_FPDIV =>
                         v.state := DIV_2;
-                    else
+                    when OP_FPSQRT =>
                         v.state := SQRT_1;
-                    end if;
-                elsif r.insn(2) = '0' then
-                    v.state := FRE_1;
-                else
-                    v.state := RSQRT_1;
-                end if;
+                    when OP_FPRE =>
+                        v.state := FRE_1;
+                    when others =>
+                        v.state := RSQRT_1;
+                end case;
 
             when DIV_2 =>
                 -- compute Y = inverse_table[B] (when count=0); P = 2 - B * Y

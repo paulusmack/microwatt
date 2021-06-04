@@ -1302,6 +1302,9 @@ begin
         fv.frt := e_in.write_reg;
         fv.rc := e_in.rc;
         fv.out_cr := e_in.output_cr;
+        -- Use invert_a field to indicate subtracts
+        fv.neg_b := e_in.invert_a;
+        fv.neg_res := e_in.invert_out;
 
         -- Outputs to vector unit
         vv.instr_tag := e_in.instr_tag;

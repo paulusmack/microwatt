@@ -315,6 +315,7 @@ architecture behaviour of decode2 is
         OP_VCMP     => "010",
         OP_VBPERM   => "011",
         OP_VARITH   => "100",
+        OP_VCNTZB   => "101",
         OP_VPERM    => "111",
         OP_VPACK    => "111",
         OP_VMERGE   => "111",
@@ -609,6 +610,9 @@ begin
                     if r.repeat = d_in.big_endian then
                         decoded_reg_o.reg(0) := '1';
                     end if;
+                when DRB =>
+                    -- do RB, RB|1
+                    decoded_reg_b.reg(0) := r.repeat;
                 when DABCT =>
                     -- do RA,RA|1; RB,RB|1; RC,RC|1; RT,RT|1
                     decoded_reg_a.reg(0) := r.repeat;

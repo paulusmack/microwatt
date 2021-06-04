@@ -63,6 +63,7 @@ architecture behaviour of decode1 is
     type minor_valid_array_2t is array(0 to 2047) of std_ulogic;
     type op_4_subop_array_t is array(0 to 63) of decode_rom_t;
     type op_4l_subop_array_t is array(0 to 512) of decode_rom_t;
+    type op_x2_subop_array_t is array(0 to 31) of decode_rom_t;
     type op_19_subop_array_t is array(0 to 7) of decode_rom_t;
     type op_30_subop_array_t is array(0 to 15) of decode_rom_t;
     type op_31_subop_array_t is array(0 to 1023) of decode_rom_t;
@@ -280,6 +281,15 @@ architecture behaviour of decode1 is
         2#1000_11001# =>    (VSU, VEC,  OP_VSUM,      VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vsum4shs
         2#0010_11111# =>    (ALU, VEC,  OP_CNTZ,      NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vclzd
         others   => decode_rom_init
+        );
+
+    -- indexed by bits 20..16 of instruction word
+    constant decode_xpnd2_array : op_x2_subop_array_t := (
+        --              unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
+        --                              op                                            in   out   A   out  in    out  len        ext                                 pipe
+        2#00000# =>    (VSU, VEC,  OP_VCNTZB,    NONE,       VRB,         NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRB), -- vclzlsbb
+        2#00001# =>    (VSU, VEC,  OP_VCNTZB,    NONE,       VRB,         NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRB), -- vctzlsbb
+        others => decode_rom_init
         );
 
     -- indexed by bits 10..1 of instruction word
@@ -798,6 +808,7 @@ begin
         variable vi : reg_internal_t;
         variable majorop : major_opcode_t;
         variable minor4op : std_ulogic_vector(8 downto 0);
+        variable minorxpnd : std_ulogic_vector(4 downto 0);
         variable op_19_bits: std_ulogic_vector(2 downto 0);
         variable minor60op : std_ulogic_vector(7 downto 0);
         variable sprn : spr_num_t;
@@ -827,7 +838,11 @@ begin
         case to_integer(unsigned(majorop)) is
         when 4 =>
             -- major opcode 4, mostly VMX/VSX stuff but also some integer ops (madd*)
-            if f_in.insn(5 downto 4) = "00" then
+            if std_match(f_in.insn(10 downto 0), "11000000010") then
+                -- XPND02
+                minorxpnd := f_in.insn(20 downto 16);
+                v.decode := decode_xpnd2_array(to_integer(unsigned(minorxpnd)));
+            elsif f_in.insn(5 downto 4) = "00" then
                 minor4op := f_in.insn(3 downto 0) & f_in.insn(10 downto 6);
                 v.decode := decode_op_4l_array(to_integer(unsigned(minor4op)));
             else

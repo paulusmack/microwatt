@@ -28,6 +28,7 @@ package helpers is
 
     function bit_reverse(a: std_ulogic_vector) return std_ulogic_vector;
     function bit_number(a: std_ulogic_vector(63 downto 0)) return std_ulogic_vector;
+    function count_right_zeroes(val: std_ulogic_vector) return std_ulogic_vector;
     function count_left_zeroes(val: std_ulogic_vector) return std_ulogic_vector;
 end package helpers;
 
@@ -245,6 +246,17 @@ package body helpers is
             stride := stride * 2;
         end loop;
         return ret;
+    end;
+
+    -- Count trailing zeroes operation
+    -- Assumes the value passed in is not zero (if it is, zero is returned)
+    function count_right_zeroes(val: std_ulogic_vector) return std_ulogic_vector is
+        variable sum: std_ulogic_vector(val'left downto val'right);
+        variable onehot: std_ulogic_vector(val'left downto val'right);
+    begin
+        sum := std_ulogic_vector(- signed(val));
+        onehot := sum and val;
+        return bit_number(std_ulogic_vector(resize(unsigned(onehot), 64)));
     end;
 
     -- Count leading zeroes operation

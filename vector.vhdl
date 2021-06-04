@@ -57,6 +57,7 @@ architecture behaviour of vector_unit is
         vop_sign_a   : std_ulogic_vector(7 downto 0);
         vop_sign_b   : std_ulogic_vector(7 downto 0);
         log_len      : std_ulogic_vector(1 downto 0);
+        insn         : std_ulogic_vector(31 downto 0);
         e            : VectorToExecute1Type;
         w            : VectorToWritebackType;
     end record;
@@ -71,6 +72,7 @@ architecture behaviour of vector_unit is
                                             vsum => (others => '0'),
                                             is_signed => '0', is_subtract => '0', is_sat => '0',
                                             vop_sign_a => x"00", vop_sign_b => x"00", log_len => "00",
+                                            insn => 32x"0",
                                             others => (others => '0'));
 
     signal vst, vst_in : vec_state;
@@ -85,6 +87,7 @@ architecture behaviour of vector_unit is
     signal vcmp_result  : std_ulogic_vector(63 downto 0);
     signal vsum_result  : std_ulogic_vector(63 downto 0);
     signal sat_result   : std_ulogic_vector(63 downto 0);
+    signal vclsb_result : std_ulogic_vector(63 downto 0);
     signal vbpermq_res  : std_ulogic_vector(63 downto 0);
     signal vbperm_byte  : std_ulogic_vector(7 downto 0);
     signal perm_data    : std_ulogic_vector(255 downto 0);
@@ -92,6 +95,7 @@ architecture behaviour of vector_unit is
     signal vec_cr6      : std_ulogic_vector(3 downto 0);
     signal cmp_bits     : std_ulogic_vector(7 downto 0);
     signal maxbits      : std_ulogic_vector(7 downto 0);
+    signal lsbs         : std_ulogic_vector(16 downto 0);
 
     signal cmpeq        : std_ulogic_vector(7 downto 0);
     signal cmpgt        : std_ulogic_vector(7 downto 0);
@@ -330,12 +334,21 @@ begin
                                           arith_satm(i) & (6 downto 0 => arith_satl(i));
     end generate;
 
+    -- vclzlsbb and vctzlsbb
+    vlsbs: for i in 0 to 15 generate
+        lsbs(i) <= perm_data(i*8) when vst.insn(16) = '1' else perm_data((15-i)*8);
+    end generate;
+    lsbs(16) <= '1';
+    vclsb_result(63 downto 6) <= (others => '0');
+    vclsb_result(5 downto 0) <= 6x"0" when vst.part2 = '0' else count_right_zeroes(lsbs);
+
     with vst.rsel select vec_result <=
         vscr_result  when "000",
         vst.result   when "001",
         vcmp_result  when "010",
         vbpermq_res  when "011",
         sat_result   when "100",
+        vclsb_result when "101",
         vperm_result when others;
 
     vector_0: process(clk)
@@ -413,6 +426,7 @@ begin
             v.wr_reg := e_in.write_reg;
             v.wr_cr := e_in.output_cr;
             v.itag := e_in.instr_tag;
+            v.insn := e_in.insn;
         end if;
 
         v.part2 := '0';

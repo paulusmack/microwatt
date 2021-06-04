@@ -25,6 +25,7 @@ package decode_types is
                          OP_VLOG, OP_VSEL, OP_VMOVE, OP_MFROMV,
                          OP_VGATHER, OP_VBPERM, OP_VSHIFT,
                          OP_VARITH, OP_VSHOCT, OP_VSUM,
+                         OP_VCNTZB,
                          OP_MFVSCR, OP_MTVSCR,
                          OP_LVS,
                          OP_XPERM,
@@ -68,6 +69,7 @@ package decode_types is
                       DRSE,      -- double RS, endian twist
                       DRT,       -- double RT
                       DRTE,      -- double RT, endian twist
+                      DRB,       -- double RB
                       DABCT,     -- double RA, RB, RC, RT
                       DABTR,     -- double RA, RB, RT, ls then ms
                       DUPD);     -- update-form load

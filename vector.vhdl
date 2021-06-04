@@ -49,15 +49,19 @@ architecture behaviour of vector_unit is
         vbp_sel      : std_ulogic_vector(31 downto 0);
         carry        : std_ulogic;
         oshift       : unsigned(3 downto 0);
-        isum         : std_ulogic_vector(33 downto 0);
+        asum0, asum1 : signed(32 downto 0);
+        bsum0, bsum1 : signed(33 downto 0);
         vsum         : std_ulogic_vector(71 downto 0);
         is_signed    : std_ulogic;
         is_subtract  : std_ulogic;
         is_sat       : std_ulogic;
         vop_sign_a   : std_ulogic_vector(7 downto 0);
         vop_sign_b   : std_ulogic_vector(7 downto 0);
+        data_len     : std_ulogic_vector(3 downto 0);
         log_len      : std_ulogic_vector(1 downto 0);
         insn         : std_ulogic_vector(31 downto 0);
+        do_vsum      : std_ulogic;
+        sum_across   : std_ulogic;
         e            : VectorToExecute1Type;
         w            : VectorToWritebackType;
     end record;
@@ -68,11 +72,14 @@ architecture behaviour of vector_unit is
                                             cmp_bits => x"00", all0 => '0', all1 => '0',
                                             vs_ext_l => x"00", vs_ext_r => x"00",
                                             vbpermq => x"00", vbp_sel => (others => '0'),
-                                            carry => '0', oshift => "0000", isum => (others => '0'),
+                                            carry => '0', oshift => "0000",
+                                            asum0 => (others => '0'), asum1 => (others => '0'),
+                                            bsum0 => (others => '0'), bsum1 => (others => '0'),
                                             vsum => (others => '0'),
                                             is_signed => '0', is_subtract => '0', is_sat => '0',
-                                            vop_sign_a => x"00", vop_sign_b => x"00", log_len => "00",
-                                            insn => 32x"0",
+                                            vop_sign_a => x"00", vop_sign_b => x"00",
+                                            data_len => "0000", log_len => "00",
+                                            insn => 32x"0", do_vsum => '0', sum_across => '0',
                                             others => (others => '0'));
 
     signal vst, vst_in : vec_state;
@@ -193,6 +200,55 @@ architecture behaviour of vector_unit is
             result(4*i + 3 downto 4*i) := (others => vec(i));
         end loop;
         return result;
+    end;
+
+    function add4bytes(a: std_ulogic_vector(31 downto 0); is_signed: std_ulogic)
+        return std_ulogic_vector is
+        variable byte0, byte1 : std_ulogic_vector(8 downto 0);
+        variable byte2, byte3 : std_ulogic_vector(8 downto 0);
+        variable bsum0, bsum1 : std_ulogic_vector(8 downto 0);
+        variable byte_sum     : std_ulogic_vector(9 downto 0);
+    begin
+        -- sum across groups of 4 bytes (signed or unsigned)
+        byte0 := (is_signed and a(7)) & a(7 downto 0);
+        byte1 := (is_signed and a(15)) & a(15 downto 8);
+        bsum0 := std_ulogic_vector(unsigned(byte0) + unsigned(byte1));
+        byte2 := (is_signed and a(23)) & a(23 downto 16);
+        byte3 := (is_signed and a(31)) & a(31 downto 24);
+        bsum1 := std_ulogic_vector(unsigned(byte2) + unsigned(byte3));
+        byte_sum := std_ulogic_vector(unsigned((is_signed and bsum0(8)) & bsum0) +
+                                      unsigned((is_signed and bsum1(8)) & bsum1));
+        return (is_signed and byte_sum(9)) & byte_sum;
+    end;
+
+    function add2halves(a: std_ulogic_vector(31 downto 0)) return std_ulogic_vector is
+        variable half0, half1 : std_ulogic_vector(16 downto 0);
+        variable half_sum     : std_ulogic_vector(16 downto 0);
+    begin
+        -- sum across half-words, always signed
+        half0 := a(15) & a(15 downto 0);
+        half1 := a(31) & a(31 downto 16);
+        half_sum := std_ulogic_vector(unsigned(half0) + unsigned(half1));
+        return half_sum;
+    end;
+
+    function saturate32(total: signed(34 downto 0); is_signed: std_ulogic)
+        return std_ulogic_vector is
+    begin
+        if is_signed = '0' then
+            if total(34 downto 32) /= "000" then
+                return 33x"1ffffffff";
+            end if;
+        else
+            if total(34 downto 31) /= "0000" and total(34 downto 31) /= "1111" then
+                if total(34) = '0' then
+                    return 33x"17fffffff";
+                else
+                    return 33x"180000000";
+                end if;
+            end if;
+        end if;
+        return '0' & std_ulogic_vector(total(31 downto 0));
     end;
 
 begin
@@ -349,6 +405,7 @@ begin
         vbpermq_res  when "011",
         sat_result   when "100",
         vclsb_result when "101",
+        vsum_result  when "110",
         vperm_result when others;
 
     vector_0: process(clk)
@@ -402,21 +459,11 @@ begin
         variable cin          : std_ulogic;
         variable oshift       : unsigned(3 downto 0);
         variable index        : std_ulogic_vector(4 downto 0);
-        variable byte0, byte1 : std_ulogic_vector(8 downto 0);
-        variable byte2, byte3 : std_ulogic_vector(8 downto 0);
-        variable bsum0, bsum1 : std_ulogic_vector(8 downto 0);
-        variable byte_sum     : std_ulogic_vector(9 downto 0);
-        variable half0, half1 : std_ulogic_vector(16 downto 0);
-        variable half_sum     : std_ulogic_vector(16 downto 0);
-        variable word0, word1 : std_ulogic_vector(33 downto 0);
-        variable word2        : std_ulogic_vector(33 downto 0);
-        variable word_sum     : std_ulogic_vector(33 downto 0);
-        variable total        : std_ulogic_vector(34 downto 0);
-        variable signbit      : std_ulogic;
-        variable sum1         : std_ulogic_vector(32 downto 0);
-        variable sum2         : std_ulogic_vector(32 downto 0);
+        variable total        : std_ulogic_vector(32 downto 0);
+        variable bext0, bext1 : signed(33 downto 0);
         variable bconst       : std_ulogic_vector(4 downto 0);
         variable const_b0     : std_ulogic;
+        variable sum_across   : std_ulogic;
     begin
         v := vst;
         v.e.busy := '0';
@@ -427,6 +474,8 @@ begin
             v.wr_cr := e_in.output_cr;
             v.itag := e_in.instr_tag;
             v.insn := e_in.insn;
+            v.data_len := e_in.data_len;
+            v.is_signed := e_in.is_signed;
         end if;
 
         v.part2 := '0';
@@ -450,6 +499,8 @@ begin
         store_ab1 := e_in.valid and e_in.second;
         const_b0 := '0';
         bconst := "00000";
+        sum_across := '0';
+        v.do_vsum := '0';
 
         lenm1 := std_ulogic_vector(unsigned(e_in.data_len(2 downto 0)) - 1);
         -- compute log_2(data_len), knowing data_len is one-hot
@@ -458,6 +509,7 @@ begin
 
         -- Compute permutation vector v.perm_sel
         if e_in.valid = '1' then
+            v.perm_sel := (others => '0');
             case e_in.insn_type is
                 when OP_VPERM =>
                     -- OP_VPERM, columns 2b, 3b, 2c
@@ -810,8 +862,12 @@ begin
                             end if;
                         end loop;
                     end if;
+                when OP_VSUM =>
+                    v.do_vsum := '1';
+                    if e_in.insn(8 downto 6) = "110" then
+                        sum_across := '1';
+                    end if;
                 when others =>
-                    v.perm_sel := (others => '0');
             end case;
         end if;
 
@@ -915,7 +971,6 @@ begin
         -- vector arithmetic
         if e_in.valid = '1' then
             v.is_subtract := e_in.insn(10);
-            v.is_signed := e_in.is_signed;
             v.log_len := log_len;
             if e_in.insn_type = OP_VARITH then
                 v.is_sat := e_in.sign_extend;
@@ -961,89 +1016,56 @@ begin
         end if;
 
         -- Sum-across logic
-        word0 := a_in(31) & a_in(31) & a_in(31 downto 0);
-        word1 := a_in(63) & a_in(63) & a_in(63 downto 32);
-        word_sum := std_ulogic_vector(unsigned(word0) + unsigned(word1));
         if e_in.valid = '1' then
-            if e_in.second = '0' and e_in.insn_type = OP_VSUM and e_in.insn(8 downto 6) = "110" then
-                v.isum := word_sum;
+            v.sum_across := sum_across;
+
+            -- Add two halves of A for vsumsws and vsum2sws
+            if e_in.data_len(2) = '1' then
+                v.asum0 := resize(signed(a_in(31 downto 0)), 33) +
+                           resize(signed(a_in(63 downto 32)), 33);
+                v.asum1 := 33x"0";
+            elsif e_in.data_len(1) = '1' then
+                v.asum0 := resize(signed(add2halves(a_in(31 downto 0))), 33);
+                v.asum1 := resize(signed(add2halves(a_in(63 downto 32))), 33);
             else
-                v.isum := (others => '0');
+                v.asum0 := resize(signed(add4bytes(a_in(31 downto 0), e_in.is_signed)), 33);
+                v.asum1 := resize(signed(add4bytes(a_in(63 downto 32), e_in.is_signed)), 33);
             end if;
+
+            -- Put B in v.bsum0/1 except for 2nd dword of vsumsws, for
+            -- which we put B + vst.asum0 in bsum0.
+            if e_in.is_signed = '1' then
+                bext0 := resize(signed(b_in(31 downto 0)), 34);
+                bext1 := resize(signed(b_in(63 downto 32)), 34);
+            else
+                bext0 := signed(resize(unsigned(b_in(31 downto 0)), 34));
+                bext1 := signed(resize(unsigned(b_in(63 downto 32)), 34));
+            end if;
+            if sum_across = '1' then
+                v.bsum0 := bext0 + resize(vst.asum0, 34);
+            else
+                v.bsum0 := bext0;
+            end if;
+            v.bsum1 := bext1;
         end if;
 
-        word2 := std_ulogic_vector(unsigned(b_in(31) & b_in(31) & b_in(31 downto 0)) +
-                                   unsigned(vst.isum));
-
-        if e_in.data_len(2) = '1' then
-            -- vsumsws, vsum2sws
-            sum_result(63 downto 32) := x"00000000";
-            if e_in.second = '1' or e_in.insn(8) = '0' then
-                total := std_ulogic_vector(unsigned(word2(33) & word2) +
-                                           unsigned(word_sum(33) & word_sum));
-                -- work out whether to saturate
-                if total(34 downto 31) = "0000" or total(34 downto 31) = "1111" then
-                    sum_result(31 downto 0) := total(31 downto 0);
-                else
-                    if e_in.insn_type = OP_VSUM and e_in.valid = '1' then
-                        v.sat := '1';
-                    end if;
-                    if total(34) = '0' then
-                        sum_result(31 downto 0) := x"7fffffff";
-                    else
-                        sum_result(31 downto 0) := x"80000000";
-                    end if;
-                end if;
-            else
-                sum_result(31 downto 0) := x"00000000";
+        -- In the following cycle do vst.asum + vst.bsum and saturate
+        sum_result := (others => '0');
+        if vst.sum_across = '0' or vst.part2 = '1' then
+            total := saturate32(resize(vst.asum0, 35) + resize(vst.bsum0, 35),
+                                vst.is_signed);
+            if total(32) = '1' and vst.do_vsum = '1' then
+                v.sat := '1';
             end if;
-
-        else
-            -- vsum4sbs, vsum4ubs, vsum4shs
-            for i in 0 to 1 loop
-                -- sum across groups of 4 bytes (signed or unsigned)
-                k := i * 32;
-                byte0 := (e_in.is_signed and a_in(k + 7)) & a_in(k + 7 downto k);
-                byte1 := (e_in.is_signed and a_in(k + 15)) & a_in(k + 15 downto k + 8);
-                bsum0 := std_ulogic_vector(unsigned(byte0) + unsigned(byte1));
-                byte2 := (e_in.is_signed and a_in(k + 23)) & a_in(k + 23 downto k + 16);
-                byte3 := (e_in.is_signed and a_in(k + 31)) & a_in(k + 31 downto k + 24);
-                bsum1 := std_ulogic_vector(unsigned(byte2) + unsigned(byte3));
-                byte_sum := std_ulogic_vector(unsigned((e_in.is_signed and bsum0(8)) & bsum0) +
-                                              unsigned((e_in.is_signed and bsum1(8)) & bsum1));
-
-                -- sum across half-words, always signed
-                half0 := a_in(k + 15) & a_in(k + 15 downto k);
-                half1 := a_in(k + 31) & a_in(k + 31 downto k + 16);
-                half_sum := std_ulogic_vector(unsigned(half0) + unsigned(half1));
-
-                if e_in.data_len(0) = '1' then
-                    signbit := e_in.is_signed and byte_sum(9);
-                    sum1(32 downto 10) := (others => signbit);
-                    sum1(9 downto 0) := byte_sum;
-                else
-                    sum1 := std_ulogic_vector(resize(signed(half_sum), 33));
-                end if;
-
-                signbit := e_in.is_signed and b_in(k + 31);
-                sum2 := std_ulogic_vector(unsigned(signbit & b_in(k + 31 downto k)) +
-                                          unsigned(sum1));
-                
-                if (e_in.is_signed and sum2(31)) = sum2(32) then
-                    sum_result(k + 31 downto k) := sum2(31 downto 0);
-                else
-                    if e_in.insn_type = OP_VSUM and e_in.valid = '1' then
-                        v.sat := '1';
-                    end if;
-                    if e_in.is_signed = '0' then
-                        sum_result(k + 31 downto k) := x"ffffffff";
-                    elsif sum2(32) = '0' then
-                        sum_result(k + 31 downto k) := x"7fffffff";
-                    else
-                        sum_result(k + 31 downto k) := x"80000000";
-                    end if;
-                end if;
-            end loop;
+            sum_result(31 downto 0) := total(31 downto 0);
+        end if;
+        if vst.data_len(2) = '0' then
+            total := saturate32(resize(vst.asum1, 35) + resize(vst.bsum1, 35),
+                                vst.is_signed);
+            if total(32) = '1' and vst.do_vsum = '1' then
+                v.sat := '1';
+            end if;
+            sum_result(63 downto 32) := total(31 downto 0);
         end if;
         vsum_result <= sum_result;
 
@@ -1058,10 +1080,8 @@ begin
                     v.result := move_result;
                 when "011" =>
                     v.result := gather_res;
-                when "100" =>
-                    v.result := vsel_result;
                 when others =>
-                    v.result := vsum_result;
+                    v.result := vsel_result;
             end case;
         end if;
 

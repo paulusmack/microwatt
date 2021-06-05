@@ -613,6 +613,12 @@ begin
                     if r.repeat = d_in.big_endian then
                         decoded_reg_o.reg(0) := '1';
                     end if;
+                when DRTZ =>
+                    -- do RT, write 0 to RT|1
+                    decoded_reg_o.reg(0) := r.repeat;
+                    if r.repeat = '1' then
+                        op := OP_SETZ;
+                    end if;
                 when DRB =>
                     -- do RB, RB|1
                     decoded_reg_b.reg(0) := r.repeat;
@@ -667,12 +673,12 @@ begin
         if illegal = '0' then
             v.e.unit := d_in.decode.unit;
             v.e.fac := d_in.decode.facility;
-            v.e.insn_type := op;
         else
             v.e.unit := ALU;
             v.e.fac := NONE;
-            v.e.insn_type := OP_ILLEGAL;
+            op := OP_ILLEGAL;
         end if;
+        v.e.insn_type := op;
         v.e.instr_tag := instr_tag;
         v.e.read_reg1 := decoded_reg_a.reg;
         v.e.read_reg2 := decoded_reg_b.reg;

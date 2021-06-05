@@ -43,6 +43,7 @@ architecture behaviour of fpu is
                      DO_FADD, DO_FMUL, DO_FDIV, DO_FSQRT, DO_FMADD,
                      DO_FRE, DO_FRSQRTE,
                      DO_FSEL,
+                     DO_SETZ,
                      FRI_1,
                      ADD_1, ADD_SHIFT, ADD_2, ADD_3,
                      CMP_1, CMP_2,
@@ -84,6 +85,8 @@ architecture behaviour of fpu is
         rc           : std_ulogic;
         is_cmp       : std_ulogic;
         single_prec  : std_ulogic;
+        is_32bit     : std_ulogic;
+        is_signed    : std_ulogic;
         fpscr        : std_ulogic_vector(31 downto 0);
         a            : fpu_reg_type;
         b            : fpu_reg_type;
@@ -124,6 +127,7 @@ architecture behaviour of fpu is
         invalid      : std_ulogic;
         negate       : std_ulogic;
         longmask     : std_ulogic;
+        last_wrote   : std_ulogic;
     end record;
 
     type lookup_table is array(0 to 1023) of std_ulogic_vector(17 downto 0);
@@ -551,6 +555,7 @@ begin
                 r.do_intr <= '0';
                 r.fpscr <= (others => '0');
                 r.writing_back <= '0';
+                r.last_wrote <= '1';
             else
                 assert not (r.state /= IDLE and e_in.valid = '1') severity failure;
                 r <= rin;
@@ -656,8 +661,16 @@ begin
             v.instr_tag := e_in.itag;
             v.fe_mode := or (e_in.fe_mode);
             v.dest_fpr := e_in.frt;
-            v.single_prec := e_in.single;
-            v.longmask := e_in.single;
+            if e_in.op = OP_FPCTI or e_in.op = OP_FPCTIZ then
+                v.is_32bit := e_in.single;
+                v.is_signed := e_in.sign;
+                v.single_prec := '0';
+            else
+                v.is_32bit := '0';
+                v.is_signed := '0';
+                v.single_prec := e_in.single;
+            end if;
+            v.longmask := v.single_prec;
             v.int_result := '0';
             v.rc := e_in.rc;
             v.is_cmp := e_in.out_cr;
@@ -866,6 +879,8 @@ begin
                                 v.opsel_a := AIN_B;
                             end if;
                             v.state := DO_FMADD;
+                        when OP_SETZ =>
+                            v.state := DO_SETZ;
                         when others =>
                             illegal := '1';
                     end case;
@@ -1150,13 +1165,13 @@ begin
                         arith_done := '1';
                     when FINITE =>
                         if r.b.exponent >= to_signed(64, EXP_BITS) or
-                            (r.insn(9) = '0' and r.b.exponent >= to_signed(32, EXP_BITS)) then
+                            (r.is_32bit = '1' and r.b.exponent >= to_signed(32, EXP_BITS)) then
                             v.state := INT_OFLOW;
                         elsif r.b.exponent >= to_signed(52, EXP_BITS) then
                             -- integer already, no rounding required,
                             -- shift into final position
                             v.shift := r.b.exponent - to_signed(54, EXP_BITS);
-                            if r.insn(8) = '1' and r.b.negative = '1' then
+                            if r.is_signed = '0' and r.b.negative = '1' then
                                 v.state := INT_OFLOW;
                             else
                                 v.state := INT_ISHIFT;
@@ -2017,7 +2032,7 @@ begin
                 round := fp_rounding(r.r, r.x, '0', r.round_mode, r.result_sign);
                 v.fpscr(FPSCR_FR downto FPSCR_FI) := round;
                 -- Check for negative values that don't round to 0 for fcti*u*
-                if r.insn(8) = '1' and r.result_sign = '1' and
+                if r.is_signed = '0' and r.result_sign = '1' and
                     (r_hi_nz or r_lo_nz or v.fpscr(FPSCR_FR)) = '1' then
                     v.state := INT_OFLOW;
                 else
@@ -2054,14 +2069,14 @@ begin
                 end if;
 
             when INT_CHECK =>
-                if r.insn(9) = '0' then
+                if r.is_32bit = '1' then
                     msb := r.r(31);
                 else
                     msb := r.r(63);
                 end if;
                 misc_sel <= '1' & r.insn(9 downto 8) & r.result_sign;
-                if (r.insn(8) = '0' and msb /= r.result_sign) or
-                    (r.insn(8) = '1' and msb /= '1') then
+                if (r.is_signed = '1' and msb /= r.result_sign) or
+                    (r.is_signed = '0' and msb /= '1') then
                     opsel_r <= RES_MISC;
                     v.fpscr(FPSCR_VXCVI) := '1';
                     invalid := '1';
@@ -2275,6 +2290,18 @@ begin
                 end case;
                 arith_done := '1';
 
+            when DO_SETZ =>
+                -- Used for setting the right half of a VSX register to zero.
+                -- Write must be suppressed if the write of the left half was
+                -- suppressed due to a trap-enabled invalid operation or zero
+                -- divide exception.
+                opsel_r <= RES_MISC;
+                misc_sel <= "1111";
+                v.int_result := '1';
+                v.writing_back := r.last_wrote;
+                v.instr_done := '1';
+                v.state := IDLE;
+
         end case;
 
         if zero_divide = '1' then
@@ -2298,6 +2325,9 @@ begin
                 (zero_divide and r.fpscr(FPSCR_ZE)) = '0' then
                 v.writing_back := '1';
                 v.update_fprf := '1';
+                v.last_wrote := '1';
+            else
+                v.last_wrote := '0';
             end if;
             v.instr_done := '1';
             v.state := IDLE;

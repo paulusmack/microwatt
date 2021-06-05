@@ -656,7 +656,7 @@ architecture behaviour of decode1 is
         others => illegal_inst
         );
 
-    -- indexed by bits 4..3 and 10..6 of instruction word
+    -- indexed by bits 4..3 and 10..6 of instruction word, bit 5 being 0
     constant decode_op_60l_array : op_60_subop_array_t := (
         --                  unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
         --                                  op                                            in   out   A   out  in    out  len        ext                                 pipe
@@ -675,10 +675,11 @@ architecture behaviour of decode1 is
         others   => illegal_inst
         );
 
-    -- indexed by bits 3..2 and 10..6 of instruction word
+    -- indexed by bits 3..2 and 10..6 of instruction word, bits 5..4 being 10
     constant decode_op_60h_array : op_60_subop_array_t := (
         --                  unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
         --                                  op                                            in   out   A   out  in    out  len        ext                                 pipe
+        2#00_10101#  =>    (FPU, VSX, OP_FPCTIZ,     NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', DRTZ),  -- xscvdpsxds
         others   => illegal_inst
         );
 
@@ -730,15 +731,15 @@ architecture behaviour of decode1 is
         2#100001110#  => (FPU, FPU, OP_FPRI,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 14/8=frip
         2#100001111#  => (FPU, FPU, OP_FPRI,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 15/8=frim
         2#110000000#  => (FPU, FPU, OP_FPRSP,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), --  0/12=frsp
-        2#111000000#  => (FPU, FPU, OP_FPCTI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  0/14=fctiw
-        2#111000100#  => (FPU, FPU, OP_FPCTI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  4/14=fctiwu
-        2#111011001#  => (FPU, FPU, OP_FPCTI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 25/14=fctid
+        2#111000000#  => (FPU, FPU, OP_FPCTI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0', NONE), --  0/14=fctiw
+        2#111000100#  => (FPU, FPU, OP_FPCTI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), --  4/14=fctiwu
+        2#111011001#  => (FPU, FPU, OP_FPCTI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0', NONE), -- 25/14=fctid
         2#111011010#  => (FPU, FPU, OP_FPCFI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 26/14=fcfid
         2#111011101#  => (FPU, FPU, OP_FPCTI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 29/14=fctidu
         2#111011110#  => (FPU, FPU, OP_FPCFI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 30/14=fcfidu
-        2#111100000#  => (FPU, FPU, OP_FPCTIZ,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  0/15=fctiwz
-        2#111100100#  => (FPU, FPU, OP_FPCTIZ,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), --  4/15=fctiwuz
-        2#111111001#  => (FPU, FPU, OP_FPCTIZ,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 25/15=fctidz
+        2#111100000#  => (FPU, FPU, OP_FPCTIZ,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0', NONE), --  0/15=fctiwz
+        2#111100100#  => (FPU, FPU, OP_FPCTIZ,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), --  4/15=fctiwuz
+        2#111111001#  => (FPU, FPU, OP_FPCTIZ,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0', NONE), -- 25/15=fctidz
         2#111111101#  => (FPU, FPU, OP_FPCTIZ,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 29/15=fctiduz
         others => illegal_inst
         );
@@ -813,7 +814,7 @@ begin
         variable minor4op : std_ulogic_vector(8 downto 0);
         variable minorxpnd : std_ulogic_vector(4 downto 0);
         variable op_19_bits: std_ulogic_vector(2 downto 0);
-        variable minor60op : std_ulogic_vector(7 downto 0);
+        variable minor60op : std_ulogic_vector(6 downto 0);
         variable sprn : spr_num_t;
         variable br_target : std_ulogic_vector(61 downto 0);
         variable br_offset : signed(23 downto 0);

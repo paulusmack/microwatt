@@ -623,13 +623,14 @@ package common is
         out_cr  : std_ulogic;
         neg_b   : std_ulogic;
         neg_res : std_ulogic;
+        sign    : std_ulogic;
     end record;
     constant Execute1ToFPUInit : Execute1ToFPUType := (valid => '0', op => OP_ILLEGAL, nia => (others => '0'),
                                                        itag => instr_tag_init,
                                                        insn  => (others => '0'), fe_mode => "00", rc => '0',
                                                        fra => (others => '0'), frb => (others => '0'),
                                                        frc => (others => '0'), frt => (others => '0'),
-                                                       single => '0', out_cr => '0',
+                                                       single => '0', out_cr => '0', sign => '0',
                                                        neg_b => '0', neg_res => '0');
 
     type FPUToExecute1Type is record

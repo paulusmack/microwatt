@@ -36,6 +36,7 @@ package decode_types is
                          OP_XPERM,
 			 OP_XOR,
                          OP_BCD, OP_ADDG6S,
+                         OP_SETZ,
                          OP_FETCH_FAILED
 			 );
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR, CIA, FRA, VRA, XA);
@@ -74,6 +75,7 @@ package decode_types is
                       DRSE,      -- double RS, endian twist
                       DRT,       -- double RT
                       DRTE,      -- double RT, endian twist
+                      DRTZ,      -- double RT, zero 2nd half
                       DRB,       -- double RB
                       DABCT,     -- double RA, RB, RC, RT
                       DABTR,     -- double RA, RB, RT, ls then ms

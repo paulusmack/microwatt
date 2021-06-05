@@ -199,6 +199,12 @@ architecture behaviour of decode2 is
                 else
                     return ('0', (others => '0'), (others => '0'));
                 end if;
+            when XC =>
+                if HAS_VECVSX then
+                    return ('1', vsr_to_gspr(insn_xc(insn_in)), reg_data);
+                else
+                    return ('0', (others => '0'), (others => '0'));
+                end if;
             when XS =>
                 if HAS_VECVSX then
                     return ('1', vsr_to_gspr(insn_xs(insn_in)), reg_data);

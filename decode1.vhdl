@@ -67,7 +67,7 @@ architecture behaviour of decode1 is
     type op_19_subop_array_t is array(0 to 7) of decode_rom_t;
     type op_30_subop_array_t is array(0 to 15) of decode_rom_t;
     type op_31_subop_array_t is array(0 to 1023) of decode_rom_t;
-    type op_60_subop_array_t is array(0 to 255) of decode_rom_t;
+    type op_60_subop_array_t is array(0 to 127) of decode_rom_t;
     type op_59_subop_array_t is array(0 to 31) of decode_rom_t;
     type minor_rom_array_2_t is array(0 to 3) of decode_rom_t;
     type op_61_subop_array_t is array(0 to 7) of decode_rom_t;
@@ -656,28 +656,30 @@ architecture behaviour of decode1 is
         others => illegal_inst
         );
 
-    -- indexed by bits 5..3 and 10..6 of instruction word
-    constant decode_op_60_array : op_60_subop_array_t := (
-        --                   unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
-        --                                   op                                            in   out   A   out  in    out  len        ext                                 pipe
-        2#010_10000#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxland
-        2#010_10001#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlandc
-        2#010_10010#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlor
-        2#010_10011#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlxor
-        2#010_10100#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlnor
-        2#010_10101#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlorc
-        2#010_10110#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlnand
-        2#010_10111#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxleqv
-        2#010_00001#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
-        2#010_00101#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
-        2#010_01001#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
-        2#010_01101#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
+    -- indexed by bits 4..3 and 10..6 of instruction word
+    constant decode_op_60l_array : op_60_subop_array_t := (
+        --                  unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
+        --                                  op                                            in   out   A   out  in    out  len        ext                                 pipe
+        2#10_10000#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxland
+        2#10_10001#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlandc
+        2#10_10010#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlor
+        2#10_10011#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlxor
+        2#10_10100#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlnor
+        2#10_10101#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlorc
+        2#10_10110#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlnand
+        2#10_10111#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxleqv
+        2#10_00001#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
+        2#10_00101#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
+        2#10_01001#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
+        2#10_01101#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
         others   => illegal_inst
         );
 
-    -- indexed by bits 10..1 of instruction word
-    constant decode_op_60_invalid : minor_valid_array_t := (
-        others => '0'
+    -- indexed by bits 3..2 and 10..6 of instruction word
+    constant decode_op_60h_array : op_60_subop_array_t := (
+        --                  unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
+        --                                  op                                            in   out   A   out  in    out  len        ext                                 pipe
+        others   => illegal_inst
         );
 
     -- indexed by bits 2..0 of instruction word
@@ -764,6 +766,7 @@ architecture behaviour of decode1 is
     --                                                           op                                              in   out   A   out  in    out  len        ext                                 pipe
     constant nop_instr      : decode_rom_t := (ALU,  NONE, OP_NOP,          NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
     constant fetch_fail_inst: decode_rom_t := (LDST, NONE, OP_FETCH_FAILED, NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
+    constant xxsel_inst     : decode_rom_t := (VSU,  VEC,  OP_VSEL,         XA,         XB,          XC,   XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT);
 
 begin
     decode1_0: process(clk)
@@ -966,9 +969,17 @@ begin
             end if;
 
         when 60 =>
-            minor60op := f_in.insn(5 downto 3) & f_in.insn(10 downto 6);
-            v.decode := decode_op_60_array(to_integer(unsigned(minor60op)));
-            vi.override := decode_op_60_invalid(to_integer(unsigned(f_in.insn(10 downto 1))));
+            if HAS_VECVSX then
+                if f_in.insn(5) = '0' then
+                    minor60op := f_in.insn(4 downto 3) & f_in.insn(10 downto 6);
+                    v.decode := decode_op_60l_array(to_integer(unsigned(minor60op)));
+                elsif f_in.insn(4) = '0' then
+                    minor60op := f_in.insn(3 downto 2) & f_in.insn(10 downto 6);
+                    v.decode := decode_op_60h_array(to_integer(unsigned(minor60op)));
+                else
+                    v.decode := xxsel_inst;
+                end if;
+            end if;
 
         when 61 =>
             if HAS_VECVSX then

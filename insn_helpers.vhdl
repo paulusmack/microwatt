@@ -48,6 +48,7 @@ package insn_helpers is
     function insn_vrc (insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_xa(insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_xb(insn_in : std_ulogic_vector) return std_ulogic_vector;
+    function insn_xc(insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_xs(insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_xs2(insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_xt(insn_in : std_ulogic_vector) return std_ulogic_vector;
@@ -289,6 +290,11 @@ package body insn_helpers is
     function insn_xb(insn_in : std_ulogic_vector) return std_ulogic_vector is
     begin
         return insn_in(1) & insn_in(15 downto 11);
+    end;
+
+    function insn_xc(insn_in : std_ulogic_vector) return std_ulogic_vector is
+    begin
+        return insn_in(3) & insn_in(10 downto 6);
     end;
 
     function insn_xs2(insn_in : std_ulogic_vector) return std_ulogic_vector is

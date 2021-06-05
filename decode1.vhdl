@@ -67,8 +67,9 @@ architecture behaviour of decode1 is
     type op_19_subop_array_t is array(0 to 7) of decode_rom_t;
     type op_30_subop_array_t is array(0 to 15) of decode_rom_t;
     type op_31_subop_array_t is array(0 to 1023) of decode_rom_t;
+    type op_59_subop_array_0_t is array(0 to 511) of decode_rom_t;
+    type op_59_subop_array_1_t is array(0 to 16) of decode_rom_t;
     type op_60_subop_array_t is array(0 to 127) of decode_rom_t;
-    type op_59_subop_array_t is array(0 to 31) of decode_rom_t;
     type minor_rom_array_2_t is array(0 to 3) of decode_rom_t;
     type op_61_subop_array_t is array(0 to 7) of decode_rom_t;
     type op_63_subop_array_0_t is array(0 to 511) of decode_rom_t;
@@ -638,21 +639,30 @@ architecture behaviour of decode1 is
         others   => decode_rom_init
         );
 
-    constant decode_op_59_array : op_59_subop_array_t := (
-        --             unit fac  internal       in1   in2   in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
-        --                             op                               in   out   A   out  in    out  len        ext                                pipe
-        2#01110#  =>  (FPU, FPU, OP_FPCFI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fcfid[u]s
-        2#10010#  =>  (FPU, FPU, OP_FPDIV,      FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fdivs
-        2#10100#  =>  (FPU, FPU, OP_FPADD,      FRA,  FRB,  NONE, FRT,  '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fsubs
-        2#10101#  =>  (FPU, FPU, OP_FPADD,      FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fadds
-        2#10110#  =>  (FPU, FPU, OP_FPSQRT,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fsqrts
-        2#11000#  =>  (FPU, FPU, OP_FPRE,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fres
-        2#11001#  =>  (FPU, FPU, OP_FPMUL,      FRA,  NONE, FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fmuls
-        2#11010#  =>  (FPU, FPU, OP_FPRSE,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- frsqrtes
-        2#11100#  =>  (FPU, FPU, OP_FPMADD,     FRA,  FRB,  FRC,  FRT,  '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fmsubs
-        2#11101#  =>  (FPU, FPU, OP_FPMADD,     FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fmadds
-        2#11110#  =>  (FPU, FPU, OP_FPMADD,     FRA,  FRB,  FRC,  FRT,  '0', '0', '1', '1', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fnmsubs
-        2#11111#  =>  (FPU, FPU, OP_FPMADD,     FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fnmadds
+    -- indexed by bits 4..1 and 10..6 of instruction word
+    constant decode_op_59l_array : op_59_subop_array_0_t := (
+        --                unit fac  internal       in1   in2   in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
+        --                                op                               in   out   A   out  in    out  len        ext                                pipe
+        2#111011010#  => (FPU, FPU, OP_FPCFI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0', NONE), -- 26/14=fcfids
+        2#111011110#  => (FPU, FPU, OP_FPCFI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- 30/14=fcfidus
+        others => illegal_inst
+        );
+
+    -- indexed by bits 4..1 of instruction word
+    constant decode_op_59h_array : op_59_subop_array_1_t := (
+        --            unit fac  internal       in1   in2   in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
+        --                            op                               in   out   A   out  in    out  len        ext                                pipe
+        2#0010#  =>  (FPU, FPU, OP_FPDIV,      FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fdivs
+        2#0100#  =>  (FPU, FPU, OP_FPADD,      FRA,  FRB,  NONE, FRT,  '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fsubs
+        2#0101#  =>  (FPU, FPU, OP_FPADD,      FRA,  FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fadds
+        2#0110#  =>  (FPU, FPU, OP_FPSQRT,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fsqrts
+        2#1000#  =>  (FPU, FPU, OP_FPRE,       NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fres
+        2#1001#  =>  (FPU, FPU, OP_FPMUL,      FRA,  NONE, FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fmuls
+        2#1010#  =>  (FPU, FPU, OP_FPRSE,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- frsqrtes
+        2#1100#  =>  (FPU, FPU, OP_FPMADD,     FRA,  FRB,  FRC,  FRT,  '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fmsubs
+        2#1101#  =>  (FPU, FPU, OP_FPMADD,     FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fmadds
+        2#1110#  =>  (FPU, FPU, OP_FPMADD,     FRA,  FRB,  FRC,  FRT,  '0', '0', '1', '1', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fnmsubs
+        2#1111#  =>  (FPU, FPU, OP_FPMADD,     FRA,  FRB,  FRC,  FRT,  '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- fnmadds
         others => illegal_inst
         );
 
@@ -679,7 +689,13 @@ architecture behaviour of decode1 is
     constant decode_op_60h_array : op_60_subop_array_t := (
         --                  unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
         --                                  op                                            in   out   A   out  in    out  len        ext                                 pipe
+        2#00_10010#  =>    (FPU, VSX, OP_FPCFI,      NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', DRTZ),  -- xscvuxdsp
+        2#00_10011#  =>    (FPU, VSX, OP_FPCFI,      NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', NONE, '0', '0', DRTZ),  -- xscvsxdsp
+        2#00_10100#  =>    (FPU, VSX, OP_FPCTIZ,     NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTZ),  -- xscvdpuxds
         2#00_10101#  =>    (FPU, VSX, OP_FPCTIZ,     NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', DRTZ),  -- xscvdpsxds
+        2#00_10110#  =>    (FPU, VSX, OP_FPCFI,      NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTZ),  -- xscvuxddp
+        2#00_10111#  =>    (FPU, VSX, OP_FPCFI,      NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', DRTZ),  -- xscvsxddp
+        2#01_10001#  =>    (FPU, VSX, OP_FPRSP,      NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', DRTZ),  -- xsrsp
         others   => illegal_inst
         );
 
@@ -734,7 +750,7 @@ architecture behaviour of decode1 is
         2#111000000#  => (FPU, FPU, OP_FPCTI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0', NONE), --  0/14=fctiw
         2#111000100#  => (FPU, FPU, OP_FPCTI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), --  4/14=fctiwu
         2#111011001#  => (FPU, FPU, OP_FPCTI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0', NONE), -- 25/14=fctid
-        2#111011010#  => (FPU, FPU, OP_FPCFI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 26/14=fcfid
+        2#111011010#  => (FPU, FPU, OP_FPCFI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0', NONE), -- 26/14=fcfid
         2#111011101#  => (FPU, FPU, OP_FPCTI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 29/14=fctidu
         2#111011110#  => (FPU, FPU, OP_FPCFI,      NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- 30/14=fcfidu
         2#111100000#  => (FPU, FPU, OP_FPCTIZ,     NONE, FRB,  NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', RC,   '0', '0', NONE), --  0/15=fctiwz
@@ -963,9 +979,10 @@ begin
         when 59 =>
             if HAS_FPU then
                 -- floating point operations, mostly single-precision
-                v.decode := decode_op_59_array(to_integer(unsigned(f_in.insn(5 downto 1))));
-                if f_in.insn(5) = '0' and not std_match(f_in.insn(10 downto 1), "11-1001110") then
-                    vi.override := '1';
+                if f_in.insn(5) = '0' then
+                    v.decode := decode_op_59l_array(to_integer(unsigned(f_in.insn(4 downto 1) & f_in.insn(10 downto 6))));
+                else
+                    v.decode := decode_op_59h_array(to_integer(unsigned(f_in.insn(4 downto 1))));
                 end if;
             end if;
 

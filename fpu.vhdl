@@ -661,13 +661,12 @@ begin
             v.instr_tag := e_in.itag;
             v.fe_mode := or (e_in.fe_mode);
             v.dest_fpr := e_in.frt;
+            v.is_signed := e_in.sign;
             if e_in.op = OP_FPCTI or e_in.op = OP_FPCTIZ then
                 v.is_32bit := e_in.single;
-                v.is_signed := e_in.sign;
                 v.single_prec := '0';
             else
                 v.is_32bit := '0';
-                v.is_signed := '0';
                 v.single_prec := e_in.single;
             end if;
             v.longmask := v.single_prec;
@@ -1187,7 +1186,7 @@ begin
             when DO_FCFID =>
                 -- r.opsel_a = AIN_B
                 v.result_sign := '0';
-                if r.insn(8) = '0' and r.b.negative = '1' then
+                if r.is_signed = '1' and r.b.negative = '1' then
                     -- fcfid[s] with negative operand, set R = -B
                     opsel_ainv <= '1';
                     carry_in <= '1';

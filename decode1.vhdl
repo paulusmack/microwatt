@@ -668,20 +668,28 @@ architecture behaviour of decode1 is
 
     -- indexed by bits 4..3 and 10..6 of instruction word, bit 5 being 0
     constant decode_op_60l_array : op_60_subop_array_t := (
-        --                  unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
-        --                                  op                                            in   out   A   out  in    out  len        ext                                 pipe
-        2#10_10000#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxland
-        2#10_10001#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlandc
-        2#10_10010#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlor
-        2#10_10011#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlxor
-        2#10_10100#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlnor
-        2#10_10101#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlorc
-        2#10_10110#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlnand
-        2#10_10111#  =>    (VSU, VEC,  OP_VLOG,      XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxleqv
-        2#10_00001#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
-        2#10_00101#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
-        2#10_01001#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
-        2#10_01101#  =>    (VSU, VSX,  OP_XPERM,     XA,         XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
+        --                  unit fac   internal      in1     in2      in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
+        --                                  op                                    in   out   A   out  in    out  len        ext                                 pipe
+        2#00_00000#  =>    (FPU, VSX,  OP_FPADD,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', DRTZ),  -- xsaddsp
+        2#00_00001#  =>    (FPU, VSX,  OP_FPADD,     XA,     XB,      NONE, XT,   '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', DRTZ),  -- xssubsp
+        2#00_00010#  =>    (FPU, VSX,  OP_FPMUL,     XA,     NONE,    XB,   XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', DRTZ),  -- xsmulsp
+        2#00_00011#  =>    (FPU, VSX,  OP_FPDIV,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', DRTZ),  -- xsdivsp
+        2#00_00100#  =>    (FPU, VSX,  OP_FPADD,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTZ),  -- xsadddp
+        2#00_00101#  =>    (FPU, VSX,  OP_FPADD,     XA,     XB,      NONE, XT,   '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTZ),  -- xssubdp
+        2#00_00110#  =>    (FPU, VSX,  OP_FPMUL,     XA,     NONE,    XB,   XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTZ),  -- xsmuldp
+        2#00_00111#  =>    (FPU, VSX,  OP_FPDIV,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTZ),  -- xsdivdp
+        2#10_10000#  =>    (VSU, VEC,  OP_VLOG,      XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxland
+        2#10_10001#  =>    (VSU, VEC,  OP_VLOG,      XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlandc
+        2#10_10010#  =>    (VSU, VEC,  OP_VLOG,      XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlor
+        2#10_10011#  =>    (VSU, VEC,  OP_VLOG,      XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlxor
+        2#10_10100#  =>    (VSU, VEC,  OP_VLOG,      XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlnor
+        2#10_10101#  =>    (VSU, VEC,  OP_VLOG,      XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlorc
+        2#10_10110#  =>    (VSU, VEC,  OP_VLOG,      XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlnand
+        2#10_10111#  =>    (VSU, VEC,  OP_VLOG,      XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxleqv
+        2#10_00001#  =>    (VSU, VSX,  OP_XPERM,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
+        2#10_00101#  =>    (VSU, VSX,  OP_XPERM,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
+        2#10_01001#  =>    (VSU, VSX,  OP_XPERM,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
+        2#10_01101#  =>    (VSU, VSX,  OP_XPERM,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
         others   => illegal_inst
         );
 

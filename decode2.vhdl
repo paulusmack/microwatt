@@ -122,6 +122,12 @@ architecture behaviour of decode2 is
                 else
                     ret := ('0', (others => '0'), (others => '0'));
                 end if;
+            when XS =>
+                if HAS_VECVSX then
+                    ret := ('1', vsr_to_gspr(insn_xs(insn_in)), reg_data);
+                else
+                    ret := ('0', (others => '0'), (others => '0'));
+                end if;
             when CONST_UI =>
                 ret := ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_ui(insn_in)), 64)));
             when CONST_SI =>

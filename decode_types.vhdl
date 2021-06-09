@@ -30,7 +30,7 @@ package decode_types is
                          OP_VMERGE, OP_VCMP, OP_VMINMAX,
                          OP_VLOG, OP_VSEL, OP_VMOVE, OP_MFROMV,
                          OP_VGATHER, OP_VBPERM, OP_VSHIFT,
-                         OP_VARITH, OP_VSHOCT, OP_VSUM,
+                         OP_VARITH, OP_VSHOCT, OP_VSHOI, OP_VSUM,
                          OP_VCNTZB,
                          OP_MFVSCR, OP_MTVSCR,
                          OP_LVS,
@@ -42,7 +42,7 @@ package decode_types is
 			 );
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR, CIA, FRA, VRA, XA);
     type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
-                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, SPR, FRB, VRB, XB);
+                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, SPR, FRB, VRB, XB, XS);
     type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRC, VRS, VRB, XC, XS, XS2, XB);
     type output_reg_a_t is (NONE, RT, RA, SPR, FRT, VRT, XT, XT2);
     type rc_t is (NONE, ONE, RC);

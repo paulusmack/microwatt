@@ -138,7 +138,7 @@ architecture behaviour of decode1 is
         2#101011#  =>       (VSU, VEC,  OP_VPERM,     VRA,        VRB,         VRC,  VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vperm
         2#111011#  =>       (VSU, VEC,  OP_VPERM,     VRA,        VRB,         VRC,  VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vpermr
         2#101010#  =>       (VSU, VEC,  OP_VSEL,      VRA,        VRB,         VRC,  VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsel
-        2#101100#  =>       (VSU, VEC,  OP_VPERM,     VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsldoi
+        2#101100#  =>       (VSU, VEC,  OP_VSHOI,     VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsldoi
         others   => decode_rom_init
         );
 
@@ -692,11 +692,19 @@ architecture behaviour of decode1 is
         2#10_10101#  =>    (VSU, VEC,  OP_VLOG,      XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlorc
         2#10_10110#  =>    (VSU, VEC,  OP_VLOG,      XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxlnand
         2#10_10111#  =>    (VSU, VEC,  OP_VLOG,      XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxleqv
+        2#10_00000#  =>    (VSU, VSX,  OP_VSHOI,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxsldwi
+        2#10_00100#  =>    (VSU, VSX,  OP_VSHOI,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxsldwi
+        2#10_01000#  =>    (VSU, VSX,  OP_VSHOI,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxsldwi
+        2#10_01100#  =>    (VSU, VSX,  OP_VSHOI,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxsldwi
         2#10_00001#  =>    (VSU, VSX,  OP_XPERM,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
         2#10_00101#  =>    (VSU, VSX,  OP_XPERM,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
         2#10_01001#  =>    (VSU, VSX,  OP_XPERM,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
         2#10_01101#  =>    (VSU, VSX,  OP_XPERM,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
         2#10_01010#  =>    (VSU, VEC,  OP_VMERGE,    NONE,   XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxspltw
+        2#10_00010#  =>    (VSU, VEC,  OP_VMERGE,    XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxmrghw
+        2#10_00110#  =>    (VSU, VEC,  OP_VMERGE,    XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxmrglw
+        2#10_00011#  =>    (VSU, VEC,  OP_VPERM,     XA,     XS,      XB,   XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxperm
+        2#10_00111#  =>    (VSU, VEC,  OP_VPERM,     XA,     XS,      XB,   XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermr
         2#11_00100#  =>    (FPU, VSX,  OP_FPCMP,     XA,     XB,      NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  xscmpudp
         2#11_00101#  =>    (FPU, VSX,  OP_FPCMP,     XA,     XB,      NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  xscmpodp
         others   => illegal_inst

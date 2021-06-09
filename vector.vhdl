@@ -518,22 +518,18 @@ begin
             v.perm_sel := (others => '0');
             case e_in.insn_type is
                 when OP_VPERM =>
-                    -- OP_VPERM, columns 2b, 3b, 2c
-                    if e_in.insn(2) = '1' then
-                        -- vsldoi
-                        m := 16 - to_integer(unsigned(e_in.insn(9 downto 6)));
-                        if e_in.second = '0' then
-                            m := m + 8;
-                        end if;
-                        for i in 0 to 7 loop
-                            k := i * 8;
-                            v.perm_sel(k + 7 downto k) := "000" & std_ulogic_vector(to_unsigned(m, 5) + to_unsigned(i, 5));
-                        end loop;
-                    elsif e_in.insn(4) = '0' then
-                        -- vperm
+                    -- OP_VPERM, columns 2b and 3b for vperm/vpermr
+                    -- also xxperm/xxpermr
+                    if e_in.insn(31) = '0' then
+                        b := e_in.insn(4);      -- vperm[r]
+                    else
+                        b := e_in.insn(8);      -- xxperm[r]
+                    end if;
+                    if b = '0' then
+                        -- vperm/xxperm
                         v.perm_sel := not c_in;
                     else
-                        -- vpermr
+                        -- vpermr/xxpermr
                         v.perm_sel := c_in;
                     end if;
                 when OP_VMINMAX =>
@@ -610,7 +606,7 @@ begin
                                 v.perm_sel(k + 15 downto k + 8) := "0000" & not e_in.insn(18 downto 16) & '1';
                             end loop;
                         when "01010" =>
-                            -- vspltw
+                            -- vspltw and xxspltw
                             for i in 0 to 1 loop
                                 k := i * 32;
                                 v.perm_sel(k + 7 downto k) := "0000" & not e_in.insn(17 downto 16) & "00";
@@ -662,14 +658,14 @@ begin
                                 v.perm_sel := x"1312030211100100";
                             end if;
                         when "00010" =>
-                            -- vmrghw
+                            -- vmrghw and xxmrghw
                             if e_in.second = '0' then
                                 v.perm_sel := x"1f1e1d1c0f0e0d0c";
                             else
                                 v.perm_sel := x"1b1a19180b0a0908";
                             end if;
                         when "00110" =>
-                            -- vmrglw
+                            -- vmrglw and xxmrglw
                             if e_in.second = '0' then
                                 v.perm_sel := x"1716151407060504";
                             else
@@ -882,6 +878,16 @@ begin
                             end if;
                         end loop;
                     end if;
+                when OP_VSHOI =>
+                    -- vsldoi or xxsldwi (shift by octets immediate)
+                    m := 16 - to_integer(unsigned(e_in.insn(9 downto 6)));
+                    if e_in.second = '0' then
+                        m := m + 8;
+                    end if;
+                    for i in 0 to 7 loop
+                        k := i * 8;
+                        v.perm_sel(k + 7 downto k) := "000" & std_ulogic_vector(to_unsigned(m, 5) + to_unsigned(i, 5));
+                    end loop;
                 when OP_VSUM =>
                     v.do_vsum := '1';
                     if e_in.insn(8 downto 6) = "110" then

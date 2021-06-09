@@ -690,6 +690,7 @@ architecture behaviour of decode1 is
         2#10_00101#  =>    (VSU, VSX,  OP_XPERM,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
         2#10_01001#  =>    (VSU, VSX,  OP_XPERM,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
         2#10_01101#  =>    (VSU, VSX,  OP_XPERM,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
+        2#10_01010#  =>    (VSU, VEC,  OP_VMERGE,    NONE,   XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxspltw
         others   => illegal_inst
         );
 

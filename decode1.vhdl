@@ -697,6 +697,8 @@ architecture behaviour of decode1 is
         2#10_01001#  =>    (VSU, VSX,  OP_XPERM,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
         2#10_01101#  =>    (VSU, VSX,  OP_XPERM,     XA,     XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxpermdi
         2#10_01010#  =>    (VSU, VEC,  OP_VMERGE,    NONE,   XB,      NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- xxspltw
+        2#11_00100#  =>    (FPU, VSX,  OP_FPCMP,     XA,     XB,      NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  xscmpudp
+        2#11_00101#  =>    (FPU, VSX,  OP_FPCMP,     XA,     XB,      NONE, NONE, '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), --  xscmpodp
         others   => illegal_inst
         );
 
@@ -711,6 +713,10 @@ architecture behaviour of decode1 is
         2#00_10110#  =>    (FPU, VSX, OP_FPCFI,      NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTZ),  -- xscvuxddp
         2#00_10111#  =>    (FPU, VSX, OP_FPCFI,      NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', DRTZ),  -- xscvsxddp
         2#01_10001#  =>    (FPU, VSX, OP_FPRSP,      NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', DRTZ),  -- xsrsp
+        2#01_00100#  =>    (FPU, VSX, OP_FPRI,       NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTZ),  -- xsrdpi
+        2#01_00101#  =>    (FPU, VSX, OP_FPRI,       NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTZ),  -- xsrdpiz
+        2#01_00110#  =>    (FPU, VSX, OP_FPRI,       NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTZ),  -- xsrdpip
+        2#01_00111#  =>    (FPU, VSX, OP_FPRI,       NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTZ),  -- xsrdpim
         others   => illegal_inst
         );
 

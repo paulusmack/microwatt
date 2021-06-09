@@ -281,6 +281,12 @@ architecture behaviour of decode1 is
         2#1000_11000# =>    (VSU, VEC,  OP_VSUM,      VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vsum4ubs
         2#1000_11001# =>    (VSU, VEC,  OP_VSUM,      VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vsum4shs
         2#0010_11111# =>    (ALU, VEC,  OP_CNTZ,      NONE,       NONE,        VRB,  VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vclzd
+        2#1110_01000# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vupkhsb
+        2#1110_01010# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vupklsb
+        2#1110_01001# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vupkhsh
+        2#1110_01011# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vupklsh
+        2#1110_11001# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vupkhsw
+        2#1110_11011# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vupklsw
         others   => decode_rom_init
         );
 

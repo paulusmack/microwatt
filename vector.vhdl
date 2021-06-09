@@ -251,6 +251,11 @@ architecture behaviour of vector_unit is
         return '0' & std_ulogic_vector(total(31 downto 0));
     end;
 
+    function bsel(sel: std_ulogic; b0, b1: std_ulogic) return std_ulogic is
+    begin
+        return (not sel and b0) or (sel and b1);
+    end;
+
 begin
 
     -- Data path
@@ -464,6 +469,7 @@ begin
         variable bconst       : std_ulogic_vector(4 downto 0);
         variable const_b0     : std_ulogic;
         variable sum_across   : std_ulogic;
+        variable idx          : std_ulogic_vector(2 downto 0);
     begin
         v := vst;
         v.e.busy := '0';
@@ -574,6 +580,20 @@ begin
                             v.perm_sel(k + 31 downto k + 24) := std_ulogic_vector(to_unsigned(m + 3, 8));
                         end loop;
                     end if;
+                when OP_VUNPACK =>
+                    -- vupk[hl]s[bhw]
+                    -- insn bit 7 = 0 for 'h', 1 for 'l' versions
+                    for i in 0 to 7 loop
+                        k := i * 8;
+                        idx := std_ulogic_vector(to_unsigned(i, 3));
+                        -- Put sign-extension bits in A operand
+                        m := to_integer(unsigned(idx or lenm1)) * 8 + 7;
+                        a_sh(k + 7 downto k) := (others => b_in(m));
+                        v.perm_sel(k + 7 downto k) := "000" & or (idx and e_in.data_len(2 downto 0)) &
+                                                      not e_in.insn(7) & not e_in.second &
+                                                      bsel(e_in.data_len(2), idx(2), idx(1)) &
+                                                      bsel(e_in.data_len(0), idx(0), idx(1));
+                    end loop;
                 when OP_VMERGE =>
                     case e_in.insn(10 downto 6) is
                         when "01000" =>

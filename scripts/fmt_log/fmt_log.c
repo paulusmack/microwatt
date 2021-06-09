@@ -100,10 +100,10 @@ const char *ops[128] =
 	"mulh32 ", "or     ", "popcnt ", "prty   ", "rfid   ", "rlc    ", "rlcl   ", "rlcr   ",
 	"sc     ", "setb   ", "shl    ", "shr    ", "sync   ", "tlbie  ", "trap   ", "vrld   ",
 	"vrst   ", "vsxlds ", "vsxldv ", "vsxldsp", "vsxst  ", "vsxldl ", "vsxstl ", "vperm  ",
-	"vpack  ", "vmerge ", "vcmp   ", "vminmax", "vlog   ", "vsel   ", "vmove  ", "mfromv ",
-	"vgather", "vbperm ", "vshift ", "varith ", "vshoct ", "vsum   ", "vcntzb ", "mfvscr ",
-	"mtvscr ", "lvs    ", "xperm  ", "xor    ", "bcd    ", "addg6s ", "setz   ", "ffail  ",
-	"?112   ", "?113   ", "?114   ", "?115   ", "?116   ", "?117   ", "?118   ", "?119   ",
+	"vpack  ", "vunpack", "vmerge ", "vcmp   ", "vminmax", "vlog   ", "vsel   ", "vmove  ",
+	"mfromv ", "vgather", "vbperm ", "vshift ", "varith ", "vshoct ", "vsum   ", "vcntzb ",
+	"mfvscr ", "mtvscr ", "lvs    ", "xperm  ", "xor    ", "bcd    ", "addg6s ", "setz   ",
+	"ffail  ", "?113   ", "?114   ", "?115   ", "?116   ", "?117   ", "?118   ", "?119   ",
 	"?120   ", "?121   ", "?122   ", "?123   ", "?124   ", "?125   ", "?126   ", "?127   "
 };
 

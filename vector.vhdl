@@ -579,6 +579,8 @@ begin
                 when OP_VUNPACK =>
                     -- vupk[hl]s[bhw]
                     -- insn bit 7 = 0 for 'h', 1 for 'l' versions
+                    -- 'l' versions are done low dword then high dword so we
+                    -- always get the bytes to sign-extend in the first dword
                     for i in 0 to 7 loop
                         k := i * 8;
                         idx := std_ulogic_vector(to_unsigned(i, 3));
@@ -586,7 +588,7 @@ begin
                         m := to_integer(unsigned(idx or lenm1)) * 8 + 7;
                         a_sh(k + 7 downto k) := (others => b_in(m));
                         v.perm_sel(k + 7 downto k) := "000" & or (idx and e_in.data_len(2 downto 0)) &
-                                                      not e_in.insn(7) & not e_in.second &
+                                                      '1' & (e_in.insn(7) xnor e_in.second) &
                                                       bsel(e_in.data_len(2), idx(2), idx(1)) &
                                                       bsel(e_in.data_len(0), idx(0), idx(1));
                     end loop;

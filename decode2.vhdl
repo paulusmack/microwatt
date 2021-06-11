@@ -343,6 +343,7 @@ architecture behaviour of decode2 is
         OP_VSHOCT   => "111",
         OP_XPERM    => "111",
         OP_VUNPACK  => "111",
+        OP_VSHOI    => "111",
         OP_LVS      => "001",
         OP_VLOG     => "001",
         OP_VMOVE    => "001",

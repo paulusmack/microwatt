@@ -282,11 +282,11 @@ architecture behaviour of decode1 is
         2#1000_11001# =>    (VSU, VEC,  OP_VSUM,      VRA,        VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '1', NONE, '0', '0', DABCT), -- vsum4shs
         2#0010_11111# =>    (ALU, VEC,  OP_CNTZ,      NONE,       NONE,        VRB,  VRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vclzd
         2#1110_01000# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vupkhsb
-        2#1110_01010# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vupklsb
+        2#1110_01010# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vupklsb
         2#1110_01001# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vupkhsh
-        2#1110_01011# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vupklsh
+        2#1110_01011# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vupklsh
         2#1110_11001# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vupkhsw
-        2#1110_11011# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vupklsw
+        2#1110_11011# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vupklsw
         others   => decode_rom_init
         );
 
@@ -326,7 +326,7 @@ architecture behaviour of decode1 is
         -- mcrf; and cr logical ops
         2#000#    =>       (ALU, NONE, OP_CROP,      NONE,       NONE,        NONE, NONE, '1', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         -- addpcis
-        2#001#    =>       (ALU, NONE, OP_ADD,       CIA,        CONST_DXHI4, NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE),
+        2#001#    =>       (ALU, NONE, OP_ADD,       CIA,        CONST_DXHI4, NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         -- bclr, bcctr, bctar
         2#100#    =>       (ALU, NONE, OP_BCREG,     SPR,        SPR,         NONE, SPR,  '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
         -- isync
@@ -370,7 +370,7 @@ architecture behaviour of decode1 is
         2#1011001010#  =>       (ALU,  NONE, OP_ADD,       RA,         NONE,        NONE, RT,   '0', '0', '0', '0', CA,   '1', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- addzeo
         2#0000011100#  =>       (ALU,  NONE, OP_AND,       NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- and
         2#0000111100#  =>       (ALU,  NONE, OP_AND,       NONE,       RB,          RS,   RA,   '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE), -- andc
-        2#0011111100#  =>       (ALU,  NONE, OP_BPERM,     NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- bperm
+        2#0011111100#  =>       (ALU,  NONE, OP_BPERM,     NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- bperm
         2#0100111010#  =>       (ALU,  NONE, OP_BCD,       NONE,       NONE,        RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- cbcdtd
         2#0100011010#  =>       (ALU,  NONE, OP_BCD,       NONE,       NONE,        RS,   RA,   '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- cdtbcd
         2#0000000000#  =>       (ALU,  NONE, OP_CMP,       RA,         RB,          NONE, NONE, '0', '1', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', NONE), -- cmp

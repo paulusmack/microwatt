@@ -102,6 +102,7 @@ architecture behaviour of fpu is
         shift        : signed(EXP_BITS-1 downto 0);
         writing_back : std_ulogic;
         int_result   : std_ulogic;
+        dup_word     : std_ulogic;
         cr_result    : std_ulogic_vector(3 downto 0);
         cr_mask      : std_ulogic_vector(7 downto 0);
         old_exc      : std_ulogic_vector(4 downto 0);
@@ -662,9 +663,12 @@ begin
             v.fe_mode := or (e_in.fe_mode);
             v.dest_fpr := e_in.frt;
             v.is_signed := e_in.sign;
+            v.dup_word := '0';
             if e_in.op = OP_FPCTI or e_in.op = OP_FPCTIZ then
                 v.is_32bit := e_in.single;
                 v.single_prec := '0';
+                -- for major opcode 60, double up 32-bit results
+                v.dup_word := e_in.single and not e_in.insn(26);
             else
                 v.is_32bit := '0';
                 v.single_prec := e_in.single;
@@ -2550,7 +2554,11 @@ begin
         end if;
 
         if r.int_result = '1' then
-            fp_result <= r.r;
+            if r.dup_word = '1' then
+                fp_result <= r.r(31 downto 0) & r.r(31 downto 0);
+            else
+                fp_result <= r.r;
+            end if;
         else
             fp_result <= pack_dp(r.result_sign, r.result_class, r.result_exp, r.r,
                                  r.single_prec, r.quieten_nan);

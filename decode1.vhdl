@@ -720,6 +720,8 @@ architecture behaviour of decode1 is
     constant decode_op_60h_array : op_60_subop_array_t := (
         --                  unit fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
         --                                  op                                            in   out   A   out  in    out  len        ext                                 pipe
+        2#00_00100#  =>    (FPU, VSX, OP_FPCTIZ,     NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', DRTZ),  -- xscvdpuxws
+        2#00_00101#  =>    (FPU, VSX, OP_FPCTIZ,     NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', NONE, '0', '0', DRTZ),  -- xscvdpsxws
         2#00_10010#  =>    (FPU, VSX, OP_FPCFI,      NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', DRTZ),  -- xscvuxdsp
         2#00_10011#  =>    (FPU, VSX, OP_FPCFI,      NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', NONE, '0', '0', DRTZ),  -- xscvsxdsp
         2#00_10100#  =>    (FPU, VSX, OP_FPCTIZ,     NONE,       XB,          NONE, XT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTZ),  -- xscvdpuxds

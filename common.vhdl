@@ -668,6 +668,7 @@ package common is
 	is_32bit         : std_ulogic;
 	is_signed        : std_ulogic;
 	sign_extend      : std_ulogic;
+        invert_a         : std_ulogic;
 	data_len         : std_ulogic_vector(3 downto 0);
         result_sel       : std_ulogic_vector(2 downto 0);
         sub_select       : std_ulogic_vector(2 downto 0);

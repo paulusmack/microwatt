@@ -102,8 +102,8 @@ const char *ops[128] =
 	"vrst   ", "vsxlds ", "vsxldv ", "vsxldsp", "vsxst  ", "vsxldl ", "vsxstl ", "vperm  ",
 	"vpack  ", "vunpack", "vmerge ", "vcmp   ", "vminmax", "vlog   ", "vsel   ", "vmove  ",
 	"mfromv ", "vgather", "vbperm ", "vshift ", "varith ", "vshoct ", "vshoi  ", "vsum   ",
-	"vcntzb ", "mfvscr ", "mtvscr ", "lvs    ", "xperm  ", "xor    ", "bcd    ", "addg6s ",
-	"setz   ", "ffail  ", "?114   ", "?115   ", "?116   ", "?117   ", "?118   ", "?119   ",
+	"vcntzb ", "vextr  ", "mfvscr ", "mtvscr ", "lvs    ", "xperm  ", "xor    ", "bcd    ",
+	"addg6s ", "setz   ", "ffail  ", "?115   ", "?116   ", "?117   ", "?118   ", "?119   ",
 	"?120   ", "?121   ", "?122   ", "?123   ", "?124   ", "?125   ", "?126   ", "?127   "
 };
 

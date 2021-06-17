@@ -31,7 +31,7 @@ package decode_types is
                          OP_VLOG, OP_VSEL, OP_VMOVE, OP_MFROMV,
                          OP_VGATHER, OP_VBPERM, OP_VSHIFT,
                          OP_VARITH, OP_VSHOCT, OP_VSHOI, OP_VSUM,
-                         OP_VCNTZB,
+                         OP_VCNTZB, OP_VEXTR,
                          OP_MFVSCR, OP_MTVSCR,
                          OP_LVS,
                          OP_XPERM,
@@ -80,6 +80,7 @@ package decode_types is
                       DRB,       -- double RB
                       DABCT,     -- double RA, RB, RC, RT
                       DABTR,     -- double RA, RB, RT, ls then ms
+                      DBS,       -- double RB, single output
                       DUPD);     -- update-form load
 
     type decode_rom_t is record

@@ -470,6 +470,7 @@ begin
         variable const_b0     : std_ulogic;
         variable sum_across   : std_ulogic;
         variable idx          : std_ulogic_vector(2 downto 0);
+        variable byteno       : unsigned(3 downto 0);
     begin
         v := vst;
         v.e.busy := '0';
@@ -895,6 +896,24 @@ begin
                     if e_in.insn(8 downto 6) = "110" then
                         sum_across := '1';
                     end if;
+                when OP_VEXTR =>
+                    a_sh := (others => '0');
+                    -- top 32 bits of result are always 0
+                    v.perm_sel(63 downto 32) := x"1f1f1f1f";
+                    if e_in.invert_a = '0' then
+                        byteno := unsigned(a_in(3 downto 0));
+                    else
+                        byteno := unsigned(not a_in(3 downto 0)) - unsigned('0' & lenm1);
+                    end if;
+                    for i in 0 to 3 loop
+                        k := i * 8;
+                        if i > to_integer(unsigned(lenm1(1 downto 0))) then
+                            v.perm_sel(k + 7 downto k) := x"1f";
+                        else
+                            v.perm_sel(k + 7 downto k) :=
+                                "0000" & std_ulogic_vector(byteno + to_unsigned(i, 4));
+                        end if;
+                    end loop;
                 when others =>
             end case;
         end if;

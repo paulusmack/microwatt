@@ -287,6 +287,12 @@ architecture behaviour of decode1 is
         2#1110_01011# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vupklsh
         2#1110_11001# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABCT), -- vupkhsw
         2#1110_11011# =>    (VSU, VEC,  OP_VUNPACK,   NONE,       VRB,         NONE, VRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DABTR), -- vupklsw
+        2#1101_11000# =>    (VSU, VEC,  OP_VEXTR,     RA,         VRB,         NONE, RT,   '0', '0', '1', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DBS),   -- vextublx
+        2#1101_11001# =>    (VSU, VEC,  OP_VEXTR,     RA,         VRB,         NONE, RT,   '0', '0', '1', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DBS),   -- vextuhlx
+        2#1101_11010# =>    (VSU, VEC,  OP_VEXTR,     RA,         VRB,         NONE, RT,   '0', '0', '1', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DBS),   -- vextuwlx
+        2#1101_11100# =>    (VSU, VEC,  OP_VEXTR,     RA,         VRB,         NONE, RT,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DBS),   -- vextubrx
+        2#1101_11101# =>    (VSU, VEC,  OP_VEXTR,     RA,         VRB,         NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DBS),   -- vextuhrx
+        2#1101_11110# =>    (VSU, VEC,  OP_VEXTR,     RA,         VRB,         NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DBS),   -- vextuwrx
         others   => decode_rom_init
         );
 

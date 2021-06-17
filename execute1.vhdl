@@ -1313,6 +1313,7 @@ begin
         vv.is_32bit := e_in.is_32bit;
         vv.is_signed := e_in.is_signed;
         vv.sign_extend := e_in.sign_extend;
+        vv.invert_a := e_in.invert_a;
         vv.data_len := e_in.data_len;
         vv.result_sel := e_in.result_sel;
         vv.sub_select := e_in.sub_select;

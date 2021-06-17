@@ -344,6 +344,7 @@ architecture behaviour of decode2 is
         OP_XPERM    => "111",
         OP_VUNPACK  => "111",
         OP_VSHOI    => "111",
+        OP_VEXTR    => "111",
         OP_LVS      => "001",
         OP_VLOG     => "001",
         OP_VMOVE    => "001",
@@ -647,6 +648,12 @@ begin
                     decoded_reg_a.reg(0) := not r.repeat;
                     decoded_reg_b.reg(0) := not r.repeat;
                     decoded_reg_o.reg(0) := not r.repeat;
+                when DBS =>
+                    -- do RB,RB|1 and suppress second write to RT
+                    -- and second read of RA
+                    decoded_reg_b.reg(0) := r.repeat;
+                    decoded_reg_o.reg_valid := not r.repeat;
+                    decoded_reg_a.reg_valid := not r.repeat;
                 when DUPD =>
                     -- update-form loads, 2nd instruction writes RA
                     if r.repeat = '1' then

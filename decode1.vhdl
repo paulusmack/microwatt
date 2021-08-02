@@ -37,17 +37,17 @@ architecture behaviour of decode1 is
         (NONE, NONE, OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
 
     type reg_internal_t is record
-        maj_decode : decode_rom_t;
-        row_decode : decode_rom_t;
         use_row  : std_ulogic;
         override : std_ulogic;
         override_decode: decode_rom_t;
         override_unit: std_ulogic;
         force_single: std_ulogic;
+        majaddr : std_ulogic_vector(10 downto 0);
+        rowaddr : std_ulogic_vector(10 downto 0);
     end record;
     constant reg_internal_t_init : reg_internal_t :=
-        (maj_decode => illegal_inst, row_decode => illegal_inst, use_row => '0',
-         override => '0', override_decode => illegal_inst, override_unit => '0', force_single => '0');
+        (use_row => '0', override => '0', override_decode => illegal_inst, override_unit => '0', force_single => '0',
+         majaddr => (others => '0'), rowaddr => (others => '0'));
 
     signal ri, ri_in : reg_internal_t;
     signal si        : reg_internal_t;
@@ -59,6 +59,12 @@ architecture behaviour of decode1 is
     end record;
 
     signal br, br_in : br_predictor_t;
+
+    signal maj_rom_addr : std_ulogic_vector(10 downto 0);
+    signal row_rom_addr : std_ulogic_vector(10 downto 0);
+    signal major_decode : decode_rom_t;
+    signal row_decode   : decode_rom_t;
+    signal rom_ce       : std_ulogic;
 
     type decoder_rom_t is array(0 to 2047) of decode_rom_t;
 
@@ -542,6 +548,16 @@ begin
     end process;
     busy_out <= s.valid;
 
+    decode1_roms: process(clk)
+    begin
+        if rising_edge(clk) then
+            if rom_ce = '1' then
+                major_decode <= major_decode_rom(to_integer(unsigned(maj_rom_addr)));
+                row_decode <= row_decode_rom(to_integer(unsigned(row_rom_addr)));
+            end if;
+        end if;
+    end process;
+
     decode1_1: process(all)
         variable v : Decode1ToDecode2Type;
         variable vi : reg_internal_t;
@@ -569,7 +585,6 @@ begin
         br_offset := (others => '0');
 
         majaddr := f_in.insn(31 downto 26) & f_in.insn(4 downto 0);
-        vi.maj_decode := major_decode_rom(to_integer(unsigned(majaddr)));
 
         -- row_decode_rom is used for op 19, 31, 59, 63
         -- addr bit 10 is 0 for op 31, 1 for 19, 59, 63
@@ -583,7 +598,18 @@ begin
             rowaddr(4 downto 3) := f_in.insn(5 downto 4);
         end if;
         rowaddr(2 downto 0) := f_in.insn(3 downto 1);
-        vi.row_decode := row_decode_rom(to_integer(unsigned(rowaddr)));
+
+        -- match the stash logic
+        vi.majaddr := majaddr;
+        vi.rowaddr := rowaddr;
+        if s.valid = '0' then
+            maj_rom_addr <= majaddr;
+            row_rom_addr <= rowaddr;
+        else
+            maj_rom_addr <= si.majaddr;
+            row_rom_addr <= si.rowaddr;
+        end if;
+        rom_ce <= not stall_in or not r.valid;
 
         majorop := f_in.insn(31 downto 26);
         case to_integer(unsigned(majorop)) is
@@ -744,9 +770,9 @@ begin
             d_out.decode <= ri.override_decode;
         else
             if ri.use_row = '1' then
-                d_out.decode <= ri.row_decode;
+                d_out.decode <= row_decode;
             else
-                d_out.decode <= ri.maj_decode;
+                d_out.decode <= major_decode;
             end if;
             if ri.override_unit = '1' then
                 d_out.decode.unit <= ri.override_decode.unit;

@@ -330,6 +330,8 @@ architecture behaviour of decode1 is
         f_in : IcacheToDecode1Type;
         use_row : std_ulogic;
         br_pred : std_ulogic;
+        override : std_ulogic;
+        ov_insn : insn_code;
     end record;
 
     signal r0, r0in : r0_t;
@@ -371,15 +373,6 @@ architecture behaviour of decode1 is
 
     -- Indexed by bits 31--26 and 4--0 of instruction word
     signal major_predecode_rom : predecoder_rom_t := (
-        -- Major opcode 0 only has attn; use it for various overrides
-        2#000000_00000#                    =>  INSN_attn,
-        2#000000_00001#                    =>  INSN_illegal,
-        2#000000_00010#                    =>  INSN_nop,
-        2#000000_00100#                    =>  INSN_mfspr,
-        2#000000_00101#                    =>  INSN_mtspr,
-        2#000000_00110#                    =>  INSN_mfspr_ldst,
-        2#000000_00111#                    =>  INSN_mtspr_ldst,
-
         2#001100_00000# to 2#001100_11111# =>  INSN_addic,
         2#001101_00000# to 2#001101_11111# =>  INSN_addic_dot,
         2#001110_00000# to 2#001110_11111# =>  INSN_addi,
@@ -387,6 +380,7 @@ architecture behaviour of decode1 is
         2#010011_00100# to 2#010011_00101# =>  INSN_addpcis,
         2#011100_00000# to 2#011100_11111# =>  INSN_andi_dot,
         2#011101_00000# to 2#011101_11111# =>  INSN_andis_dot,
+        2#000000_00000#                    =>  INSN_attn,
         2#010010_00000# to 2#010010_11111# =>  INSN_b,
         2#010000_00000# to 2#010000_11111# =>  INSN_bc,
         2#001011_00000# to 2#001011_11111# =>  INSN_cmpi,
@@ -1119,6 +1113,7 @@ begin
                 r0.f_in <= IcacheToDecode1Init;
                 r0.use_row <= '0';
                 r0.br_pred <= '0';
+                r0.override <= '0';
             elsif flush_in = '1' then
                 r0.f_in.valid <= '0';
                 r0.f_in.fetch_failed <= '0';
@@ -1159,19 +1154,19 @@ begin
         variable sprn : spr_num_t;
         variable fspr : gspr_index_t;
         variable slow_spr : std_ulogic;
-        variable ldst_spr : std_ulogic;
         variable br_target : std_ulogic_vector(61 downto 0);
         variable br_offset : signed(23 downto 0);
         variable bv : br_predictor_t;
     begin
         v.f_in := f_in;
         v.br_pred := '0';
+        v.override := '0';
+        v.ov_insn := INSN_illegal;
 
         illegal := '0';
         noop := '0';
         use_row := '0';
         slow_spr := '0';
-        ldst_spr := '0';
 
         br_offset := (others => '0');
 
@@ -1179,7 +1174,7 @@ begin
         case to_integer(unsigned(majorop)) is
         when 0 =>
             -- decode attn
-            if not std_match(f_in.insn(10 downto 1), "0100000000") then
+            if not std_match(f_in.insn(10 downto 6), "01000") then
                 illegal := '1';
             end if;
 
@@ -1210,6 +1205,7 @@ begin
             -- ori, special-case the standard NOP
             if std_match(f_in.insn, "01100000000000000000000000000000") then
                 noop := '1';
+                v.ov_insn := INSN_nop;
             end if;
 
         when 31 =>
@@ -1226,8 +1222,17 @@ begin
                     -- send MMU-related SPRs to loadstore1
                     case sprn is
                         when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
-                            ldst_spr := '1';
+                            if f_in.insn(8) = '0' then
+                                v.ov_insn := INSN_mfspr_ldst;
+                            else
+                                v.ov_insn := INSN_mtspr_ldst;
+                            end if;
                         when others =>
+                            if f_in.insn(8) = '0' then
+                                v.ov_insn := INSN_mfspr;
+                            else
+                                v.ov_insn := INSN_mtspr;
+                            end if;
                     end case;
                 end if;
             end if;
@@ -1263,13 +1268,6 @@ begin
         end case;
 
         majaddr := f_in.insn(31 downto 26) & f_in.insn(4 downto 0);
-        if illegal = '1' or noop = '1' or slow_spr = '1' then
-            use_row := '0';
-            majaddr := "00000000000";
-            majaddr(2) := slow_spr;
-            majaddr(1) := noop or ldst_spr;
-            majaddr(0) := illegal or (slow_spr and f_in.insn(8));
-        end if;
 
         -- row_decode_rom is used for op 19, 31, 59, 63
         -- addr bit 10 is 0 for op 31, 1 for 19, 59, 63
@@ -1287,6 +1285,7 @@ begin
         maj_rom_addr <= majaddr;
         row_rom_addr <= rowaddr;
         v.use_row := use_row;
+        v.override := illegal or noop or slow_spr;
 
         -- Branch predictor
         -- Note bclr, bcctr and bctar are predicted not taken as we have no
@@ -1366,7 +1365,9 @@ begin
         v.big_endian := r0.f_in.big_endian;
         v.br_pred := r0.br_pred;
 
-        if r0.use_row = '0' then
+        if r0.override = '1' then
+            icode := r0.ov_insn;
+        elsif r0.use_row = '0' then
             icode := major_predecode;
         else
             icode := row_predecode;

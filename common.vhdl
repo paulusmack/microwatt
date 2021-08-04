@@ -208,6 +208,9 @@ package common is
         big_endian: std_ulogic;
         next_predicted: std_ulogic;
     end record;
+    constant IcacheToDecode1Init : IcacheToDecode1Type :=
+        (valid => '0', stop_mark => '0', fetch_failed => '0', nia => (others => '0'),
+         insn => (others => '0'), big_endian => '0', next_predicted => '0');
 
     type IcacheEventType is record
         icache_miss : std_ulogic;

@@ -104,6 +104,7 @@ package common is
     -- numbers from 64 to 95.
     --
     function fast_spr_num(spr: spr_num_t) return gspr_index_t;
+    function is_valid_slow_spr(spr: spr_num_t) return boolean;
 
     -- Indices conversion functions
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t;
@@ -206,11 +207,12 @@ package common is
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(31 downto 0);
         big_endian: std_ulogic;
+        priv_mode: std_ulogic;
         next_predicted: std_ulogic;
     end record;
     constant IcacheToDecode1Init : IcacheToDecode1Type :=
         (valid => '0', stop_mark => '0', fetch_failed => '0', nia => (others => '0'),
-         insn => (others => '0'), big_endian => '0', next_predicted => '0');
+         insn => (others => '0'), big_endian => '0', priv_mode => '0', next_predicted => '0');
 
     type IcacheEventType is record
         icache_miss : std_ulogic;
@@ -294,7 +296,7 @@ package common is
         second : std_ulogic;                            -- set if this is the second op
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
-	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
+	(valid => '0', unit => ALU, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
          write_reg_enable => '0',
          lr => '0', br_abs => '0', rc => '0', oe => '0', invert_a => '0', addm1 => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0',
@@ -745,6 +747,53 @@ package body common is
        end case;
        tmp := std_ulogic_vector(to_unsigned(n, 5));
        return "01" & tmp;
+    end;
+
+    function is_valid_slow_spr(spr: spr_num_t) return boolean is
+    begin
+        case spr is
+            when SPR_DSISR =>
+            when SPR_DAR =>
+            when SPR_TB =>
+            when SPR_TBU =>
+            when SPR_DEC =>
+            when SPR_CFAR =>
+            when SPR_PID =>
+            when SPR_PTCR =>
+            when SPR_PVR =>
+            when 724 =>     -- LOG_ADDR
+            when 725 =>     -- LOG_DATA
+            when SPR_UPMC1 =>
+            when SPR_UPMC2 =>
+            when SPR_UPMC3 =>
+            when SPR_UPMC4 =>
+            when SPR_UPMC5 =>
+            when SPR_UPMC6 =>
+            when SPR_UMMCR0 =>
+            when SPR_UMMCR1 =>
+            when SPR_UMMCR2 =>
+            when SPR_UMMCRA =>
+            when SPR_USIER =>
+            when SPR_USIAR =>
+            when SPR_USDAR =>
+            when SPR_PMC1 =>
+            when SPR_PMC2 =>
+            when SPR_PMC3 =>
+            when SPR_PMC4 =>
+            when SPR_PMC5 =>
+            when SPR_PMC6 =>
+            when SPR_MMCR0 =>
+            when SPR_MMCR1 =>
+            when SPR_MMCR2 =>
+            when SPR_MMCRA =>
+            when SPR_SIER =>
+            when SPR_SIAR =>
+            when SPR_SDAR =>
+                -- the above are valid
+            when others =>
+                return false;
+        end case;
+        return true;
     end;
 
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t is

@@ -73,7 +73,6 @@ architecture behaviour of fpu is
         busy         : std_ulogic;
         instr_done   : std_ulogic;
         do_intr      : std_ulogic;
-        illegal      : std_ulogic;
         op           : insn_type_t;
         insn         : std_ulogic_vector(31 downto 0);
         nia          : std_ulogic_vector(63 downto 0);
@@ -587,7 +586,7 @@ begin
     w_out.interrupt <= r.do_intr;
     w_out.intr_vec <= 16#700#;
     w_out.srr0 <= r.nia;
-    w_out.srr1 <= (47-44 => r.illegal, 47-43 => not r.illegal, others => '0');
+    w_out.srr1 <= (47-43 => '1', others => '0');
 
     fpu_1: process(all)
         variable v           : reg_type;
@@ -2549,18 +2548,18 @@ begin
             v.cr_result := v.fpscr(FPSCR_FX downto FPSCR_OX);
         end if;
 
-        v.illegal := illegal;
+        -- Illegal instructions don't actually come here, they get
+        -- caught in decode0, so this is here mainly to ensure the
+        -- state machine doesn't get stuck if there is a bug and we
+        -- get an instruction we don't recognize.
         if illegal = '1' then
-            v.instr_done := '0';
-            v.do_intr := '1';
-            v.writing_back := '0';
-            v.busy := '0';
+            v.instr_done := '1';
             v.state := IDLE;
-        else
-            v.do_intr := v.instr_done and v.fpscr(FPSCR_FEX) and r.fe_mode;
-            if v.state /= IDLE or v.do_intr = '1' then
-                v.busy := '1';
-            end if;
+        end if;
+
+        v.do_intr := v.instr_done and v.fpscr(FPSCR_FEX) and r.fe_mode;
+        if v.state /= IDLE or v.do_intr = '1' then
+            v.busy := '1';
         end if;
 
         rin <= v;

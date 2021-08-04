@@ -339,9 +339,6 @@ architecture behaviour of decode1 is
     signal r, rin : Decode1ToDecode2Type;
     signal s      : Decode1ToDecode2Type;
 
-    constant illegal_inst : decode_rom_t :=
-        (NONE, NONE, OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
-
     type reg_internal_t is record
         fetch_fail : std_ulogic;
         decaddr : insn_code;
@@ -464,7 +461,22 @@ architecture behaviour of decode1 is
         2#010100_00000# to 2#010100_11111# =>  INSN_rlwimi,
         2#010101_00000# to 2#010101_11111# =>  INSN_rlwinm,
         2#010111_00000# to 2#010111_11111# =>  INSN_rlwnm,
-        2#010001_00000# to 2#010001_11111# =>  INSN_sc,
+        2#010001_00010#                    =>  INSN_sc,
+        2#010001_00011#                    =>  INSN_sc,
+        2#010001_00110#                    =>  INSN_sc,
+        2#010001_00111#                    =>  INSN_sc,
+        2#010001_01010#                    =>  INSN_sc,
+        2#010001_01011#                    =>  INSN_sc,
+        2#010001_01110#                    =>  INSN_sc,
+        2#010001_01111#                    =>  INSN_sc,
+        2#010001_10010#                    =>  INSN_sc,
+        2#010001_10011#                    =>  INSN_sc,
+        2#010001_10110#                    =>  INSN_sc,
+        2#010001_10111#                    =>  INSN_sc,
+        2#010001_11010#                    =>  INSN_sc,
+        2#010001_11011#                    =>  INSN_sc,
+        2#010001_11110#                    =>  INSN_sc,
+        2#010001_11111#                    =>  INSN_sc,
         2#100110_00000# to 2#100110_11111# =>  INSN_stb,
         2#100111_00000# to 2#100111_11111# =>  INSN_stbu,
         2#111110_00000#                    =>  INSN_std,
@@ -803,7 +815,7 @@ architecture behaviour of decode1 is
     signal decode_rom : decoder_rom_t := (
         --                  unit   fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
         --                                    op                                            in   out   A   out  in    out  len        ext                                 pipe
-        INSN_illegal    =>  (NONE, NONE, OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        INSN_illegal    =>  (ALU,  NONE, OP_ILLEGAL,   NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_fetch_fail =>  (LDST, NONE, OP_FETCH_FAILED, NONE,    NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
                                                                                 
         INSN_add        =>  (ALU,  NONE, OP_ADD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE),
@@ -983,9 +995,9 @@ architecture behaviour of decode1 is
         INSN_mfcr       =>  (ALU,  NONE, OP_MFCR,      NONE,       NONE,        NONE, RT,   '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         INSN_mffs       =>  (FPU,  FPU,  OP_FPOP_I,    NONE,       FRB,         NONE, FRT,  '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', NONE),
         INSN_mfmsr      =>  (ALU,  NONE, OP_MFMSR,     NONE,       NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', NONE),
-        INSN_mfspr      =>  (ALU,  NONE, OP_MFSPR,     SPR,        NONE,        RS,   RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', NONE),
+        INSN_mfspr      =>  (ALU,  NONE, OP_MFSPR,     SPR,        NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', NONE),
         INSN_mfspr_fast =>  (ALU,  NONE, OP_MFSPR,     SPR,        NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
-        INSN_mfspr_ldst =>  (LDST, NONE, OP_MFSPR,     SPR,        NONE,        RS,   RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', NONE),
+        INSN_mfspr_ldst =>  (LDST, NONE, OP_MFSPR,     SPR,        NONE,        NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', NONE),
         INSN_modsd      =>  (ALU,  NONE, OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', NONE),
         INSN_modsw      =>  (ALU,  NONE, OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', NONE, '0', '0', NONE),
         INSN_modud      =>  (ALU,  NONE, OP_MOD,       RA,         RB,          NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
@@ -1218,22 +1230,30 @@ begin
                 -- mfspr or mtspr
                 -- Make slow SPRs single issue
                 if is_fast_spr(fspr) = '0' then
-                    slow_spr := '1';
-                    -- send MMU-related SPRs to loadstore1
-                    case sprn is
-                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
-                            if f_in.insn(8) = '0' then
-                                v.ov_insn := INSN_mfspr_ldst;
-                            else
-                                v.ov_insn := INSN_mtspr_ldst;
-                            end if;
-                        when others =>
-                            if f_in.insn(8) = '0' then
-                                v.ov_insn := INSN_mfspr;
-                            else
-                                v.ov_insn := INSN_mtspr;
-                            end if;
-                    end case;
+                    if is_valid_slow_spr(sprn) then
+                        slow_spr := '1';
+                        -- send MMU-related SPRs to loadstore1
+                        case sprn is
+                            when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
+                                if f_in.insn(8) = '0' then
+                                    v.ov_insn := INSN_mfspr_ldst;
+                                else
+                                    v.ov_insn := INSN_mtspr_ldst;
+                                end if;
+                            when others =>
+                                if f_in.insn(8) = '0' then
+                                    v.ov_insn := INSN_mfspr;
+                                else
+                                    v.ov_insn := INSN_mtspr;
+                                end if;
+                        end case;
+                    elsif f_in.priv_mode = '0' or sprn = 0 or sprn = 4 or sprn = 5 or sprn = 6 then
+                        illegal := '1';
+                    else
+                        -- make the mfspr/mtspr be a noop
+                        noop := '1';
+                        v.ov_insn := INSN_nop;
+                    end if;
                 end if;
             end if;
             if std_match(f_in.insn(10 downto 1), "0100010100") then
@@ -1256,12 +1276,27 @@ begin
                 -- Use row table for columns 12-15, column table for 16-31
                 illegal := not f_in.insn(5) and (not f_in.insn(4) or not f_in.insn(3));
                 use_row := not f_in.insn(5);
+            else
+                illegal := '1';
             end if;
 
         when 63 =>
             if HAS_FPU then
                 -- floating point operations, general and double-precision
                 use_row := not f_in.insn(5);
+
+                if std_match(f_in.insn(10 downto 1), "1001000111") then
+                    -- mffs family, check flavour in bits 20..16
+                    case f_in.insn(20 downto 16) is
+                        when "00000" | "00001" | "10100" | "10101" |
+                            "10110" | "10111" | "11000" =>
+                        -- valid
+                        when others =>
+                            illegal := '1';
+                    end case;
+                end if;
+            else
+                illegal := '1';
             end if;
 
         when others =>

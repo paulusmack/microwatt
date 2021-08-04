@@ -48,7 +48,7 @@ package decode_types is
 
     constant TOO_OFFSET : integer := 0;
 
-    type unit_t is (NONE, ALU, LDST, FPU);
+    type unit_t is (ALU, LDST, FPU);
     type facility_t is (NONE, FPU);
     type length_t is (NONE, is1B, is2B, is4B, is8B);
 
@@ -91,7 +91,7 @@ package decode_types is
 	sgl_pipe     : std_ulogic;
         repeat       : repeat_t;
     end record;
-    constant decode_rom_init : decode_rom_t := (unit => NONE, facility => NONE,
+    constant decode_rom_init : decode_rom_t := (unit => ALU, facility => NONE,
 						insn_type => OP_ILLEGAL, input_reg_a => NONE,
 						input_reg_b => NONE, input_reg_c => NONE,
 						output_reg_a => NONE, input_cr => '0', output_cr => '0',

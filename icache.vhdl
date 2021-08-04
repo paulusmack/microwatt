@@ -180,6 +180,7 @@ architecture rtl of icache is
 	hit_smark : std_ulogic;
 	hit_valid : std_ulogic;
         big_endian: std_ulogic;
+        priv_mode : std_ulogic;
 
 	-- Cache miss state (reload state machine)
         state            : state_t;
@@ -576,6 +577,7 @@ begin
 	i_out.stop_mark <= r.hit_smark;
         i_out.fetch_failed <= r.fetch_failed;
         i_out.big_endian <= r.big_endian;
+        i_out.priv_mode <= r.priv_mode;
         i_out.next_predicted <= i_in.predicted;
 
 	-- Stall fetch1 if we have a miss on cache or TLB or a protection fault
@@ -618,6 +620,7 @@ begin
                 r.hit_smark <= i_in.stop_mark;
                 r.hit_nia <= i_in.nia;
                 r.big_endian <= i_in.big_endian;
+                r.priv_mode <= i_in.priv_mode;
             end if;
 	end if;
     end process;

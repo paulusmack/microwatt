@@ -23,10 +23,11 @@ package decode_types is
                          OP_FETCH_FAILED
 			 );
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, SPR, CIA, FRA);
-    type input_reg_b_t is (NONE, RB, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
-                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, SPR, FRB);
+    type input_reg_b_t is (NONE, RB, IMM, SPR, FRB);
     type input_reg_c_t is (NONE, RS, RCR, FRC, FRS);
     type output_reg_a_t is (NONE, RT, RA, SPR, FRT);
+    type immed_sel_t is (NONE, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
+                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32);
     type rc_t is (NONE, ONE, RC);
     type carry_in_t is (ZERO, CA, OV, ONE);
 
@@ -65,6 +66,7 @@ package decode_types is
 	input_reg_b  : input_reg_b_t;
 	input_reg_c  : input_reg_c_t;
 	output_reg_a : output_reg_a_t;
+        immed_sel    : immed_sel_t;
 
 	input_cr     : std_ulogic;
 	output_cr    : std_ulogic;
@@ -93,8 +95,8 @@ package decode_types is
     end record;
     constant decode_rom_init : decode_rom_t := (unit => ALU, facility => NONE,
 						insn_type => OP_ILLEGAL, input_reg_a => NONE,
-						input_reg_b => NONE, input_reg_c => NONE,
-						output_reg_a => NONE, input_cr => '0', output_cr => '0',
+						input_reg_b => NONE, input_reg_c => NONE, output_reg_a => NONE,
+						immed_sel => NONE, input_cr => '0', output_cr => '0',
 						invert_a => '0', invert_out => '0', input_carry => ZERO, output_carry => '0',
 						length => NONE, byte_reverse => '0', sign_extend => '0',
 						update => '0', reserve => '0', is_32bit => '0',

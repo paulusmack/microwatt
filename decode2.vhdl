@@ -91,7 +91,8 @@ architecture behaviour of decode2 is
         end if;
     end;
 
-    function decode_input_reg_b (t : input_reg_b_t; insn_in : std_ulogic_vector(31 downto 0);
+    function decode_input_reg_b (t : input_reg_b_t; immed : immed_sel_t;
+                                 insn_in : std_ulogic_vector(31 downto 0);
                                  reg_data : std_ulogic_vector(63 downto 0);
                                  ispr : gspr_index_t) return decode_input_reg_t is
         variable ret : decode_input_reg_t;
@@ -105,30 +106,35 @@ architecture behaviour of decode2 is
                 else
                     ret := ('0', (others => '0'), (others => '0'));
                 end if;
-            when CONST_UI =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_ui(insn_in)), 64)));
-            when CONST_SI =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_si(insn_in)), 64)));
-            when CONST_SI_HI =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_si(insn_in)) & x"0000", 64)));
-            when CONST_UI_HI =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_si(insn_in)) & x"0000", 64)));
-            when CONST_LI =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_li(insn_in)) & "00", 64)));
-            when CONST_BD =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_bd(insn_in)) & "00", 64)));
-            when CONST_DS =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_ds(insn_in)) & "00", 64)));
-            when CONST_DQ =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_dq(insn_in)) & "0000", 64)));
-            when CONST_DXHI4 =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_dx(insn_in)) & x"0004", 64)));
-            when CONST_M1 =>
-                ret := ('0', (others => '0'), x"FFFFFFFFFFFFFFFF");
-            when CONST_SH =>
-                ret := ('0', (others => '0'), x"00000000000000" & "00" & insn_in(1) & insn_in(15 downto 11));
-            when CONST_SH32 =>
-                ret := ('0', (others => '0'), x"00000000000000" & "000" & insn_in(15 downto 11));
+            when IMM =>
+                case immed is
+                    when CONST_UI =>
+                        ret := ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_ui(insn_in)), 64)));
+                    when CONST_SI =>
+                        ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_si(insn_in)), 64)));
+                    when CONST_SI_HI =>
+                        ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_si(insn_in)) & x"0000", 64)));
+                    when CONST_UI_HI =>
+                        ret := ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_si(insn_in)) & x"0000", 64)));
+                    when CONST_LI =>
+                        ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_li(insn_in)) & "00", 64)));
+                    when CONST_BD =>
+                        ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_bd(insn_in)) & "00", 64)));
+                    when CONST_DS =>
+                        ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_ds(insn_in)) & "00", 64)));
+                    when CONST_DQ =>
+                        ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_dq(insn_in)) & "0000", 64)));
+                    when CONST_DXHI4 =>
+                        ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_dx(insn_in)) & x"0004", 64)));
+                    when CONST_M1 =>
+                        ret := ('0', (others => '0'), x"FFFFFFFFFFFFFFFF");
+                    when CONST_SH =>
+                        ret := ('0', (others => '0'), x"00000000000000" & "00" & insn_in(1) & insn_in(15 downto 11));
+                    when CONST_SH32 =>
+                        ret := ('0', (others => '0'), x"00000000000000" & "000" & insn_in(15 downto 11));
+                    when others =>
+                        ret := ('0', (others => '0'), (others => '0'));
+                end case;
             when SPR =>
                 -- ISPR must be either a valid fast SPR number or all 0 for a slow SPR.
                 -- If it's all 0, we don't treat it as a dependency as slow SPRs
@@ -140,6 +146,7 @@ architecture behaviour of decode2 is
             when NONE =>
                 ret := ('0', (others => '0'), (others => '0'));
         end case;
+        assert (t /= IMM and immed = NONE) or (t = IMM and immed /= NONE);
 
         return ret;
     end;
@@ -400,7 +407,8 @@ begin
 
         decoded_reg_a := decode_input_reg_a (d_in.decode.input_reg_a, d_in.insn, r_in.read1_data, d_in.ispr1,
                                              d_in.nia);
-        decoded_reg_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.insn, r_in.read2_data, d_in.ispr2);
+        decoded_reg_b := decode_input_reg_b (d_in.decode.input_reg_b, d_in.decode.immed_sel,
+                                             d_in.insn, r_in.read2_data, d_in.ispr2);
         decoded_reg_c := decode_input_reg_c (d_in.decode.input_reg_c, d_in.insn, r_in.read3_data);
         decoded_reg_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn, d_in.ispro);
 

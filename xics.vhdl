@@ -298,22 +298,18 @@ architecture rtl of xics_ics is
         variable b: std_ulogic;
         variable k: natural;
     begin
+        -- Convert to 111...10...000 form with the rightmost 1
+        -- at the position of the rightmost 1 in v
+        h := h or std_ulogic_vector(unsigned(not h) + 1);
         -- Set the lowest-priority (highest-numbered) bit
-        h := v;
         h(2**nbits - 1) := '1';
-        -- Convert to 1-hot form with only the lowest-numbered 1 bit
-        -- of v set in h.
-        h := h and std_ulogic_vector(unsigned(not h) + 1);
-        -- OR together bits to get the bit number (i.e. priority)
-        -- p(0) := h(1) or h(3) or h(5) or h(7) or ...
-        -- p(1) := h(2) or h(3) or h(6) or h(7) or ...
-        -- etc.
+        -- Work out the index of the 0->1 transition
         stride := 2;
         for i in 0 to nbits - 1 loop
             b := '0';
             for j in 0 to (2**nbits / stride) - 1 loop
                 k := j * stride;
-                b := b or (or h(k + stride - 1 downto k + (stride / 2)));
+                b := b or (h(k + (stride / 2)) and not h(k));
             end loop;
             p(i) := b;
             stride := stride * 2;

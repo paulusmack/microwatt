@@ -352,18 +352,21 @@ targets:
 
   dc-scm:
     default_tool: vivado
-    filesets: [core, dc-scm, soc, fpga, debug_xilinx, uart16550, xilinx_specific]
+    filesets: [core, dc-scm, soc, fpga, debug_xilinx, litedram, uart16550, xilinx_specific]
     parameters :
       - memory_size
       - ram_init_file
+      - use_litedram=true
       - clk_input
       - clk_frequency
       - disable_flatten_core
+      - no_bram
       - log_length=2048
       - uart_is_16550
       - has_uart1
       - has_fpu
       - has_btc
+    generate: [litedram_dc_scm]
     tools:
       vivado: {part : xc7a100tfgg484-1}
     toplevel : toplevel
@@ -459,6 +462,10 @@ generate:
 
   liteeth_nexys_video:
     generator: liteeth_gen
+    parameters: {board : nexys-video}
+
+  litedram_dc_scm:
+    generator: litedram_gen
     parameters: {board : nexys-video}
 
   litedram_acorn_cle_215:

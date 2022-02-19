@@ -12,6 +12,7 @@ use work.ppc_fx_insns.all;
 
 entity execute1 is
     generic (
+        SIM : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
         HAS_SHORT_MULT : boolean := false;
@@ -51,6 +52,10 @@ entity execute1 is
         ls_events    : in Loadstore1EventType;
         dc_events    : in DcacheEventType;
         ic_events    : in IcacheEventType;
+
+        -- debug
+        sim_dump      : in std_ulogic;
+        sim_dump_done : out std_ulogic;
 
         log_out : out std_ulogic_vector(14 downto 0);
         log_rd_addr : out std_ulogic_vector(31 downto 0);
@@ -95,7 +100,11 @@ architecture behaviour of execute1 is
 	tb: std_ulogic_vector(63 downto 0);
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
+        xerc: xer_common_t;
+        xer_low: std_ulogic_vector(17 downto 0);
     end record;
+    constant special_regs_t_init: special_regs_t :=
+        (xerc => xerc_init, xer_low => 18x"0", others => (others => '0'));
 
     signal r, rin : reg_type;
 
@@ -105,8 +114,8 @@ architecture behaviour of execute1 is
     signal mshort_p : std_ulogic_vector(31 downto 0) := (others => '0');
 
     signal valid_in : std_ulogic;
-    signal ctrl: special_regs_t := (others => (others => '0'));
-    signal ctrl_tmp: special_regs_t := (others => (others => '0'));
+    signal ctrl: special_regs_t := special_regs_t_init;
+    signal ctrl_tmp: special_regs_t := special_regs_t_init;
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
     signal rot_sign_ext: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
@@ -279,6 +288,13 @@ architecture behaviour of execute1 is
         return x(n - 1) = '1';
     end;
 
+    function assemble_xer(xerc: xer_common_t; xer_low: std_ulogic_vector)
+        return std_ulogic_vector is
+    begin
+        return 32x"0" & xerc.so & xerc.ov & xerc.ca & "000000000" &
+            xerc.ov32 & xerc.ca32 & xer_low(17 downto 0);
+    end;
+
     -- Tell vivado to keep the hierarchy for the random module so that the
     -- net names in the xdc file match.
     attribute keep_hierarchy : string;
@@ -399,12 +415,8 @@ begin
     x_to_pmu.spr_val <= c_in;
     x_to_pmu.run <= '1';
 
-    -- XER forwarding. To avoid having to track XER hazards, we use
-    -- the previously latched value.  Since the XER common bits
-    -- (SO, OV[32] and CA[32]) are only modified by instructions that are
-    -- handled here, we can just forward the result being sent to
-    -- writeback.
-    xerc_in <= r.e.xerc when r.e.write_xerc_enable = '1' or r.busy = '1' else e_in.xerc;
+    -- XER is now maintained entirely in this module
+    xerc_in <= ctrl.xerc;
 
     with e_in.unit select busy_out <=
         l_in.busy or r.busy or fp_in.busy when LDST,
@@ -1123,21 +1135,13 @@ begin
 	    when OP_MFSPR =>
 		if is_fast_spr(e_in.read_reg1) = '1' then
 		    spr_val := a_in;
-                    if decode_spr_num(e_in.insn) = SPR_XER then
-			-- bits 0:31 and 35:43 are treated as reserved and return 0s when read using mfxer
-			spr_val(63 downto 32) := (others => '0');
-			spr_val(63-32) := xerc_in.so;
-			spr_val(63-33) := xerc_in.ov;
-			spr_val(63-34) := xerc_in.ca;
-			spr_val(63-35 downto 63-43) := "000000000";
-			spr_val(63-44) := xerc_in.ov32;
-			spr_val(63-45) := xerc_in.ca32;
-                    end if;
                 elsif e_in.spr_is_ram = '1' then
                     spr_val := ramspr_result;
 		else
                     spr_val := c_in;
                     case decode_spr_num(e_in.insn) is
+                    when SPR_XER =>
+                        spr_val := assemble_xer(ctrl.xerc, ctrl.xer_low);
 		    when SPR_TB =>
 			spr_val := ctrl.tb;
 		    when SPR_TBU =>
@@ -1200,17 +1204,16 @@ begin
 	    when OP_MTSPR =>
 		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(c_in);
-		if is_fast_spr(e_in.write_reg) then
-		    if decode_spr_num(e_in.insn) = SPR_XER then
-			v.e.xerc.so := c_in(63-32);
-			v.e.xerc.ov := c_in(63-33);
-			v.e.xerc.ca := c_in(63-34);
-			v.e.xerc.ov32 := c_in(63-44);
-			v.e.xerc.ca32 := c_in(63-45);
-                    end if;
-		elsif e_in.spr_is_ram = '0' then
+		if is_fast_spr(e_in.write_reg) = '0' and e_in.spr_is_ram = '0' then
 		    -- slow spr
 		    case decode_spr_num(e_in.insn) is
+                    when SPR_XER =>
+			ctrl_tmp.xerc.so <= c_in(63-32);
+			ctrl_tmp.xerc.ov <= c_in(63-33);
+			ctrl_tmp.xerc.ca <= c_in(63-34);
+			ctrl_tmp.xerc.ov32 <= c_in(63-44);
+			ctrl_tmp.xerc.ca32 <= c_in(63-45);
+                        ctrl_tmp.xer_low <= c_in(17 downto 0);
 		    when SPR_DEC =>
 			ctrl_tmp.dec <= c_in;
                     when 724 =>     -- LOG_ADDR SPR
@@ -1397,7 +1400,10 @@ begin
         v.e.write_cr_data := write_cr_data;
         v.e.write_cr_mask := write_cr_mask;
         v.e.write_cr_enable := current.output_cr and v.e.valid and not exception;
-        v.e.write_xerc_enable := current.output_xer and v.e.valid and not exception;
+
+        if current.output_xer = '1' and v.e.valid = '1' and exception = '0' then
+            ctrl_tmp.xerc <= v.e.xerc;
+        end if;
 
         bypass_data.tag.valid <= current.instr_tag.valid and current.write_reg_enable and v.e.valid;
         bypass_data.tag.tag <= current.instr_tag.tag;
@@ -1467,6 +1473,25 @@ begin
         exception_log <= exception;
         irq_valid_log <= irq_valid;
     end process;
+
+    sim_dump_test: if SIM generate
+        dump_exregs: process(all)
+            variable xer : std_ulogic_vector(63 downto 0);
+        begin
+            if sim_dump = '1' then
+                xer := assemble_xer(ctrl.xerc, ctrl.xer_low);
+                report "XER " & to_hstring(xer);
+                sim_dump_done <= '1';
+            else
+                sim_dump_done <= '0';
+            end if;
+        end process;
+    end generate;
+
+    -- Keep GHDL synthesis happy
+    sim_dump_test_synth: if not SIM generate
+        sim_dump_done <= '0';
+    end generate;
 
     e1_log: if LOG_LENGTH > 0 generate
         signal log_data : std_ulogic_vector(14 downto 0);

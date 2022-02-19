@@ -363,26 +363,23 @@ begin
 
     decode2_1: process(all)
         variable v : reg_type;
-        variable mul_a : std_ulogic_vector(63 downto 0);
-        variable mul_b : std_ulogic_vector(63 downto 0);
         variable decoded_reg_a : decode_input_reg_t;
         variable decoded_reg_b : decode_input_reg_t;
         variable decoded_reg_c : decode_input_reg_t;
         variable decoded_reg_o : decode_output_reg_t;
         variable length : std_ulogic_vector(3 downto 0);
         variable op : insn_type_t;
+        variable sprn : spr_num_t;
     begin
         v := r;
 
         v.e := Decode2ToExecute1Init;
 
-        mul_a := (others => '0');
-        mul_b := (others => '0');
-
         --v.e.input_cr := d_in.decode.input_cr;
         v.e.output_cr := d_in.decode.output_cr;
 
         -- Work out whether XER common bits are set
+        sprn := decode_spr_num(d_in.insn);
         v.e.output_xer := d_in.decode.output_carry;
         case d_in.decode.insn_type is
             when OP_ADD | OP_MUL_L64 | OP_DIV | OP_DIVE =>
@@ -392,7 +389,7 @@ begin
                     v.e.output_xer := '1';
                 end if;
             when OP_MTSPR =>
-                if decode_spr_num(d_in.insn) = SPR_XER then
+                if sprn = SPR_XER then
                     v.e.output_xer := '1';
                 end if;
             when others =>
@@ -439,6 +436,28 @@ begin
             -- first one does CTR, second does LR
             decoded_reg_o.reg(0) := not r.repeat;
         end if;
+
+        case op is
+            when OP_MFSPR =>
+                v.e.ramspr_rdaddr := d_in.ram_spr.index;
+                v.e.ramspr_rd_odd := d_in.ram_spr.isodd;
+                v.e.spr_is_ram := d_in.ram_spr.valid;
+            when OP_MTSPR =>
+                v.e.ramspr_even_wraddr := d_in.ram_spr.index;
+                v.e.ramspr_odd_wraddr := d_in.ram_spr.index;
+                v.e.ramspr_wr_sel := "00";
+                v.e.ramspr_write_even := d_in.ram_spr.valid and not d_in.ram_spr.isodd;
+                v.e.ramspr_write_odd := d_in.ram_spr.valid and d_in.ram_spr.isodd;
+                v.e.spr_is_ram := d_in.ram_spr.valid;
+            when OP_B | OP_BC | OP_BCREG =>
+                v.e.ramspr_wr_sel := "10";
+                v.e.ramspr_odd_wraddr := RAMSPR_CFAR;
+                -- ramspr_write_odd is not set here because we only
+                -- write CFAR if the branch is taken.
+            when OP_RFID =>
+                v.e.ramspr_rdaddr := RAMSPR_SRR0;
+            when others =>
+        end case;
 
         r_out.read1_enable <= decoded_reg_a.reg_valid and d_in.valid;
         r_out.read1_reg    <= decoded_reg_a.reg;

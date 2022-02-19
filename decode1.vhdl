@@ -40,10 +40,9 @@ architecture behaviour of decode1 is
         override : std_ulogic;
         override_decode: decode_rom_t;
         override_unit: std_ulogic;
-        force_single: std_ulogic;
     end record;
     constant reg_internal_t_init : reg_internal_t :=
-        (override => '0', override_decode => illegal_inst, override_unit => '0', force_single => '0');
+        (override => '0', override_decode => illegal_inst, override_unit => '0');
 
     signal ri, ri_in : reg_internal_t;
     signal si        : reg_internal_t;
@@ -172,7 +171,7 @@ architecture behaviour of decode1 is
         -- isync
         2#111#    =>       (ALU, NONE, OP_ISYNC,     NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', NONE),
         -- rfid
-        2#101#    =>       (ALU, NONE, OP_RFID,      SPR,        SPR,         NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
+        2#101#    =>       (ALU, NONE, OP_RFID,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         others   => illegal_inst
         );
 
@@ -519,6 +518,35 @@ architecture behaviour of decode1 is
     constant nop_instr      : decode_rom_t := (ALU,  NONE, OP_NOP,          NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
     constant fetch_fail_inst: decode_rom_t := (LDST, NONE, OP_FETCH_FAILED, NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
 
+    function decode_ram_spr(sprn : spr_num_t) return ram_spr_info is
+        variable ret : ram_spr_info;
+    begin
+        ret := (index => 0, isodd => '0', valid => '1');
+        case sprn is
+            when SPR_CFAR =>
+                ret.index := RAMSPR_CFAR;
+                ret.isodd := '1';
+            when SPR_SRR0 =>
+                ret.index := RAMSPR_SRR0;
+            when SPR_SRR1 =>
+                ret.index := RAMSPR_SRR1;
+                ret.isodd := '1';
+            when SPR_SPRG0 =>
+                ret.index := RAMSPR_SPRG0;
+            when SPR_SPRG1 =>
+                ret.index := RAMSPR_SPRG1;
+                ret.isodd := '1';
+            when SPR_SPRG2 =>
+                ret.index := RAMSPR_SPRG2;
+            when SPR_SPRG3 | SPR_SPRG3U =>
+                ret.index := RAMSPR_SPRG3;
+                ret.isodd := '1';
+            when others =>
+                ret.valid := '0';
+        end case;
+        return ret;
+    end;
+
 begin
     decode1_0: process(clk)
     begin
@@ -586,6 +614,9 @@ begin
         majorop := unsigned(f_in.insn(31 downto 26));
         v.decode := major_decode_rom_array(to_integer(majorop));
 
+        sprn := decode_spr_num(f_in.insn);
+        v.ram_spr := decode_ram_spr(sprn);
+
         case to_integer(unsigned(majorop)) is
         when 4 =>
             -- major opcode 4, mostly VMX/VSX stuff but also some integer ops (madd*)
@@ -598,23 +629,18 @@ begin
             v.decode := decode_op_31_array(to_integer(unsigned(f_in.insn(10 downto 1))));
 
             -- Work out ispr1/ispro independent of v.decode since they seem to be critical path
-            sprn := decode_spr_num(f_in.insn);
             v.ispr1 := fast_spr_num(sprn);
             v.ispro := fast_spr_num(sprn);
 
             if std_match(f_in.insn(10 downto 1), "01-1010011") then
                 -- mfspr or mtspr
-                -- Make slow SPRs single issue
-                if is_fast_spr(v.ispr1) = '0' then
-                    vi.force_single := '1';
-                    -- send MMU-related SPRs to loadstore1
-                    case sprn is
-                        when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
-                            vi.override_decode.unit := LDST;
-                            vi.override_unit := '1';
-                        when others =>
-                    end case;
-                end if;
+                -- send MMU-related SPRs to loadstore1
+                case sprn is
+                    when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
+                        vi.override_decode.unit := LDST;
+                        vi.override_unit := '1';
+                    when others =>
+                end case;
             end if;
             if std_match(f_in.insn(10 downto 1), "0100010100") then
                 -- lqarx, illegal if RA = RT or RB = RT
@@ -650,29 +676,23 @@ begin
             v.decode := decode_op_19_array(to_integer(unsigned(op_19_bits)));
 
             -- Work out ispr1/ispr2 independent of v.decode since they seem to be critical path
-            if f_in.insn(2) = '0' then
-                -- Could be OP_BCREG: bclr, bcctr, bctar
-                -- Branch uses CTR as condition when BO(2) is 0. This is
-                -- also used to indicate that CTR is modified (they go
-                -- together).
-                -- bcctr doesn't update CTR or use it in the branch condition
-                if f_in.insn(23) = '0' and (f_in.insn(10) = '0' or f_in.insn(6) = '1') then
-                    v.ispr1 := fast_spr_num(SPR_CTR);
-                    v.ispro := fast_spr_num(SPR_CTR);
-                elsif f_in.insn(0) = '1' then
-                    v.ispro := fast_spr_num(SPR_LR);
-                end if;
-                if f_in.insn(10) = '0' then
-                    v.ispr2 := fast_spr_num(SPR_LR);
-                elsif f_in.insn(6) = '0' then
-                    v.ispr2 := fast_spr_num(SPR_CTR);
-                else
-                    v.ispr2 := fast_spr_num(SPR_TAR);
-                end if;
+            -- Could be OP_BCREG: bclr, bcctr, bctar
+            -- Branch uses CTR as condition when BO(2) is 0. This is
+            -- also used to indicate that CTR is modified (they go
+            -- together).
+            -- bcctr doesn't update CTR or use it in the branch condition
+            if f_in.insn(23) = '0' and (f_in.insn(10) = '0' or f_in.insn(6) = '1') then
+                v.ispr1 := fast_spr_num(SPR_CTR);
+                v.ispro := fast_spr_num(SPR_CTR);
+            elsif f_in.insn(0) = '1' then
+                v.ispro := fast_spr_num(SPR_LR);
+            end if;
+            if f_in.insn(10) = '0' then
+                v.ispr2 := fast_spr_num(SPR_LR);
+            elsif f_in.insn(6) = '0' then
+                v.ispr2 := fast_spr_num(SPR_CTR);
             else
-                -- Could be OP_RFID
-                v.ispr1 := fast_spr_num(SPR_SRR1);
-                v.ispr2 := fast_spr_num(SPR_SRR0);
+                v.ispr2 := fast_spr_num(SPR_TAR);
             end if;
 
         when 24 =>
@@ -758,9 +778,6 @@ begin
             d_out.decode <= ri.override_decode;
         elsif ri.override_unit = '1' then
             d_out.decode.unit <= ri.override_decode.unit;
-        end if;
-        if ri.force_single = '1' then
-            d_out.decode.sgl_pipe <= '1';
         end if;
         f_out.redirect <= br.predict;
         f_out.redirect_nia <= br_target & "00";

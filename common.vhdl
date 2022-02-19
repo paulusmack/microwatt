@@ -124,6 +124,25 @@ package common is
     end record;
     constant xerc_init : xer_common_t := (others => '0');
 
+    -- Some SPRs are stored in a pair of small RAMs in execute1
+    -- Even half:
+    subtype ramspr_index is natural range 0 to 7;
+    constant RAMSPR_SRR0  : ramspr_index := 0;
+    constant RAMSPR_SPRG0 : ramspr_index := 2;
+    constant RAMSPR_SPRG2 : ramspr_index := 3;
+    -- Odd half:
+    constant RAMSPR_SRR1  : ramspr_index := 0;
+    constant RAMSPR_CFAR  : ramspr_index := 1;
+    constant RAMSPR_SPRG1 : ramspr_index := 2;
+    constant RAMSPR_SPRG3 : ramspr_index := 3;
+
+    type ram_spr_info is record
+        index : ramspr_index;
+        isodd : std_ulogic;
+        valid : std_ulogic;
+    end record;
+    constant ram_spr_info_init: ram_spr_info := (index => 0, others => '0');
+
     -- FPSCR bit numbers
     constant FPSCR_FX     : integer := 63 - 32;
     constant FPSCR_FEX    : integer := 63 - 33;
@@ -186,14 +205,6 @@ package common is
         pri : std_ulogic_vector(7 downto 0);
     end record;
 
-    -- This needs to die...
-    type ctrl_t is record
-	tb: std_ulogic_vector(63 downto 0);
-	dec: std_ulogic_vector(63 downto 0);
-	msr: std_ulogic_vector(63 downto 0);
-        cfar: std_ulogic_vector(63 downto 0);
-    end record;
-
     type Fetch1ToIcacheType is record
 	req: std_ulogic;
         virt_mode : std_ulogic;
@@ -232,11 +243,13 @@ package common is
 	decode: decode_rom_t;
         br_pred: std_ulogic; -- Branch was predicted to be taken
         big_endian: std_ulogic;
+        ram_spr : ram_spr_info;
     end record;
     constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
         (valid => '0', stop_mark => '0', nia => (others => '0'), insn => (others => '0'),
          ispr1 => (others => '0'), ispr2 => (others => '0'), ispro => (others => '0'),
-         decode => decode_rom_init, br_pred => '0', big_endian => '0');
+         decode => decode_rom_init, br_pred => '0', big_endian => '0',
+         ram_spr => ram_spr_info_init);
 
     type Decode1ToFetch1Type is record
         redirect     : std_ulogic;
@@ -296,6 +309,14 @@ package common is
         sub_select : std_ulogic_vector(2 downto 0);     -- sub-result selection
         repeat : std_ulogic;                            -- set if instruction is cracked into two ops
         second : std_ulogic;                            -- set if this is the second op
+        spr_is_ram : std_ulogic;
+        ramspr_rdaddr      : ramspr_index;
+        ramspr_rd_odd      : std_ulogic;
+        ramspr_wr_sel      : std_ulogic_vector(1 downto 0);
+        ramspr_even_wraddr : ramspr_index;
+        ramspr_write_even  : std_ulogic;
+        ramspr_odd_wraddr  : ramspr_index;
+        ramspr_write_odd   : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
@@ -308,7 +329,11 @@ package common is
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
          result_sel => "000", sub_select => "000",
-         repeat => '0', second => '0', others => (others => '0'));
+         repeat => '0', second => '0', spr_is_ram => '0',
+         ramspr_rdaddr => 0, ramspr_rd_odd => '0', ramspr_wr_sel => "00",
+         ramspr_even_wraddr => 0, ramspr_write_even => '0',
+         ramspr_odd_wraddr => 0, ramspr_write_odd => '0',
+         others => (others => '0'));
 
     type MultiplyInputType is record
 	valid: std_ulogic;
@@ -601,6 +626,12 @@ package common is
          br_last => '0', br_taken => '0', abs_br => '0',
          srr1 => (others => '0'), msr => (others => '0'));
 
+    type WritebackToExecute1Type is record
+        valid : std_ulogic;
+        srr0 : std_ulogic_vector(63 downto 0);
+        srr1 : std_ulogic_vector(15 downto 0);
+    end record;
+
     type Execute1ToFPUType is record
         valid   : std_ulogic;
         op      : insn_type_t;
@@ -719,26 +750,6 @@ package body common is
            n := 0;              -- N.B. decode2 relies on this specific value
        when SPR_CTR =>
            n := 1;              -- N.B. decode2 relies on this specific value
-       when SPR_SRR0 =>
-           n := 2;
-       when SPR_SRR1 =>
-           n := 3;
-       when SPR_HSRR0 =>
-           n := 4;
-       when SPR_HSRR1 =>
-           n := 5;
-       when SPR_SPRG0 =>
-           n := 6;
-       when SPR_SPRG1 =>
-           n := 7;
-       when SPR_SPRG2 =>
-           n := 8;
-       when SPR_SPRG3 | SPR_SPRG3U =>
-           n := 9;
-       when SPR_HSPRG0 =>
-           n := 10;
-       when SPR_HSPRG1 =>
-           n := 11;
        when SPR_XER =>
            n := 12;
        when SPR_TAR =>

@@ -113,8 +113,7 @@ package common is
     function fpr_to_gspr(f: fpr_index_t) return gspr_index_t;
 
     -- The XER is split: the common bits (CA, OV, SO, OV32 and CA32) are
-    -- in the CR file as a kind of CR extension (with a separate write
-    -- control). The rest is stored as a fast SPR.
+    -- stored separately in execute1 from the rest of the XER bits.
     type xer_common_t is record
 	ca : std_ulogic;
 	ca32 : std_ulogic;
@@ -135,6 +134,7 @@ package common is
     constant RAMSPR_CFAR  : ramspr_index := 1;
     constant RAMSPR_SPRG1 : ramspr_index := 2;
     constant RAMSPR_SPRG3 : ramspr_index := 3;
+    constant RAMSPR_XER   : ramspr_index := 4;
 
     -- FPSCR bit numbers
     constant FPSCR_FX     : integer := 63 - 32;
@@ -292,7 +292,6 @@ package common is
 	read_data2: std_ulogic_vector(63 downto 0);
 	read_data3: std_ulogic_vector(63 downto 0);
 	cr: std_ulogic_vector(31 downto 0);
-	xerc: xer_common_t;
 	lr: std_ulogic;
         br_abs: std_ulogic;
 	rc: std_ulogic;
@@ -335,7 +334,7 @@ package common is
          lr => '0', br_abs => '0', rc => '0', oe => '0', invert_a => '0', addm1 => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0',
          output_cr => '0', output_xer => '0',
-	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
+	 is_32bit => '0', is_signed => '0', reserve => '0', br_pred => '0',
          byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'),
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
@@ -447,7 +446,6 @@ package common is
 
     type CrFileToDecode2Type is record
 	read_cr_data   : std_ulogic_vector(31 downto 0);
-	read_xerc_data : xer_common_t;
     end record;
 
     type Execute1ToLoadstore1Type is record
@@ -613,7 +611,6 @@ package common is
 	write_cr_enable : std_ulogic;
 	write_cr_mask : std_ulogic_vector(7 downto 0);
 	write_cr_data : std_ulogic_vector(31 downto 0);
-	write_xerc_enable : std_ulogic;
 	xerc : xer_common_t;
         interrupt : std_ulogic;
         intr_vec : intr_vector_t;
@@ -630,7 +627,7 @@ package common is
     constant Execute1ToWritebackInit : Execute1ToWritebackType :=
         (valid => '0', instr_tag => instr_tag_init, rc => '0', mode_32bit => '0',
          write_enable => '0', write_cr_enable => '0',
-         write_xerc_enable => '0', xerc => xerc_init,
+         xerc => xerc_init,
          write_data => (others => '0'), write_cr_mask => (others => '0'),
          write_cr_data => (others => '0'), write_reg => (others => '0'),
          interrupt => '0', intr_vec => 0, redirect => '0', redir_mode => "0000",
@@ -730,11 +727,8 @@ package common is
 	write_cr_enable : std_ulogic;
 	write_cr_mask : std_ulogic_vector(7 downto 0);
 	write_cr_data : std_ulogic_vector(31 downto 0);
-	write_xerc_enable : std_ulogic;
-	write_xerc_data : xer_common_t;
     end record;
-    constant WritebackToCrFileInit : WritebackToCrFileType := (write_cr_enable => '0', write_xerc_enable => '0',
-							       write_xerc_data => xerc_init,
+    constant WritebackToCrFileInit : WritebackToCrFileType := (write_cr_enable => '0',
 							       write_cr_mask => (others => '0'),
 							       write_cr_data => (others => '0'));
 
@@ -762,8 +756,6 @@ package body common is
            n := 0;              -- N.B. decode2 relies on this specific value
        when SPR_CTR =>
            n := 1;              -- N.B. decode2 relies on this specific value
-       when SPR_XER =>
-           n := 12;
        when SPR_TAR =>
            n := 13;
        when others =>

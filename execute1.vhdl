@@ -12,6 +12,7 @@ use work.ppc_fx_insns.all;
 
 entity execute1 is
     generic (
+        SIM : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
         HAS_SHORT_MULT : boolean := false;
@@ -51,6 +52,10 @@ entity execute1 is
         ls_events    : in Loadstore1EventType;
         dc_events    : in DcacheEventType;
         ic_events    : in IcacheEventType;
+
+        -- debug
+        sim_dump      : in std_ulogic;
+        sim_dump_done : out std_ulogic;
 
         log_out : out std_ulogic_vector(14 downto 0);
         log_rd_addr : out std_ulogic_vector(31 downto 0);
@@ -95,7 +100,10 @@ architecture behaviour of execute1 is
 	tb: std_ulogic_vector(63 downto 0);
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
+        xerc: xer_common_t;
     end record;
+    constant special_regs_t_init: special_regs_t :=
+        (xerc => xerc_init, others => (others => '0'));
 
     signal r, rin : reg_type;
 
@@ -105,8 +113,8 @@ architecture behaviour of execute1 is
     signal mshort_p : std_ulogic_vector(31 downto 0) := (others => '0');
 
     signal valid_in : std_ulogic;
-    signal ctrl: special_regs_t := (others => (others => '0'));
-    signal ctrl_tmp: special_regs_t := (others => (others => '0'));
+    signal ctrl: special_regs_t := special_regs_t_init;
+    signal ctrl_tmp: special_regs_t := special_regs_t_init;
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
     signal rot_sign_ext: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
@@ -279,6 +287,13 @@ architecture behaviour of execute1 is
         return x(n - 1) = '1';
     end;
 
+    function assemble_xer(xerc: xer_common_t; xer_low: std_ulogic_vector)
+        return std_ulogic_vector is
+    begin
+        return 32x"0" & xerc.so & xerc.ov & xerc.ca & "000000000" &
+            xerc.ov32 & xerc.ca32 & xer_low(17 downto 0);
+    end;
+
     -- Tell vivado to keep the hierarchy for the random module so that the
     -- net names in the xdc file match.
     attribute keep_hierarchy : string;
@@ -399,12 +414,8 @@ begin
     x_to_pmu.spr_val <= c_in;
     x_to_pmu.run <= '1';
 
-    -- XER forwarding. To avoid having to track XER hazards, we use
-    -- the previously latched value.  Since the XER common bits
-    -- (SO, OV[32] and CA[32]) are only modified by instructions that are
-    -- handled here, we can just forward the result being sent to
-    -- writeback.
-    xerc_in <= r.e.xerc when r.e.write_xerc_enable = '1' or r.busy = '1' else e_in.xerc;
+    -- XER is now maintained entirely in this module
+    xerc_in <= ctrl.xerc;
 
     with e_in.unit select busy_out <=
         l_in.busy or r.busy or fp_in.busy when LDST,
@@ -489,8 +500,7 @@ begin
         pmu_to_x.spr_val when SPRSEL_PMU,
         a_in when SPRSEL_CTR,
         a_in when SPRSEL_LR,
-        32x"0" & xerc_in.so & xerc_in.ov & xerc_in.ca & "000000000" &
-            xerc_in.ov32 & xerc_in.ca32 & a_in(63-46 downto 0) when SPRSEL_XER,
+        assemble_xer(ctrl.xerc, ramspr_odd) when SPRSEL_XER,
         a_in when SPRSEL_TAR,
         c_in when others;
 
@@ -1191,11 +1201,11 @@ begin
 		    "=" & to_hstring(c_in);
                 case e_in.spr_select is
                     when SPRSEL_XER =>
-			v.e.xerc.so := c_in(63-32);
-			v.e.xerc.ov := c_in(63-33);
-			v.e.xerc.ca := c_in(63-34);
-			v.e.xerc.ov32 := c_in(63-44);
-			v.e.xerc.ca32 := c_in(63-45);
+			ctrl_tmp.xerc.so <= c_in(63-32);
+			ctrl_tmp.xerc.ov <= c_in(63-33);
+			ctrl_tmp.xerc.ca <= c_in(63-34);
+			ctrl_tmp.xerc.ov32 <= c_in(63-44);
+			ctrl_tmp.xerc.ca32 <= c_in(63-45);
 		    when SPRSEL_DEC =>
 			ctrl_tmp.dec <= c_in;
                     when SPRSEL_LOGA =>     -- LOG_ADDR SPR
@@ -1379,7 +1389,10 @@ begin
         v.e.write_cr_data := write_cr_data;
         v.e.write_cr_mask := write_cr_mask;
         v.e.write_cr_enable := current.output_cr and v.e.valid and not exception;
-        v.e.write_xerc_enable := current.output_xer and v.e.valid and not exception;
+
+        if current.output_xer = '1' and v.e.valid = '1' and exception = '0' then
+            ctrl_tmp.xerc <= v.e.xerc;
+        end if;
 
         bypass_data.tag.valid <= current.instr_tag.valid and current.write_reg_enable and v.e.valid;
         bypass_data.tag.tag <= current.instr_tag.tag;
@@ -1449,6 +1462,25 @@ begin
         exception_log <= exception;
         irq_valid_log <= irq_valid;
     end process;
+
+    sim_dump_test: if SIM generate
+        dump_exregs: process(all)
+            variable xer : std_ulogic_vector(63 downto 0);
+        begin
+            if sim_dump = '1' then
+                xer := assemble_xer(ctrl.xerc, odd_sprs(RAMSPR_XER));
+                report "XER " & to_hstring(xer);
+                sim_dump_done <= '1';
+            else
+                sim_dump_done <= '0';
+            end if;
+        end process;
+    end generate;
+
+    -- Keep GHDL synthesis happy
+    sim_dump_test_synth: if not SIM generate
+        sim_dump_done <= '0';
+    end generate;
 
     e1_log: if LOG_LENGTH > 0 generate
         signal log_data : std_ulogic_vector(14 downto 0);

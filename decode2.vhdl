@@ -255,6 +255,10 @@ architecture behaviour of decode2 is
     begin
         ret := (index => 0, isodd => '0', valid => '0');
         case sprn is
+            when SPR_XER =>
+                ret.index := RAMSPR_XER;
+                ret.isodd := '1';
+                ret.valid := '1';
             when SPR_CFAR =>
                 ret.index := RAMSPR_CFAR;
                 ret.isodd := '1';
@@ -471,10 +475,6 @@ begin
                     v.e.oe := '1';
                     v.e.output_xer := '1';
                 end if;
-            when OP_MTSPR =>
-                if sprn = SPR_XER then
-                    v.e.output_xer := '1';
-                end if;
             when others =>
         end case;
 
@@ -573,7 +573,6 @@ begin
         v.e.write_reg := decoded_reg_o.reg;
         v.e.write_reg_enable := decoded_reg_o.reg_valid;
         v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
-        v.e.xerc := c_in.read_xerc_data;
         v.e.invert_a := d_in.decode.invert_a;
         v.e.addm1 := '0';
         v.e.insn_type := op;

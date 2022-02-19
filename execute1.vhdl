@@ -382,7 +382,6 @@ begin
             );
     end generate;
 
-    dbg_msr_out <= ctrl.msr;
     log_rd_addr <= r.log_addr_spr;
 
     a_in <= e_in.read_data1;
@@ -463,8 +462,11 @@ begin
                 when "01" =>
                     even_wr_data := interrupt_in.srr0;
                     odd_wr_data := intr_srr1(ctrl.msr, interrupt_in.srr1);
+                when "10" =>
+                    even_wr_data := std_ulogic_vector(unsigned(ramspr_even) - 1);
+                    odd_wr_data := e_in.nia;
                 when others =>
-                    even_wr_data := (others => '0');
+                    even_wr_data := next_nia;
                     odd_wr_data := e_in.nia;
             end case;
             if even_wr_enab = '1' then
@@ -488,7 +490,6 @@ begin
         muldiv_result      when "011",
         countbits_result   when "100",
         spr_result         when "101",
-        next_nia           when "110",
         misc_result        when others;
 
     execute1_0: process(clk)
@@ -514,7 +515,6 @@ begin
     -- Data path for integer instructions
     execute1_dp: process(all)
 	variable a_inv : std_ulogic_vector(63 downto 0);
-	variable b_or_m1 : std_ulogic_vector(63 downto 0);
 	variable sum_with_carry : std_ulogic_vector(64 downto 0);
         variable sign1, sign2 : std_ulogic;
         variable abs1, abs2 : signed(63 downto 0);
@@ -549,12 +549,7 @@ begin
         else
             a_inv := not a_in;
         end if;
-        if e_in.addm1 = '0' then
-            b_or_m1 := b_in;
-        else
-            b_or_m1 := (others => '1');
-        end if;
-        sum_with_carry := ppc_adde(a_inv, b_or_m1,
+        sum_with_carry := ppc_adde(a_inv, b_in,
                                    decode_input_carry(e_in.input_carry, xerc_in));
         adder_result <= sum_with_carry(63 downto 0);
         carry_32 <= sum_with_carry(32) xor a_inv(32) xor b_in(32);
@@ -1067,28 +1062,25 @@ begin
                 is_branch := '1';
                 taken_branch := '1';
                 is_direct_branch := '1';
-                abs_branch := e_in.br_abs;
+                abs_branch := insn_aa(e_in.insn);
                 if ctrl.msr(MSR_BE) = '1' then
                     do_trace := '1';
                 end if;
                 v.taken_branch_event := '1';
             when OP_BC | OP_BCREG =>
-                -- read_data1 is CTR
-		-- for OP_BCREG, read_data2 is target register (CTR, LR or TAR)
-                -- If this instruction updates both CTR and LR, then it is
-                -- doubled; the first instruction decrements CTR and determines
-                -- whether the branch is taken, and the second does the
-                -- redirect and the LR update.
+                -- If CTR is being decremented, it is in ramspr_even.
+                -- This instruction is doubled if it decrements CTR and also
+                -- either reads or writes LR or reads TAR.
 		bo := insn_bo(e_in.insn);
 		bi := insn_bi(e_in.insn);
                 if e_in.second = '0' then
-                    taken_branch := ppc_bc_taken(bo, bi, cr_in, a_in);
+                    taken_branch := ppc_bc_taken(bo, bi, cr_in, ramspr_even);
                 else
                     taken_branch := r.br_taken;
                 end if;
                 v.br_taken := taken_branch;
                 v.taken_branch_event := taken_branch;
-                abs_branch := e_in.br_abs;
+                abs_branch := insn_aa(e_in.insn);
                 if e_in.repeat = '0' or e_in.second = '1' then
                     is_branch := '1';
                     if e_in.insn_type = OP_BC then
@@ -1274,12 +1266,14 @@ begin
 
             -- Mispredicted branches cause a redirect
             if is_branch = '1' then
-                if is_rfid = '1' then
-                    v.e.br_offset := ramspr_even;
-                    v.e.abs_br := '1';
-                elsif taken_branch = '1' then
-                    v.e.br_offset := b_in;
-                    v.e.abs_br := abs_branch;
+                if taken_branch = '1' then
+                    if is_direct_branch = '1' then
+                        v.e.br_offset := b_in;
+                        v.e.abs_br := abs_branch;
+                    else
+                        v.e.br_offset := ramspr_even;
+                        v.e.abs_br := '1';
+                    end if;
                 else
                     v.e.br_offset := std_ulogic_vector(to_unsigned(4, 64));
                 end if;
@@ -1289,6 +1283,9 @@ begin
                 end if;
                 v.e.br_last := is_direct_branch;
                 v.e.br_taken := taken_branch;
+                if is_rfid = '0' and ctrl.msr(MSR_BE) = '1' then
+                    do_trace := '1';
+                end if;
             end if;
             write_cfar <= taken_branch;
 
@@ -1479,6 +1476,8 @@ begin
             variable xer : std_ulogic_vector(63 downto 0);
         begin
             if sim_dump = '1' then
+                report "LR " & to_hstring(even_sprs(RAMSPR_LR));
+                report "CTR " & to_hstring(even_sprs(RAMSPR_CTR));
                 xer := assemble_xer(ctrl.xerc, ctrl.xer_low);
                 report "XER " & to_hstring(xer);
                 sim_dump_done <= '1';

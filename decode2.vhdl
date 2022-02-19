@@ -224,6 +224,7 @@ architecture behaviour of decode2 is
             when 725 =>     -- LOG_DATA SPR
                 return SPRSEL_LOGD;
             when SPR_SRR0 | SPR_SRR1 | SPR_CFAR |
+                 SPR_LR | SPR_CTR | SPR_TAR |
                  SPR_SPRG0 | SPR_SPRG1 | SPR_SPRG2 | SPR_SPRG3 | SPR_SPRG3U =>
                 return SPRSEL_RAM;
             when SPR_UPMC1 | SPR_UPMC2 | SPR_UPMC3 | SPR_UPMC4 | SPR_UPMC5 | SPR_UPMC6 |
@@ -231,14 +232,8 @@ architecture behaviour of decode2 is
                 SPR_PMC1 | SPR_PMC2 | SPR_PMC3 | SPR_PMC4 | SPR_PMC5 | SPR_PMC6 |
                 SPR_MMCR0 | SPR_MMCR1 | SPR_MMCR2 | SPR_MMCRA | SPR_SIER | SPR_SIAR | SPR_SDAR =>
                 return SPRSEL_PMU;
-            when SPR_CTR =>
-                return SPRSEL_CTR;
-            when SPR_LR =>
-                return SPRSEL_LR;
             when SPR_XER =>
                 return SPRSEL_XER;
-            when SPR_TAR =>
-                return SPRSEL_TAR;
             when others =>
                 return SPRSEL_NONE;
         end case;
@@ -258,6 +253,15 @@ architecture behaviour of decode2 is
             when SPR_XER =>
                 ret.index := RAMSPR_XER;
                 ret.isodd := '1';
+                ret.valid := '1';
+            when SPR_LR =>
+                ret.index := RAMSPR_LR;
+                ret.valid := '1';
+            when SPR_CTR =>
+                ret.index := RAMSPR_CTR;
+                ret.valid := '1';
+            when SPR_TAR =>
+                ret.index := RAMSPR_TAR;
                 ret.valid := '1';
             when SPR_CFAR =>
                 ret.index := RAMSPR_CFAR;
@@ -317,9 +321,6 @@ architecture behaviour of decode2 is
         OP_CNTZ     => "100",           -- countbits_result
         OP_POPCNT   => "100",
         OP_MFSPR    => "101",           -- spr_result
-        OP_B        => "110",           -- next_nia
-        OP_BC       => "110",
-        OP_BCREG    => "110",
         OP_ADDG6S   => "111",           -- misc_result
         OP_ISEL     => "111",
         OP_DARN     => "111",
@@ -454,6 +455,7 @@ begin
         variable op : insn_type_t;
         variable sprn : spr_num_t;
         variable rspr : ram_spr_info;
+        variable decctr : std_ulogic;
     begin
         v := r;
 
@@ -486,33 +488,17 @@ begin
 
         if d_in.decode.lr = '1' then
             v.e.lr := insn_lk(d_in.insn);
-            -- b and bc have even major opcodes; bcreg is considered absolute
-            v.e.br_abs := insn_aa(d_in.insn) or d_in.insn(26);
         end if;
         op := d_in.decode.insn_type;
 
-        case d_in.decode.insn_type is
-            when OP_MFSPR =>
-                rspr := decode_ram_spr(sprn);
-                v.e.ramspr_even_rdaddr := rspr.index;
-                v.e.ramspr_odd_rdaddr := rspr.index;
-                v.e.ramspr_rd_odd := rspr.isodd;
-            when OP_MTSPR =>
-                rspr := decode_ram_spr(sprn);
-                v.e.ramspr_even_wraddr := rspr.index;
-                v.e.ramspr_odd_wraddr := rspr.index;
-                v.e.ramspr_even_wr_sel := "00";
-                v.e.ramspr_odd_wr_sel := "00";
-                v.e.ramspr_write_even := rspr.valid and not rspr.isodd;
-                v.e.ramspr_write_odd := rspr.valid and rspr.isodd;
-            when OP_B | OP_BC | OP_BCREG =>
-                v.e.ramspr_odd_wraddr := RAMSPR_CFAR;
-                v.e.ramspr_odd_wr_sel := "01";
-            when OP_RFID =>
-                v.e.ramspr_even_rdaddr := RAMSPR_SRR0;
-                v.e.ramspr_odd_rdaddr := RAMSPR_SRR1;
-            when others =>
-        end case;
+        -- Does this instruction decrement CTR?
+        -- bc, bclr, bctar with BO(2) = 0 do, but not bcctr.
+        decctr := '0';
+        if d_in.insn(23) = '0' and
+            (op = OP_BC or
+             (op = OP_BCREG and not (d_in.insn(10) = '1' and d_in.insn(6) = '0'))) then
+            decctr := '1';
+        end if;
 
         if d_in.decode.repeat /= NONE then
             v.e.repeat := '1';
@@ -535,13 +521,59 @@ begin
                     end if;
                 when others =>
             end case;
-        elsif v.e.lr = '1' and decoded_reg_a.reg_valid = '1' then
-            -- bcl/bclrl/bctarl that needs to write both CTR and LR has to be doubled
+        elsif decctr = '1' and (v.e.lr = '1' or op = OP_BCREG) then
+            -- Branches that decrement CTR and read or write LR or
+            -- read TAR need to be doubled
             v.e.repeat := '1';
             v.e.second := r.repeat;
-            -- first one does CTR, second does LR
-            decoded_reg_o.reg(0) := not r.repeat;
         end if;
+
+        if decctr = '1' and r.repeat = '0' then
+            -- read and write CTR
+            v.e.ramspr_even_rdaddr := RAMSPR_CTR;
+            v.e.ramspr_even_wraddr := RAMSPR_CTR;
+            v.e.ramspr_even_wr_sel := "01";
+            v.e.ramspr_write_even := '1';
+        end if;
+
+        case op is
+            when OP_MFSPR =>
+                rspr := decode_ram_spr(sprn);
+                v.e.ramspr_even_rdaddr := rspr.index;
+                v.e.ramspr_odd_rdaddr := rspr.index;
+                v.e.ramspr_rd_odd := rspr.isodd;
+            when OP_MTSPR =>
+                rspr := decode_ram_spr(sprn);
+                v.e.ramspr_even_wraddr := rspr.index;
+                v.e.ramspr_odd_wraddr := rspr.index;
+                v.e.ramspr_even_wr_sel := "00";
+                v.e.ramspr_odd_wr_sel := "00";
+                v.e.ramspr_write_even := rspr.valid and not rspr.isodd;
+                v.e.ramspr_write_odd := rspr.valid and rspr.isodd;
+            when OP_B | OP_BC | OP_BCREG =>
+                if v.e.repeat = '0' or r.repeat = '1' then
+                    if op = OP_BCREG then
+                        if d_in.insn(10) = '0' then
+                            v.e.ramspr_even_rdaddr := RAMSPR_LR;
+                        elsif d_in.insn(6) = '0' then
+                            v.e.ramspr_even_rdaddr := RAMSPR_CTR;
+                        else
+                            v.e.ramspr_even_rdaddr := RAMSPR_TAR;
+                        end if;
+                    end if;
+                    if v.e.lr = '1' then
+                        v.e.ramspr_even_wraddr := RAMSPR_LR;
+                        v.e.ramspr_even_wr_sel := "10";
+                        v.e.ramspr_write_even := '1';
+                    end if;
+                    v.e.ramspr_odd_wraddr := RAMSPR_CFAR;
+                    v.e.ramspr_odd_wr_sel := "01";
+                end if;
+            when OP_RFID =>
+                v.e.ramspr_even_rdaddr := RAMSPR_SRR0;
+                v.e.ramspr_odd_rdaddr := RAMSPR_SRR1;
+            when others =>
+        end case;
 
         r_out.read1_enable <= decoded_reg_a.reg_valid and d_in.valid;
         r_out.read1_reg    <= decoded_reg_a.reg;
@@ -574,7 +606,6 @@ begin
         v.e.write_reg_enable := decoded_reg_o.reg_valid;
         v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
         v.e.invert_a := d_in.decode.invert_a;
-        v.e.addm1 := '0';
         v.e.insn_type := op;
         v.e.invert_out := d_in.decode.invert_out;
         v.e.input_carry := d_in.decode.input_carry;
@@ -591,14 +622,6 @@ begin
         v.e.result_sel := result_select(op);
         v.e.sub_select := subresult_select(op);
         v.e.spr_select := map_spr(sprn);
-        if op = OP_BC or op = OP_BCREG then
-            if d_in.insn(23) = '0' and r.repeat = '0' and
-                not (d_in.decode.insn_type = OP_BCREG and d_in.insn(10) = '0') then
-                -- decrement CTR if BO(2) = 0 and not bcctr
-                v.e.addm1 := '1';
-                v.e.result_sel := "000";        -- select adder output
-            end if;
-        end if;
 
         -- See if any of the operands can get their value via the bypass path.
         case gpr_a_bypass is

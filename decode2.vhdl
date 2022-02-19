@@ -208,6 +208,83 @@ architecture behaviour of decode2 is
         end case;
     end;
 
+    function map_spr(sprn : spr_num_t) return spr_selector is
+    begin
+        case sprn is
+            when SPR_TB =>
+                return SPRSEL_TB;
+            when SPR_TBU =>
+                return SPRSEL_TBU;
+            when SPR_DEC =>
+                return SPRSEL_DEC;
+            when SPR_PVR =>
+                return SPRSEL_PVR;
+            when 724 =>     -- LOG_ADDR SPR
+                return SPRSEL_LOGA;
+            when 725 =>     -- LOG_DATA SPR
+                return SPRSEL_LOGD;
+            when SPR_SRR0 | SPR_SRR1 | SPR_CFAR |
+                 SPR_SPRG0 | SPR_SPRG1 | SPR_SPRG2 | SPR_SPRG3 | SPR_SPRG3U =>
+                return SPRSEL_RAM;
+            when SPR_UPMC1 | SPR_UPMC2 | SPR_UPMC3 | SPR_UPMC4 | SPR_UPMC5 | SPR_UPMC6 |
+                SPR_UMMCR0 | SPR_UMMCR1 | SPR_UMMCR2 | SPR_UMMCRA | SPR_USIER | SPR_USIAR | SPR_USDAR |
+                SPR_PMC1 | SPR_PMC2 | SPR_PMC3 | SPR_PMC4 | SPR_PMC5 | SPR_PMC6 |
+                SPR_MMCR0 | SPR_MMCR1 | SPR_MMCR2 | SPR_MMCRA | SPR_SIER | SPR_SIAR | SPR_SDAR =>
+                return SPRSEL_PMU;
+            when SPR_CTR =>
+                return SPRSEL_CTR;
+            when SPR_LR =>
+                return SPRSEL_LR;
+            when SPR_XER =>
+                return SPRSEL_XER;
+            when SPR_TAR =>
+                return SPRSEL_TAR;
+            when others =>
+                return SPRSEL_NONE;
+        end case;
+    end;
+
+    type ram_spr_info is record
+        index : ramspr_index;
+        isodd : std_ulogic;
+        valid : std_ulogic;
+    end record;
+
+    function decode_ram_spr(sprn : spr_num_t) return ram_spr_info is
+        variable ret : ram_spr_info;
+    begin
+        ret := (index => 0, isodd => '0', valid => '0');
+        case sprn is
+            when SPR_CFAR =>
+                ret.index := RAMSPR_CFAR;
+                ret.isodd := '1';
+                ret.valid := '1';
+            when SPR_SRR0 =>
+                ret.index := RAMSPR_SRR0;
+                ret.valid := '1';
+            when SPR_SRR1 =>
+                ret.index := RAMSPR_SRR1;
+                ret.isodd := '1';
+                ret.valid := '1';
+            when SPR_SPRG0 =>
+                ret.index := RAMSPR_SPRG0;
+                ret.valid := '1';
+            when SPR_SPRG1 =>
+                ret.index := RAMSPR_SPRG1;
+                ret.isodd := '1';
+                ret.valid := '1';
+            when SPR_SPRG2 =>
+                ret.index := RAMSPR_SPRG2;
+                ret.valid := '1';
+            when SPR_SPRG3 | SPR_SPRG3U =>
+                ret.index := RAMSPR_SPRG3;
+                ret.isodd := '1';
+                ret.valid := '1';
+            when others =>
+        end case;
+        return ret;
+    end;
+
     -- control signals that are derived from insn_type
     type mux_select_array_t is array(insn_type_t) of std_ulogic_vector(2 downto 0);
 
@@ -371,6 +448,8 @@ begin
         variable decoded_reg_o : decode_output_reg_t;
         variable length : std_ulogic_vector(3 downto 0);
         variable op : insn_type_t;
+        variable sprn : spr_num_t;
+        variable rspr : ram_spr_info;
     begin
         v := r;
 
@@ -383,6 +462,7 @@ begin
         v.e.output_cr := d_in.decode.output_cr;
 
         -- Work out whether XER common bits are set
+        sprn := decode_spr_num(d_in.insn);
         v.e.output_xer := d_in.decode.output_carry;
         case d_in.decode.insn_type is
             when OP_ADD | OP_MUL_L64 | OP_DIV | OP_DIVE =>
@@ -392,7 +472,7 @@ begin
                     v.e.output_xer := '1';
                 end if;
             when OP_MTSPR =>
-                if decode_spr_num(d_in.insn) = SPR_XER then
+                if sprn = SPR_XER then
                     v.e.output_xer := '1';
                 end if;
             when others =>
@@ -410,6 +490,29 @@ begin
             v.e.br_abs := insn_aa(d_in.insn) or d_in.insn(26);
         end if;
         op := d_in.decode.insn_type;
+
+        case d_in.decode.insn_type is
+            when OP_MFSPR =>
+                rspr := decode_ram_spr(sprn);
+                v.e.ramspr_even_rdaddr := rspr.index;
+                v.e.ramspr_odd_rdaddr := rspr.index;
+                v.e.ramspr_rd_odd := rspr.isodd;
+            when OP_MTSPR =>
+                rspr := decode_ram_spr(sprn);
+                v.e.ramspr_even_wraddr := rspr.index;
+                v.e.ramspr_odd_wraddr := rspr.index;
+                v.e.ramspr_even_wr_sel := "00";
+                v.e.ramspr_odd_wr_sel := "00";
+                v.e.ramspr_write_even := rspr.valid and not rspr.isodd;
+                v.e.ramspr_write_odd := rspr.valid and rspr.isodd;
+            when OP_B | OP_BC | OP_BCREG =>
+                v.e.ramspr_odd_wraddr := RAMSPR_CFAR;
+                v.e.ramspr_odd_wr_sel := "01";
+            when OP_RFID =>
+                v.e.ramspr_even_rdaddr := RAMSPR_SRR0;
+                v.e.ramspr_odd_rdaddr := RAMSPR_SRR1;
+            when others =>
+        end case;
 
         if d_in.decode.repeat /= NONE then
             v.e.repeat := '1';
@@ -488,6 +591,7 @@ begin
         v.e.br_pred := d_in.br_pred;
         v.e.result_sel := result_select(op);
         v.e.sub_select := subresult_select(op);
+        v.e.spr_select := map_spr(sprn);
         if op = OP_BC or op = OP_BCREG then
             if d_in.insn(23) = '0' and r.repeat = '0' and
                 not (d_in.decode.insn_type = OP_BCREG and d_in.insn(10) = '0') then

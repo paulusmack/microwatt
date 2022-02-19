@@ -482,6 +482,17 @@ begin
         end if;
     end process;
 
+    -- SPR read mux
+    with e_in.spr_select.sel select spr_result <=
+        ctrl.tb when SPRSEL_TB,
+        32x"0" & ctrl.tb(63 downto 32) when SPRSEL_TBU,
+        ctrl.dec when SPRSEL_DEC,
+        32x"0" & PVR_MICROWATT when SPRSEL_PVR,
+        log_wr_addr & r.log_addr_spr when SPRSEL_LOGA,
+        log_rd_data when SPRSEL_LOGD,
+        pmu_to_x.spr_val when SPRSEL_PMU,
+        assemble_xer(ctrl.xerc, ctrl.xer_low) when others;
+
     -- Result mux
     with current.result_sel select alu_result <=
         adder_result       when "000",
@@ -490,6 +501,7 @@ begin
         muldiv_result      when "011",
         countbits_result   when "100",
         spr_result         when "101",
+        ramspr_result      when "110",
         misc_result        when others;
 
     execute1_0: process(clk)
@@ -842,7 +854,6 @@ begin
         variable is_direct_branch : std_ulogic;
         variable taken_branch : std_ulogic;
         variable abs_branch : std_ulogic;
-        variable spr_val : std_ulogic_vector(63 downto 0);
         variable do_trace : std_ulogic;
         variable hold_wr_data : std_ulogic;
         variable fv : Execute1ToFPUType;
@@ -884,9 +895,6 @@ begin
         x_to_pmu.tbbits(0) <= ctrl.tb(63 - 63);
         x_to_pmu.pmm_msr <= ctrl.msr(MSR_PMM);
         x_to_pmu.pr_msr <= ctrl.msr(MSR_PR);
-
-        spr_result <= (others => '0');
-        spr_val := (others => '0');
 
 	ctrl_tmp <= ctrl;
 	-- FIXME: run at 512MHz not core freq
@@ -1125,47 +1133,28 @@ begin
             when OP_DARN =>
 	    when OP_MFMSR =>
 	    when OP_MFSPR =>
-		if is_fast_spr(e_in.read_reg1) = '1' then
-		    spr_val := a_in;
-                elsif e_in.spr_is_ram = '1' then
-                    spr_val := ramspr_result;
-		else
-                    spr_val := c_in;
-                    case decode_spr_num(e_in.insn) is
-                    when SPR_XER =>
-                        spr_val := assemble_xer(ctrl.xerc, ctrl.xer_low);
-		    when SPR_TB =>
-			spr_val := ctrl.tb;
-		    when SPR_TBU =>
-                        spr_val(63 downto 32) := (others => '0');
-			spr_val(31 downto 0)  := ctrl.tb(63 downto 32);
-		    when SPR_DEC =>
-			spr_val := ctrl.dec;
-                    when SPR_PVR =>
-                        spr_val(63 downto 32) := (others => '0');
-                        spr_val(31 downto 0) := PVR_MICROWATT;
-                    when 724 =>     -- LOG_ADDR SPR
-                        spr_val := log_wr_addr & r.log_addr_spr;
-                    when 725 =>     -- LOG_DATA SPR
-                        spr_val := log_rd_data;
-                        v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
-                    when SPR_UPMC1 | SPR_UPMC2 | SPR_UPMC3 | SPR_UPMC4 | SPR_UPMC5 | SPR_UPMC6 |
-                        SPR_UMMCR0 | SPR_UMMCR1 | SPR_UMMCR2 | SPR_UMMCRA | SPR_USIER | SPR_USIAR | SPR_USDAR |
-                        SPR_PMC1 | SPR_PMC2 | SPR_PMC3 | SPR_PMC4 | SPR_PMC5 | SPR_PMC6 |
-                        SPR_MMCR0 | SPR_MMCR1 | SPR_MMCR2 | SPR_MMCRA | SPR_SIER | SPR_SIAR | SPR_SDAR =>
-                        x_to_pmu.mfspr <= '1';
-                        spr_val := pmu_to_x.spr_val;
-                    when others =>
-                        -- mfspr from unimplemented SPRs should be a nop in
-                        -- supervisor mode and a program interrupt for user mode
-                        if ctrl.msr(MSR_PR) = '1' then
-                            illegal := '1';
-                        end if;
+                -- Implement any mfspr side-effects
+                if e_in.spr_is_ram = '1' then
+                    report "MFSPR to RAM SPR " & integer'image(decode_spr_num(e_in.insn)) &
+                        "=" & to_hstring(ramspr_result);
+                elsif e_in.spr_select.valid = '1' then
+                    report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
+                        "=" & to_hstring(spr_result);
+                    case e_in.spr_select.sel is
+                        when SPRSEL_LOGD =>     -- LOG_DATA SPR
+                            v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
+                        when SPRSEL_PMU =>
+                            x_to_pmu.mfspr <= '1';
+                        when others =>
                     end case;
+                else
+                    -- mfspr from unimplemented SPRs should be a nop in
+                    -- supervisor mode and a program interrupt for user mode
+                    report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) & " invalid";
+                    if ctrl.msr(MSR_PR) = '1' then
+                        illegal := '1';
+                    end if;
                 end if;
-                report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
-                    "=" & to_hstring(spr_val);
-                spr_result <= spr_val;
 
 	    when OP_MFCR =>
 	    when OP_MTCRF =>
@@ -1196,33 +1185,31 @@ begin
 	    when OP_MTSPR =>
 		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(c_in);
-		if is_fast_spr(e_in.write_reg) = '0' and e_in.spr_is_ram = '0' then
-		    -- slow spr
-		    case decode_spr_num(e_in.insn) is
-                    when SPR_XER =>
+		if e_in.spr_select.valid = '1' then
+		    case e_in.spr_select.sel is
+                    when SPRSEL_XER =>
 			ctrl_tmp.xerc.so <= c_in(63-32);
 			ctrl_tmp.xerc.ov <= c_in(63-33);
 			ctrl_tmp.xerc.ca <= c_in(63-34);
 			ctrl_tmp.xerc.ov32 <= c_in(63-44);
 			ctrl_tmp.xerc.ca32 <= c_in(63-45);
                         ctrl_tmp.xer_low <= c_in(17 downto 0);
-		    when SPR_DEC =>
+		    when SPRSEL_DEC =>
 			ctrl_tmp.dec <= c_in;
-                    when 724 =>     -- LOG_ADDR SPR
+                    when SPRSEL_LOGA =>     -- LOG_ADDR SPR
                         v.log_addr_spr := c_in(31 downto 0);
-                    when SPR_UPMC1 | SPR_UPMC2 | SPR_UPMC3 | SPR_UPMC4 | SPR_UPMC5 | SPR_UPMC6 |
-                        SPR_UMMCR0 | SPR_UMMCR2 | SPR_UMMCRA |
-                        SPR_PMC1 | SPR_PMC2 | SPR_PMC3 | SPR_PMC4 | SPR_PMC5 | SPR_PMC6 |
-                        SPR_MMCR0 | SPR_MMCR1 | SPR_MMCR2 | SPR_MMCRA | SPR_SIER | SPR_SIAR | SPR_SDAR =>
+                    when SPRSEL_PMU =>
                         x_to_pmu.mtspr <= '1';
 		    when others =>
-                        -- mtspr to unimplemented SPRs should be a nop in
-                        -- supervisor mode and a program interrupt for user mode
-                        if ctrl.msr(MSR_PR) = '1' then
-                            illegal := '1';
-                        end if;
 		    end case;
 		end if;
+                if e_in.spr_select.valid = '0' and e_in.spr_is_ram = '0' then
+                    -- mtspr to unimplemented SPRs should be a nop in
+                    -- supervisor mode and a program interrupt for user mode
+                    if ctrl.msr(MSR_PR) = '1' then
+                        illegal := '1';
+                    end if;
+                end if;
 
 	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR | OP_EXTSWSLI =>
 		if e_in.output_carry = '1' then

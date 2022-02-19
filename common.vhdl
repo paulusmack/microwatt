@@ -86,30 +86,19 @@ package common is
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
 
-    -- Extended GPR index (can hold an SPR or a FPR)
-    subtype gspr_index_t is std_ulogic_vector(6 downto 0);
+    -- Extended GPR index (can hold a GPR or a FPR)
+    subtype gspr_index_t is std_ulogic_vector(5 downto 0);
 
     -- FPR indices
     subtype fpr_index_t is std_ulogic_vector(4 downto 0);
 
-    -- Some SPRs are stored in the register file, they use the magic
-    -- GPR numbers above 31.
+    -- FPRs are stored in the register file, using GSPR
+    -- numbers from 32 to 63.
     --
-    -- The function fast_spr_num() returns the corresponding fast
-    -- pseudo-GPR number for a given SPR number. The result MSB
-    -- indicates if this is indeed a fast SPR. If clear, then
-    -- the SPR is not stored in the GPR file.
-    --
-    -- FPRs are also stored in the register file, using GSPR
-    -- numbers from 64 to 95.
-    --
-    function fast_spr_num(spr: spr_num_t) return gspr_index_t;
 
     -- Indices conversion functions
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t;
     function gpr_to_gspr(i: gpr_index_t) return gspr_index_t;
-    function gpr_or_spr_to_gspr(g: gpr_index_t; s: gspr_index_t) return gspr_index_t;
-    function is_fast_spr(s: gspr_index_t) return std_ulogic;
     function fpr_to_gspr(f: fpr_index_t) return gspr_index_t;
 
     -- The XER is split: the common bits (CA, OV, SO, OV32 and CA32) are
@@ -144,6 +133,22 @@ package common is
         valid : std_ulogic;
     end record;
     constant ram_spr_info_init: ram_spr_info := (index => 0, others => '0');
+
+    subtype spr_selector is std_ulogic_vector(2 downto 0);
+    type spr_id is record
+        sel   : spr_selector;
+        valid : std_ulogic;
+    end record;
+    constant spr_id_init : spr_id := (sel => "000", others => '0');
+
+    constant SPRSEL_TB   : spr_selector := 3x"0";
+    constant SPRSEL_TBU  : spr_selector := 3x"1";
+    constant SPRSEL_DEC  : spr_selector := 3x"2";
+    constant SPRSEL_PVR  : spr_selector := 3x"3";
+    constant SPRSEL_LOGA : spr_selector := 3x"4";
+    constant SPRSEL_LOGD : spr_selector := 3x"5";
+    constant SPRSEL_PMU  : spr_selector := 3x"6";
+    constant SPRSEL_XER  : spr_selector := 3x"7";
 
     -- FPSCR bit numbers
     constant FPSCR_FX     : integer := 63 - 32;
@@ -239,19 +244,16 @@ package common is
 	stop_mark : std_ulogic;
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(31 downto 0);
-	ispr1: gspr_index_t; -- (G)SPR used for branch condition (CTR) or mfspr
-	ispr2: gspr_index_t; -- (G)SPR used for branch target (CTR, LR, TAR)
-	ispro: gspr_index_t; -- (G)SPR written with LR or CTR
 	decode: decode_rom_t;
         br_pred: std_ulogic; -- Branch was predicted to be taken
         big_endian: std_ulogic;
+        spr_info : spr_id;
         ram_spr : ram_spr_info;
     end record;
     constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
         (valid => '0', stop_mark => '0', nia => (others => '0'), insn => (others => '0'),
-         ispr1 => (others => '0'), ispr2 => (others => '0'), ispro => (others => '0'),
          decode => decode_rom_init, br_pred => '0', big_endian => '0',
-         ram_spr => ram_spr_info_init);
+         spr_info => spr_id_init, ram_spr => ram_spr_info_init);
 
     type Decode1ToFetch1Type is record
         redirect     : std_ulogic;
@@ -309,6 +311,7 @@ package common is
         repeat : std_ulogic;                            -- set if instruction is cracked into two ops
         second : std_ulogic;                            -- set if this is the second op
         spr_is_ram : std_ulogic;
+        spr_select : spr_id;
         ramspr_rdaddr      : ramspr_index;
         ramspr_rd_odd      : std_ulogic;
         ramspr_wr_sel      : std_ulogic_vector(1 downto 0);
@@ -328,7 +331,7 @@ package common is
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
          result_sel => "000", sub_select => "000",
-         repeat => '0', second => '0', spr_is_ram => '0',
+         repeat => '0', second => '0', spr_is_ram => '0', spr_select => spr_id_init,
          ramspr_rdaddr => 0, ramspr_rd_odd => '0', ramspr_wr_sel => "00",
          ramspr_even_wraddr => 0, ramspr_write_even => '0',
          ramspr_odd_wraddr => 0, ramspr_write_odd => '0',
@@ -732,10 +735,6 @@ package body common is
     begin
 	return to_integer(unsigned(insn(15 downto 11) & insn(20 downto 16)));
     end;
-    function fast_spr_num(spr: spr_num_t) return gspr_index_t is
-    begin
-        return "0000000";
-    end;
 
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t is
     begin
@@ -744,26 +743,12 @@ package body common is
 
     function gpr_to_gspr(i: gpr_index_t) return gspr_index_t is
     begin
-	return "00" & i;
-    end;
-
-    function gpr_or_spr_to_gspr(g: gpr_index_t; s: gspr_index_t) return gspr_index_t is
-    begin
-	if s(5) = '1' then
-	    return s;
-	else
-	    return gpr_to_gspr(g);
-	end if;
-    end;
-
-    function is_fast_spr(s: gspr_index_t) return std_ulogic is
-    begin
-	return s(5);
+	return "0" & i;
     end;
 
     function fpr_to_gspr(f: fpr_index_t) return gspr_index_t is
     begin
-        return "10" & f;
+        return "1" & f;
     end;
 
     function tag_match(tag1 : instr_tag_t; tag2 : instr_tag_t) return boolean is

@@ -40,6 +40,10 @@ entity decode2 is
         execute_bypass    : in bypass_data_t;
         execute_cr_bypass : in cr_bypass_data_t;
 
+        -- Access to SPRs from core_debug module
+        dbg_spr_req  : in std_ulogic;
+        dbg_spr_addr : in std_ulogic_vector(7 downto 0);
+
         log_out : out std_ulogic_vector(9 downto 0)
 	);
 end entity decode2;
@@ -179,96 +183,6 @@ architecture behaviour of decode2 is
             when NONE =>
                 return '0';
         end case;
-    end;
-
-    function map_spr(sprn : spr_num_t) return spr_id is
-        variable i : spr_id;
-    begin
-        i.sel := "000";
-        i.valid := '1';
-        i.isram := '0';
-        case sprn is
-            when SPR_TB =>
-                i.sel := SPRSEL_TB;
-            when SPR_TBU =>
-                i.sel := SPRSEL_TBU;
-            when SPR_DEC =>
-                i.sel := SPRSEL_DEC;
-            when SPR_PVR =>
-                i.sel := SPRSEL_PVR;
-            when 724 =>     -- LOG_ADDR SPR
-                i.sel := SPRSEL_LOGA;
-            when 725 =>     -- LOG_DATA SPR
-                i.sel := SPRSEL_LOGD;
-            when SPR_SRR0 | SPR_SRR1 | SPR_CFAR |
-                 SPR_LR | SPR_CTR | SPR_TAR |
-                 SPR_SPRG0 | SPR_SPRG1 | SPR_SPRG2 | SPR_SPRG3 | SPR_SPRG3U =>
-                i.isram := '1';
-            when SPR_UPMC1 | SPR_UPMC2 | SPR_UPMC3 | SPR_UPMC4 | SPR_UPMC5 | SPR_UPMC6 |
-                SPR_UMMCR0 | SPR_UMMCR1 | SPR_UMMCR2 | SPR_UMMCRA | SPR_USIER | SPR_USIAR | SPR_USDAR |
-                SPR_PMC1 | SPR_PMC2 | SPR_PMC3 | SPR_PMC4 | SPR_PMC5 | SPR_PMC6 |
-                SPR_MMCR0 | SPR_MMCR1 | SPR_MMCR2 | SPR_MMCRA | SPR_SIER | SPR_SIAR | SPR_SDAR =>
-                i.sel := SPRSEL_PMU;
-            when SPR_XER =>
-                i.sel := SPRSEL_XER;
-            when others =>
-                i.valid := '0';
-        end case;
-        return i;
-    end;
-
-    type ram_spr_info is record
-        index : ramspr_index;
-        isodd : std_ulogic;
-        valid : std_ulogic;
-    end record;
-
-    function decode_ram_spr(sprn : spr_num_t) return ram_spr_info is
-        variable ret : ram_spr_info;
-    begin
-        ret := (index => 0, isodd => '0', valid => '0');
-        case sprn is
-            when SPR_XER =>
-                ret.index := RAMSPR_XER;
-                ret.isodd := '1';
-                ret.valid := '1';
-            when SPR_LR =>
-                ret.index := RAMSPR_LR;
-                ret.valid := '1';
-            when SPR_CTR =>
-                ret.index := RAMSPR_CTR;
-                ret.valid := '1';
-            when SPR_TAR =>
-                ret.index := RAMSPR_TAR;
-                ret.valid := '1';
-            when SPR_CFAR =>
-                ret.index := RAMSPR_CFAR;
-                ret.isodd := '1';
-                ret.valid := '1';
-            when SPR_SRR0 =>
-                ret.index := RAMSPR_SRR0;
-                ret.valid := '1';
-            when SPR_SRR1 =>
-                ret.index := RAMSPR_SRR1;
-                ret.isodd := '1';
-                ret.valid := '1';
-            when SPR_SPRG0 =>
-                ret.index := RAMSPR_SPRG0;
-                ret.valid := '1';
-            when SPR_SPRG1 =>
-                ret.index := RAMSPR_SPRG1;
-                ret.isodd := '1';
-                ret.valid := '1';
-            when SPR_SPRG2 =>
-                ret.index := RAMSPR_SPRG2;
-                ret.valid := '1';
-            when SPR_SPRG3 | SPR_SPRG3U =>
-                ret.index := RAMSPR_SPRG3;
-                ret.isodd := '1';
-                ret.valid := '1';
-            when others =>
-        end case;
-        return ret;
     end;
 
     -- control signals that are derived from insn_type
@@ -415,6 +329,13 @@ begin
                     report "execute " & to_hstring(rin.e.nia);
                 end if;
                 r <= rin;
+            elsif r.e.sprs_busy = '0' then
+                -- Update debug SPR access stuff even when stalled
+                -- if the instruction in r.e doesn't read any SPRs.
+                r.e.dbg_spr_access <= rin.e.dbg_spr_access;
+                r.e.ramspr_rdaddr <= rin.e.ramspr_rdaddr;
+                r.e.ramspr_rd_odd <= rin.e.ramspr_rd_odd;
+                --r.e.spr_select <= rin.e.spr_select;
             end if;
         end if;
     end process;
@@ -423,8 +344,6 @@ begin
 
     decode2_1: process(all)
         variable v : reg_type;
-        variable mul_a : std_ulogic_vector(63 downto 0);
-        variable mul_b : std_ulogic_vector(63 downto 0);
         variable decoded_reg_a : decode_input_reg_t;
         variable decoded_reg_b : decode_input_reg_t;
         variable decoded_reg_c : decode_input_reg_t;
@@ -432,15 +351,14 @@ begin
         variable length : std_ulogic_vector(3 downto 0);
         variable op : insn_type_t;
         variable sprn : spr_num_t;
-        variable rspr : ram_spr_info;
         variable decctr : std_ulogic;
+        variable sprs_busy : std_ulogic;
     begin
         v := r;
 
         v.e := Decode2ToExecute1Init;
 
-        mul_a := (others => '0');
-        mul_b := (others => '0');
+        sprs_busy := '0';
 
         --v.e.input_cr := d_in.decode.input_cr;
         v.e.output_cr := d_in.decode.output_cr;
@@ -508,36 +426,39 @@ begin
 
         if decctr = '1' and r.repeat = '0' then
             -- read and write CTR
-            v.e.ramspr_even_rdaddr := RAMSPR_CTR;
+            v.e.ramspr_rdaddr := RAMSPR_CTR;
             v.e.ramspr_even_wraddr := RAMSPR_CTR;
             v.e.ramspr_even_wr_sel := "01";
             v.e.ramspr_write_even := '1';
+            sprs_busy := '1';
         end if;
+
+        v.e.spr_select := d_in.spr_info;
 
         case op is
             when OP_MFSPR =>
-                rspr := decode_ram_spr(sprn);
-                v.e.ramspr_even_rdaddr := rspr.index;
-                v.e.ramspr_odd_rdaddr := rspr.index;
-                v.e.ramspr_rd_odd := rspr.isodd;
+                v.e.ramspr_rdaddr := d_in.ram_spr.index;
+                v.e.ramspr_rd_odd := d_in.ram_spr.isodd;
+                sprs_busy := d_in.ram_spr.valid;
             when OP_MTSPR =>
-                rspr := decode_ram_spr(sprn);
-                v.e.ramspr_even_wraddr := rspr.index;
-                v.e.ramspr_odd_wraddr := rspr.index;
+                v.e.ramspr_even_wraddr := d_in.ram_spr.index;
+                v.e.ramspr_odd_wraddr := d_in.ram_spr.index;
                 v.e.ramspr_even_wr_sel := "00";
                 v.e.ramspr_odd_wr_sel := "00";
-                v.e.ramspr_write_even := rspr.valid and not rspr.isodd;
-                v.e.ramspr_write_odd := rspr.valid and rspr.isodd;
+                v.e.ramspr_write_even := d_in.ram_spr.valid and not d_in.ram_spr.isodd;
+                v.e.ramspr_write_odd := d_in.ram_spr.valid and d_in.ram_spr.isodd;
+                --sprs_busy := v.e.spr_select.valid;
             when OP_B | OP_BC | OP_BCREG =>
                 if v.e.repeat = '0' or r.repeat = '1' then
                     if op = OP_BCREG then
                         if d_in.insn(10) = '0' then
-                            v.e.ramspr_even_rdaddr := RAMSPR_LR;
+                            v.e.ramspr_rdaddr := RAMSPR_LR;
                         elsif d_in.insn(6) = '0' then
-                            v.e.ramspr_even_rdaddr := RAMSPR_CTR;
+                            v.e.ramspr_rdaddr := RAMSPR_CTR;
                         else
-                            v.e.ramspr_even_rdaddr := RAMSPR_TAR;
+                            v.e.ramspr_rdaddr := RAMSPR_TAR;
                         end if;
+                        sprs_busy := '1';
                     end if;
                     if v.e.lr = '1' then
                         v.e.ramspr_even_wraddr := RAMSPR_LR;
@@ -548,8 +469,8 @@ begin
                     v.e.ramspr_odd_wr_sel := "01";
                 end if;
             when OP_RFID =>
-                v.e.ramspr_even_rdaddr := RAMSPR_SRR0;
-                v.e.ramspr_odd_rdaddr := RAMSPR_SRR1;
+                v.e.ramspr_rdaddr := RAMSPR_SRR0;
+                sprs_busy := '1';
             when others =>
         end case;
 
@@ -599,15 +520,15 @@ begin
         v.e.br_pred := d_in.br_pred;
         v.e.result_sel := result_select(op);
         v.e.sub_select := subresult_select(op);
-        v.e.spr_select := map_spr(sprn);
 
         if op = OP_MFSPR then
-            if v.e.spr_select.valid = '0' then
+            if d_in.ram_spr.valid = '1' then
+                v.e.result_sel := "110";    -- ramspr_result
+                v.e.spr_select.isram := '1';
+            elsif v.e.spr_select.valid = '0' then
                 -- Privileged mfspr to invalid/unimplemented SPR numbers
                 -- writes the contents of RT back to RT (i.e. it's a no-op)
                 v.e.result_sel := "001";    -- logical_result
-            elsif v.e.spr_select.isram = '1' then
-                v.e.result_sel := "110";    -- ramspr_result
             end if;
         end if;
 
@@ -660,6 +581,15 @@ begin
         v.e.valid := control_valid_out;
         if control_valid_out = '1' then
             v.repeat := v.e.repeat and not r.repeat;
+        end if;
+
+        v.e.sprs_busy := sprs_busy and control_valid_out;
+        v.e.dbg_spr_access := dbg_spr_req and not v.e.sprs_busy;
+        if v.e.dbg_spr_access = '1' then
+            v.e.ramspr_rdaddr := to_integer(unsigned(dbg_spr_addr(3 downto 1)));
+            v.e.ramspr_rd_odd := dbg_spr_addr(0);
+            --v.e.spr_select.sel := dbg_spr_addr(6 downto 4);
+            --v.e.spr_select.isram := dbg_spr_addr(7);
         end if;
 
         stall_out <= control_stall_out or v.repeat;

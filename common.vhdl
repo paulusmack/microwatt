@@ -126,7 +126,13 @@ package common is
     constant RAMSPR_CFAR  : ramspr_index := 1;
     constant RAMSPR_SPRG1 : ramspr_index := 2;
     constant RAMSPR_SPRG3 : ramspr_index := 3;
-    constant RAMSPR_XER   : ramspr_index := 4;
+
+    type ram_spr_info is record
+        index : ramspr_index;
+        isodd : std_ulogic;
+        valid : std_ulogic;
+    end record;
+    constant ram_spr_info_init: ram_spr_info := (index => 0, others => '0');
 
     -- FPSCR bit numbers
     constant FPSCR_FX     : integer := 63 - 32;
@@ -244,10 +250,13 @@ package common is
 	decode: decode_rom_t;
         br_pred: std_ulogic; -- Branch was predicted to be taken
         big_endian: std_ulogic;
+        spr_info: spr_id;
+        ram_spr: ram_spr_info;
     end record;
     constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
         (valid => '0', stop_mark => '0', nia => (others => '0'), insn => (others => '0'),
-         decode => decode_rom_init, br_pred => '0', big_endian => '0');
+         decode => decode_rom_init, br_pred => '0', big_endian => '0',
+         spr_info => spr_id_init, ram_spr => ram_spr_info_init);
 
     type Decode1ToFetch1Type is record
         redirect     : std_ulogic;
@@ -303,17 +312,18 @@ package common is
         result_sel : std_ulogic_vector(2 downto 0);     -- select source of result
         sub_select : std_ulogic_vector(2 downto 0);     -- sub-result selection
         spr_select : spr_id;
+        sprs_busy : std_ulogic;
+        dbg_spr_access : std_ulogic;
         repeat : std_ulogic;                            -- set if instruction is cracked into two ops
         second : std_ulogic;                            -- set if this is the second op
-        ramspr_even_rdaddr : ramspr_index;
+        ramspr_rdaddr      : ramspr_index;
+        ramspr_rd_odd      : std_ulogic;
         ramspr_even_wraddr : ramspr_index;
         ramspr_even_wr_sel : std_ulogic_vector(1 downto 0);
         ramspr_write_even  : std_ulogic;
-        ramspr_odd_rdaddr  : ramspr_index;
         ramspr_odd_wraddr  : ramspr_index;
         ramspr_odd_wr_sel  : std_ulogic_vector(1 downto 0);
         ramspr_write_odd   : std_ulogic;
-        ramspr_rd_odd      : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
@@ -325,12 +335,12 @@ package common is
          byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'),
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
-         result_sel => "000", sub_select => "000", spr_select => spr_id_init,
+         result_sel => "000", sub_select => "000",
+         spr_select => spr_id_init, sprs_busy => '0', dbg_spr_access => '0',
          repeat => '0', second => '0',
-         ramspr_even_rdaddr => 0, ramspr_even_wraddr => 0,
-         ramspr_even_wr_sel => "00", ramspr_write_even => '0',
-         ramspr_odd_rdaddr => 0, ramspr_odd_wraddr => 0,
-         ramspr_odd_wr_sel => "00", ramspr_write_odd => '0', ramspr_rd_odd => '0',
+         ramspr_rdaddr => 0, ramspr_rd_odd => '0',
+         ramspr_even_wraddr => 0, ramspr_even_wr_sel => "00", ramspr_write_even => '0',
+         ramspr_odd_wraddr => 0, ramspr_odd_wr_sel => "00", ramspr_write_odd => '0',
          others => (others => '0'));
 
     type MultiplyInputType is record

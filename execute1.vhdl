@@ -53,6 +53,12 @@ entity execute1 is
         dc_events    : in DcacheEventType;
         ic_events    : in IcacheEventType;
 
+        -- Access to SPRs from core_debug module
+        dbg_spr_req   : in std_ulogic;
+        dbg_spr_ack   : out std_ulogic;
+        dbg_spr_addr  : in std_ulogic_vector(7 downto 0);
+        dbg_spr_data  : out std_ulogic_vector(63 downto 0);
+
         -- debug
         sim_dump      : in std_ulogic;
         sim_dump_done : out std_ulogic;
@@ -103,9 +109,10 @@ architecture behaviour of execute1 is
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
         xerc: xer_common_t;
+        xer_low: std_ulogic_vector(17 downto 0);
     end record;
     constant special_regs_t_init: special_regs_t :=
-        (xerc => xerc_init, others => (others => '0'));
+        (xerc => xerc_init, xer_low => 18x"0", others => (others => '0'));
 
     signal r, rin : reg_type;
 
@@ -431,8 +438,10 @@ begin
 
     -- SPRs stored in two small RAM arrays (two so that we can read and write
     -- two SPRs in each cycle).
-    ramspr_even <= even_sprs(e_in.ramspr_even_rdaddr);
-    ramspr_odd <= odd_sprs(e_in.ramspr_odd_rdaddr);
+    -- OK to use e_in rather than current because any instruction that
+    -- uses these values executes in one cycle.
+    ramspr_even <= even_sprs(e_in.ramspr_rdaddr);
+    ramspr_odd <= odd_sprs(e_in.ramspr_rdaddr);
     ramspr_result <= ramspr_even when e_in.ramspr_rd_odd = '0' else ramspr_odd;
 
     ramspr_write: process(clk)
@@ -491,6 +500,7 @@ begin
     end process;
 
     -- SPR read mux
+    -- Uses current because PMU SPR reads take two cycles
     with current.spr_select.sel select spr_result <=
         ctrl.tb when SPRSEL_TB,
         32x"0" & ctrl.tb(63 downto 32) when SPRSEL_TBU,
@@ -499,7 +509,7 @@ begin
         log_wr_addr & r.log_addr_spr when SPRSEL_LOGA,
         log_rd_data when SPRSEL_LOGD,
         pmuspr_result when SPRSEL_PMU,
-        assemble_xer(ctrl.xerc, ramspr_odd) when others;
+        assemble_xer(ctrl.xerc, ctrl.xer_low) when others;
 
     -- Result mux
     with current.result_sel select alu_result <=
@@ -532,6 +542,25 @@ begin
 
             pmuspr_result <= pmu_to_x.spr_val;
 	end if;
+    end process;
+
+    ex_dbg_spr: process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '0' and dbg_spr_req = '1' then
+                if e_in.dbg_spr_access = '1' and current.sprs_busy = '0' and
+                    dbg_spr_ack = '0' then
+                    if dbg_spr_addr(7) = '1' then
+                        dbg_spr_data <= ramspr_result;
+                    else
+                        dbg_spr_data <= assemble_xer(ctrl.xerc, ctrl.xer_low);
+                    end if;
+                    dbg_spr_ack <= '1';
+                end if;
+            else
+                dbg_spr_ack <= '0';
+            end if;
+        end if;
     end process;
 
     -- Data path for integer instructions
@@ -1149,18 +1178,19 @@ begin
                     if e_in.spr_select.isram = '1' then
                         report "MFSPR to RAM SPR " & integer'image(decode_spr_num(e_in.insn)) &
                             "=" & to_hstring(ramspr_result);
+                    elsif e_in.spr_select.sel = SPRSEL_PMU then
+                        -- this takes an extra cycle
+                        report "MFSPR to PMU SPR " & integer'image(decode_spr_num(e_in.insn));
+                        x_to_pmu.mfspr <= '1';
+                        v.e.valid := '0';
+                        v.slow_mfspr_in_progress := '1';
+                        v.busy := '1';
                     else
                         report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
                             "=" & to_hstring(spr_result);
                         case e_in.spr_select.sel is
                             when SPRSEL_LOGD =>     -- LOG_DATA SPR
                                 v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
-                            when SPRSEL_PMU =>
-                                -- this takes an extra cycle
-                                x_to_pmu.mfspr <= '1';
-                                v.e.valid := '0';
-                                v.slow_mfspr_in_progress := '1';
-                                v.busy := '1';
                             when others =>
                         end case;
                     end if;
@@ -1210,6 +1240,7 @@ begin
                             ctrl_tmp.xerc.ca <= c_in(63-34);
                             ctrl_tmp.xerc.ov32 <= c_in(63-44);
                             ctrl_tmp.xerc.ca32 <= c_in(63-45);
+                            ctrl_tmp.xer_low <= c_in(17 downto 0);
                         when SPRSEL_DEC =>
                             ctrl_tmp.dec <= c_in;
                         when SPRSEL_LOGA =>     -- LOG_ADDR SPR
@@ -1480,7 +1511,7 @@ begin
             if sim_dump = '1' then
                 report "LR " & to_hstring(even_sprs(RAMSPR_LR));
                 report "CTR " & to_hstring(even_sprs(RAMSPR_CTR));
-                xer := assemble_xer(ctrl.xerc, odd_sprs(RAMSPR_XER));
+                xer := assemble_xer(ctrl.xerc, ctrl.xer_low);
                 report "XER " & to_hstring(xer);
                 sim_dump_done <= '1';
             else

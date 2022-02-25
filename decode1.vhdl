@@ -518,6 +518,73 @@ architecture behaviour of decode1 is
     constant nop_instr      : decode_rom_t := (ALU,  NONE, OP_NOP,          NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
     constant fetch_fail_inst: decode_rom_t := (LDST, NONE, OP_FETCH_FAILED, NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE);
 
+    function map_spr(sprn : spr_num_t) return spr_id is
+        variable i : spr_id;
+    begin
+        i.sel := "000";
+        i.valid := '1';
+        i.isram := '0';
+        case sprn is
+            when SPR_TB =>
+                i.sel := SPRSEL_TB;
+            when SPR_TBU =>
+                i.sel := SPRSEL_TBU;
+            when SPR_DEC =>
+                i.sel := SPRSEL_DEC;
+            when SPR_PVR =>
+                i.sel := SPRSEL_PVR;
+            when 724 =>     -- LOG_ADDR SPR
+                i.sel := SPRSEL_LOGA;
+            when 725 =>     -- LOG_DATA SPR
+                i.sel := SPRSEL_LOGD;
+            when SPR_UPMC1 | SPR_UPMC2 | SPR_UPMC3 | SPR_UPMC4 | SPR_UPMC5 | SPR_UPMC6 |
+                SPR_UMMCR0 | SPR_UMMCR1 | SPR_UMMCR2 | SPR_UMMCRA | SPR_USIER | SPR_USIAR | SPR_USDAR |
+                SPR_PMC1 | SPR_PMC2 | SPR_PMC3 | SPR_PMC4 | SPR_PMC5 | SPR_PMC6 |
+                SPR_MMCR0 | SPR_MMCR1 | SPR_MMCR2 | SPR_MMCRA | SPR_SIER | SPR_SIAR | SPR_SDAR =>
+                i.sel := SPRSEL_PMU;
+            when SPR_XER =>
+                i.sel := SPRSEL_XER;
+            when others =>
+                i.valid := '0';
+        end case;
+        return i;
+    end;
+
+    function decode_ram_spr(sprn : spr_num_t) return ram_spr_info is
+        variable ret : ram_spr_info;
+    begin
+        ret := (index => 0, isodd => '0', valid => '1');
+        case sprn is
+            when SPR_LR =>
+                ret.index := RAMSPR_LR;
+            when SPR_CTR =>
+                ret.index := RAMSPR_CTR;
+            when SPR_TAR =>
+                ret.index := RAMSPR_TAR;
+            when SPR_CFAR =>
+                ret.index := RAMSPR_CFAR;
+                ret.isodd := '1';
+            when SPR_SRR0 =>
+                ret.index := RAMSPR_SRR0;
+            when SPR_SRR1 =>
+                ret.index := RAMSPR_SRR1;
+                ret.isodd := '1';
+            when SPR_SPRG0 =>
+                ret.index := RAMSPR_SPRG0;
+            when SPR_SPRG1 =>
+                ret.index := RAMSPR_SPRG1;
+                ret.isodd := '1';
+            when SPR_SPRG2 =>
+                ret.index := RAMSPR_SPRG2;
+            when SPR_SPRG3 | SPR_SPRG3U =>
+                ret.index := RAMSPR_SPRG3;
+                ret.isodd := '1';
+            when others =>
+                ret.valid := '0';
+        end case;
+        return ret;
+    end;
+
 begin
     decode1_0: process(clk)
     begin
@@ -585,6 +652,10 @@ begin
         majorop := unsigned(f_in.insn(31 downto 26));
         v.decode := major_decode_rom_array(to_integer(majorop));
 
+        sprn := decode_spr_num(f_in.insn);
+        v.spr_info := map_spr(sprn);
+        v.ram_spr := decode_ram_spr(sprn);
+
         case to_integer(unsigned(majorop)) is
         when 4 =>
             -- major opcode 4, mostly VMX/VSX stuff but also some integer ops (madd*)
@@ -599,7 +670,6 @@ begin
             if std_match(f_in.insn(10 downto 1), "01-1010011") then
                 -- mfspr or mtspr
                 -- send MMU-related SPRs to loadstore1
-                sprn := decode_spr_num(f_in.insn);
                 case sprn is
                     when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
                         vi.override_decode.unit := LDST;

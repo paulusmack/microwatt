@@ -312,6 +312,8 @@ package common is
         second : std_ulogic;                            -- set if this is the second op
         spr_is_ram : std_ulogic;
         spr_select : spr_id;
+        sprs_busy : std_ulogic;
+        dbg_spr_access : std_ulogic;
         ramspr_rdaddr      : ramspr_index;
         ramspr_rd_odd      : std_ulogic;
         ramspr_wr_sel      : std_ulogic_vector(1 downto 0);
@@ -332,6 +334,7 @@ package common is
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
          result_sel => "000", sub_select => "000",
          repeat => '0', second => '0', spr_is_ram => '0', spr_select => spr_id_init,
+         sprs_busy => '0', dbg_spr_access => '0',
          ramspr_rdaddr => 0, ramspr_rd_odd => '0', ramspr_wr_sel => "00",
          ramspr_even_wraddr => 0, ramspr_write_even => '0',
          ramspr_odd_wraddr => 0, ramspr_write_odd => '0',

@@ -53,6 +53,12 @@ entity execute1 is
         dc_events    : in DcacheEventType;
         ic_events    : in IcacheEventType;
 
+        -- Access to SPRs from core_debug module
+        dbg_spr_req   : in std_ulogic;
+        dbg_spr_ack   : out std_ulogic;
+        dbg_spr_addr  : in std_ulogic_vector(7 downto 0);
+        dbg_spr_data  : out std_ulogic_vector(63 downto 0);
+
         -- debug
         sim_dump      : in std_ulogic;
         sim_dump_done : out std_ulogic;
@@ -171,6 +177,8 @@ architecture behaviour of execute1 is
     signal ramspr_even : std_ulogic_vector(63 downto 0);
     signal ramspr_odd : std_ulogic_vector(63 downto 0);
     signal ramspr_result : std_ulogic_vector(63 downto 0);
+    signal ramspr_rdaddr : ramspr_index;
+    signal ramspr_rd_odd : std_ulogic;
     signal write_cfar : std_ulogic;
     signal doit : std_ulogic;
 
@@ -431,9 +439,13 @@ begin
     -- two SPRs in each cycle).
     -- OK to use e_in rather than current because any instruction that
     -- uses these values executes in one cycle.
-    ramspr_even <= even_sprs(e_in.ramspr_rdaddr);
-    ramspr_odd <= odd_sprs(e_in.ramspr_rdaddr);
-    ramspr_result <= ramspr_even when e_in.ramspr_rd_odd = '0' else ramspr_odd;
+    ramspr_rdaddr <= to_integer(unsigned(dbg_spr_addr(3 downto 1))) when e_in.dbg_spr_access = '1'
+                     else e_in.ramspr_rdaddr;
+    ramspr_rd_odd <= dbg_spr_addr(0) when e_in.dbg_spr_access = '1'
+                     else e_in.ramspr_rd_odd;
+    ramspr_even <= even_sprs(ramspr_rdaddr);
+    ramspr_odd <= odd_sprs(ramspr_rdaddr);
+    ramspr_result <= ramspr_even when ramspr_rd_odd = '0' else ramspr_odd;
 
     ramspr_write: process(clk)
         variable even_wr_addr, odd_wr_addr : ramspr_index;
@@ -522,6 +534,25 @@ begin
                 end if;
             end if;
 	end if;
+    end process;
+
+    ex_dbg_spr: process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '0' and dbg_spr_req = '1' then
+                if e_in.dbg_spr_access = '1' and current.sprs_busy = '0' and
+                    dbg_spr_ack = '0' then
+                    if dbg_spr_addr(7) = '1' then
+                        dbg_spr_data <= ramspr_result;
+                    else
+                        dbg_spr_data <= assemble_xer(ctrl.xerc, ctrl.xer_low);
+                    end if;
+                    dbg_spr_ack <= '1';
+                end if;
+            else
+                dbg_spr_ack <= '0';
+            end if;
+        end if;
     end process;
 
     -- Data path for integer instructions

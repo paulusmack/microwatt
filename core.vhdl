@@ -146,6 +146,10 @@ architecture behave of core is
     signal dbg_gpr_ack : std_ulogic;
     signal dbg_gpr_addr : gspr_index_t;
     signal dbg_gpr_data : std_ulogic_vector(63 downto 0);
+    signal dbg_spr_req : std_ulogic;
+    signal dbg_spr_ack : std_ulogic;
+    signal dbg_spr_addr : std_ulogic_vector(7 downto 0);
+    signal dbg_spr_data : std_ulogic_vector(63 downto 0);
 
     signal msr : std_ulogic_vector(63 downto 0);
 
@@ -300,6 +304,7 @@ begin
             c_out => decode2_to_cr_file,
             execute_bypass => execute1_bypass,
             execute_cr_bypass => execute1_cr_bypass,
+            dbg_spr_req => dbg_spr_req,
             log_out => log_data(119 downto 110)
             );
     decode2_busy_in <= ex1_busy_out;
@@ -368,6 +373,10 @@ begin
             dc_events => dcache_events,
             ic_events => icache_events,
             terminate_out => terminate,
+            dbg_spr_req => dbg_spr_req,
+            dbg_spr_ack => dbg_spr_ack,
+            dbg_spr_addr => dbg_spr_addr,
+            dbg_spr_data => dbg_spr_data,
             sim_dump => sim_ex_dump,
             sim_dump_done => sim_cr_dump,
             log_out => log_data(134 downto 120),
@@ -492,6 +501,10 @@ begin
             dbg_gpr_ack => dbg_gpr_ack,
             dbg_gpr_addr => dbg_gpr_addr,
             dbg_gpr_data => dbg_gpr_data,
+            dbg_spr_req => dbg_spr_req,
+            dbg_spr_ack => dbg_spr_ack,
+            dbg_spr_addr => dbg_spr_addr,
+            dbg_spr_data => dbg_spr_data,
             log_data => log_data,
             log_read_addr => log_rd_addr,
             log_read_data => log_rd_data,

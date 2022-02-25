@@ -669,7 +669,6 @@ begin
             if std_match(f_in.insn(10 downto 1), "01-1010011") then
                 -- mfspr or mtspr
                 -- send MMU-related SPRs to loadstore1
-                sprn := decode_spr_num(f_in.insn);
                 case sprn is
                     when SPR_DAR | SPR_DSISR | SPR_PID | SPR_PTCR =>
                         vi.override_decode.unit := LDST;

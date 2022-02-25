@@ -40,6 +40,9 @@ entity decode2 is
         execute_bypass    : in bypass_data_t;
         execute_cr_bypass : in cr_bypass_data_t;
 
+        -- Access to SPRs from core_debug module
+        dbg_spr_req  : in std_ulogic;
+
         log_out : out std_ulogic_vector(9 downto 0)
 	);
 end entity decode2;
@@ -325,6 +328,10 @@ begin
                     report "execute " & to_hstring(rin.e.nia);
                 end if;
                 r <= rin;
+            elsif r.e.sprs_busy = '0' then
+                -- Update debug SPR access signal even when stalled
+                -- if the instruction in r.e doesn't read any SPRs.
+                r.e.dbg_spr_access <= rin.e.dbg_spr_access;
             end if;
         end if;
     end process;
@@ -341,10 +348,13 @@ begin
         variable op : insn_type_t;
         variable sprn : spr_num_t;
         variable decctr : std_ulogic;
+        variable sprs_busy : std_ulogic;
     begin
         v := r;
 
         v.e := Decode2ToExecute1Init;
+
+        sprs_busy := '0';
 
         --v.e.input_cr := d_in.decode.input_cr;
         v.e.output_cr := d_in.decode.output_cr;
@@ -416,6 +426,7 @@ begin
             v.e.ramspr_even_wraddr := RAMSPR_CTR;
             v.e.ramspr_wr_sel := "10";
             v.e.ramspr_write_even := '1';
+            sprs_busy := '1';
         end if;
 
         v.e.spr_select := d_in.spr_info;
@@ -425,6 +436,7 @@ begin
                 v.e.ramspr_rdaddr := d_in.ram_spr.index;
                 v.e.ramspr_rd_odd := d_in.ram_spr.isodd;
                 v.e.spr_is_ram := d_in.ram_spr.valid;
+                sprs_busy := d_in.ram_spr.valid;
             when OP_MTSPR =>
                 v.e.ramspr_even_wraddr := d_in.ram_spr.index;
                 v.e.ramspr_odd_wraddr := d_in.ram_spr.index;
@@ -442,6 +454,7 @@ begin
                         else
                             v.e.ramspr_rdaddr := RAMSPR_TAR;
                         end if;
+                        sprs_busy := '1';
                     end if;
                     v.e.ramspr_wr_sel := "10";
                     v.e.ramspr_odd_wraddr := RAMSPR_CFAR;
@@ -455,6 +468,7 @@ begin
                 end if;
             when OP_RFID =>
                 v.e.ramspr_rdaddr := RAMSPR_SRR0;
+                sprs_busy := '1';
             when others =>
         end case;
 
@@ -565,6 +579,9 @@ begin
         if control_valid_out = '1' then
             v.repeat := v.e.repeat and not r.repeat;
         end if;
+
+        v.e.sprs_busy := sprs_busy and control_valid_out;
+        v.e.dbg_spr_access := dbg_spr_req and not v.e.sprs_busy;
 
         stall_out <= control_stall_out or v.repeat;
 

@@ -191,18 +191,22 @@ package common is
     end record;
 
     -- SPR group numbers, used to control the SPR multiplexer in execute1
-    subtype spr_selector is std_ulogic_vector(3 downto 0);
+    subtype spr_selector is std_ulogic_vector(2 downto 0);
+    type spr_id is record
+        sel   : spr_selector;
+        valid : std_ulogic;
+        isram : std_ulogic;
+    end record;
+    constant spr_id_init : spr_id := (sel => "000", others => '0');
 
-    constant SPRSEL_NONE : spr_selector := x"0";
-    constant SPRSEL_TB   : spr_selector := x"1";
-    constant SPRSEL_TBU  : spr_selector := x"2";
-    constant SPRSEL_DEC  : spr_selector := x"3";
-    constant SPRSEL_PVR  : spr_selector := x"5";
-    constant SPRSEL_LOGA : spr_selector := x"6";
-    constant SPRSEL_LOGD : spr_selector := x"7";
-    constant SPRSEL_RAM  : spr_selector := x"8";
-    constant SPRSEL_PMU  : spr_selector := x"b";
-    constant SPRSEL_XER  : spr_selector := x"e";
+    constant SPRSEL_TB   : spr_selector := 3x"0";
+    constant SPRSEL_TBU  : spr_selector := 3x"1";
+    constant SPRSEL_DEC  : spr_selector := 3x"2";
+    constant SPRSEL_PVR  : spr_selector := 3x"3";
+    constant SPRSEL_LOGA : spr_selector := 3x"4";
+    constant SPRSEL_LOGD : spr_selector := 3x"5";
+    constant SPRSEL_PMU  : spr_selector := 3x"6";
+    constant SPRSEL_XER  : spr_selector := 3x"7";
 
     type Fetch1ToIcacheType is record
 	req: std_ulogic;
@@ -298,7 +302,7 @@ package common is
         br_pred : std_ulogic;
         result_sel : std_ulogic_vector(2 downto 0);     -- select source of result
         sub_select : std_ulogic_vector(2 downto 0);     -- sub-result selection
-        spr_select : spr_selector;
+        spr_select : spr_id;
         repeat : std_ulogic;                            -- set if instruction is cracked into two ops
         second : std_ulogic;                            -- set if this is the second op
         ramspr_even_rdaddr : ramspr_index;
@@ -321,7 +325,7 @@ package common is
          byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'),
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
-         result_sel => "000", sub_select => "000", spr_select => SPRSEL_NONE,
+         result_sel => "000", sub_select => "000", spr_select => spr_id_init,
          repeat => '0', second => '0',
          ramspr_even_rdaddr => 0, ramspr_even_wraddr => 0,
          ramspr_even_wr_sel => "00", ramspr_write_even => '0',

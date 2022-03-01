@@ -79,6 +79,7 @@ architecture behaviour of execute1 is
         mul_finish : std_ulogic;
         div_in_progress : std_ulogic;
         cntz_in_progress : std_ulogic;
+        slow_mfspr_in_progress : std_ulogic;
         no_instr_avail : std_ulogic;
         instr_dispatch : std_ulogic;
         ext_interrupt : std_ulogic;
@@ -91,7 +92,8 @@ architecture behaviour of execute1 is
          cur_instr => Decode2ToExecute1Init,
          busy => '0', terminate => '0', intr_pending => '0',
          fp_exception_next => '0', trace_next => '0', prev_op => OP_ILLEGAL, br_taken => '0',
-         mul_in_progress => '0', mul_finish => '0', div_in_progress => '0', cntz_in_progress => '0',
+         mul_in_progress => '0', mul_finish => '0', div_in_progress => '0',
+         cntz_in_progress => '0', slow_mfspr_in_progress => '0',
          no_instr_avail => '0', instr_dispatch => '0', ext_interrupt => '0',
          taken_branch_event => '0', br_mispredict => '0',
          others => (others => '0'));
@@ -170,6 +172,7 @@ architecture behaviour of execute1 is
     signal ramspr_even : std_ulogic_vector(63 downto 0);
     signal ramspr_odd : std_ulogic_vector(63 downto 0);
     signal ramspr_result : std_ulogic_vector(63 downto 0);
+    signal pmuspr_result : std_ulogic_vector(63 downto 0);
     signal write_cfar : std_ulogic;
     signal doit : std_ulogic;
 
@@ -488,17 +491,15 @@ begin
     end process;
 
     -- SPR read mux
-    with e_in.spr_select select spr_result <=
+    with current.spr_select.sel select spr_result <=
         ctrl.tb when SPRSEL_TB,
         32x"0" & ctrl.tb(63 downto 32) when SPRSEL_TBU,
         ctrl.dec when SPRSEL_DEC,
         32x"0" & PVR_MICROWATT when SPRSEL_PVR,
         log_wr_addr & r.log_addr_spr when SPRSEL_LOGA,
         log_rd_data when SPRSEL_LOGD,
-        ramspr_result when SPRSEL_RAM,
-        pmu_to_x.spr_val when SPRSEL_PMU,
-        assemble_xer(ctrl.xerc, ramspr_odd) when SPRSEL_XER,
-        c_in when others;
+        pmuspr_result when SPRSEL_PMU,
+        assemble_xer(ctrl.xerc, ramspr_odd) when others;
 
     -- Result mux
     with current.result_sel select alu_result <=
@@ -508,6 +509,7 @@ begin
         muldiv_result      when "011",
         countbits_result   when "100",
         spr_result         when "101",
+        ramspr_result      when "110",
         misc_result        when others;
 
     execute1_0: process(clk)
@@ -527,6 +529,8 @@ begin
                         " tag=" & integer'image(rin.e.instr_tag.tag) & std_ulogic'image(rin.e.instr_tag.valid);
                 end if;
             end if;
+
+            pmuspr_result <= pmu_to_x.spr_val;
 	end if;
     end process;
 
@@ -888,6 +892,7 @@ begin
 	v.mul_in_progress := '0';
         v.div_in_progress := '0';
         v.cntz_in_progress := '0';
+        v.slow_mfspr_in_progress := '0';
         v.mul_finish := '0';
         v.ext_interrupt := '0';
         v.taken_branch_event := '0';
@@ -1139,22 +1144,34 @@ begin
             when OP_DARN =>
 	    when OP_MFMSR =>
 	    when OP_MFSPR =>
-		report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
-		    "=" & to_hstring(spr_result);
                 -- Implement any mfspr side-effects
-                case e_in.spr_select is
-                    when SPRSEL_LOGD =>     -- LOG_DATA SPR
-                        v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
-                    when SPRSEL_PMU =>
-                        x_to_pmu.mfspr <= '1';
-                    when SPRSEL_NONE =>
-                        -- mfspr from unimplemented SPRs should be a nop in
-                        -- supervisor mode and a program interrupt for user mode
-                        if ctrl.msr(MSR_PR) = '1' then
-                            illegal := '1';
-                        end if;
-                    when others =>
-                end case;
+                if e_in.spr_select.valid = '1' then
+                    if e_in.spr_select.isram = '1' then
+                        report "MFSPR to RAM SPR " & integer'image(decode_spr_num(e_in.insn)) &
+                            "=" & to_hstring(ramspr_result);
+                    else
+                        report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
+                            "=" & to_hstring(spr_result);
+                        case e_in.spr_select.sel is
+                            when SPRSEL_LOGD =>     -- LOG_DATA SPR
+                                v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
+                            when SPRSEL_PMU =>
+                                -- this takes an extra cycle
+                                x_to_pmu.mfspr <= '1';
+                                v.e.valid := '0';
+                                v.slow_mfspr_in_progress := '1';
+                                v.busy := '1';
+                            when others =>
+                        end case;
+                    end if;
+                else
+                    -- mfspr from unimplemented SPRs should be a nop in
+                    -- supervisor mode and a program interrupt for user mode
+                    report "MFSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) & " invalid";
+                    if ctrl.msr(MSR_PR) = '1' then
+                        illegal := '1';
+                    end if;
+                end if;
 
 	    when OP_MFCR =>
 	    when OP_MTCRF =>
@@ -1185,27 +1202,28 @@ begin
 	    when OP_MTSPR =>
 		report "MTSPR to SPR " & integer'image(decode_spr_num(e_in.insn)) &
 		    "=" & to_hstring(c_in);
-                case e_in.spr_select is
-                    when SPRSEL_XER =>
-			ctrl_tmp.xerc.so <= c_in(63-32);
-			ctrl_tmp.xerc.ov <= c_in(63-33);
-			ctrl_tmp.xerc.ca <= c_in(63-34);
-			ctrl_tmp.xerc.ov32 <= c_in(63-44);
-			ctrl_tmp.xerc.ca32 <= c_in(63-45);
-		    when SPRSEL_DEC =>
-			ctrl_tmp.dec <= c_in;
-                    when SPRSEL_LOGA =>     -- LOG_ADDR SPR
-                        v.log_addr_spr := c_in(31 downto 0);
-                    when SPRSEL_PMU =>
-                        x_to_pmu.mtspr <= '1';
-		    when SPRSEL_NONE =>
-                        -- mtspr to unimplemented SPRs should be a nop in
-                        -- supervisor mode and a program interrupt for user mode
-                        if ctrl.msr(MSR_PR) = '1' then
-                            illegal := '1';
-                        end if;
-                    when others =>
-                end case;
+                if e_in.spr_select.valid = '1' and e_in.spr_select.isram = '0' then
+                    case e_in.spr_select.sel is
+                        when SPRSEL_XER =>
+                            ctrl_tmp.xerc.so <= c_in(63-32);
+                            ctrl_tmp.xerc.ov <= c_in(63-33);
+                            ctrl_tmp.xerc.ca <= c_in(63-34);
+                            ctrl_tmp.xerc.ov32 <= c_in(63-44);
+                            ctrl_tmp.xerc.ca32 <= c_in(63-45);
+                        when SPRSEL_DEC =>
+                            ctrl_tmp.dec <= c_in;
+                        when SPRSEL_LOGA =>     -- LOG_ADDR SPR
+                            v.log_addr_spr := c_in(31 downto 0);
+                        when SPRSEL_PMU =>
+                            x_to_pmu.mtspr <= '1';
+                        when others =>
+                    end case;
+                end if;
+                if e_in.spr_select.valid = '0' and ctrl.msr(MSR_PR) = '1' then
+                    -- mtspr to unimplemented SPRs should be a nop in
+                    -- supervisor mode and a program interrupt for user mode
+                    illegal := '1';
+                end if;
 
 	    when OP_RLC | OP_RLCL | OP_RLCR | OP_SHL | OP_SHR | OP_EXTSWSLI =>
 		if e_in.output_carry = '1' then
@@ -1291,6 +1309,8 @@ begin
         -- the cases above which depend on valid_in = 1.
         if r.cntz_in_progress = '1' then
             -- cnt[lt]z and popcnt* always take two cycles
+            v.e.valid := '1';
+        elsif r.slow_mfspr_in_progress = '1' then
             v.e.valid := '1';
 	elsif r.mul_in_progress = '1' or r.div_in_progress = '1' then
 	    if (r.mul_in_progress = '1' and multiply_to_x.valid = '1') or

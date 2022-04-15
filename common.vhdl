@@ -400,7 +400,6 @@ package common is
     constant PMUEventInit : PMUEventType := (others => '0');
 
     type Execute1ToPMUType is record
-        mfspr   : std_ulogic;
         mtspr   : std_ulogic;
         spr_num : std_ulogic_vector(4 downto 0);
         spr_val : std_ulogic_vector(63 downto 0);
@@ -466,7 +465,6 @@ package common is
         is_32bit : std_ulogic;
         repeat : std_ulogic;
         second : std_ulogic;
-        msr : std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type :=
         (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
@@ -478,8 +476,7 @@ package common is
          write_reg => (others => '0'),
          length => (others => '0'),
          mode_32bit => '0', is_32bit => '0',
-         repeat => '0', second => '0',
-         msr => (others => '0'));
+         repeat => '0', second => '0');
 
     type Loadstore1ToExecute1Type is record
         busy : std_ulogic;
@@ -616,7 +613,6 @@ package common is
         br_taken: std_ulogic;
         abs_br: std_ulogic;
         srr1: std_ulogic_vector(15 downto 0);
-        msr: std_ulogic_vector(63 downto 0);
     end record;
     constant Execute1ToWritebackInit : Execute1ToWritebackType :=
         (valid => '0', instr_tag => instr_tag_init, rc => '0', mode_32bit => '0',
@@ -627,7 +623,7 @@ package common is
          interrupt => '0', intr_vec => 0, redirect => '0', redir_mode => "0000",
          last_nia => (others => '0'), br_offset => (others => '0'),
          br_last => '0', br_taken => '0', abs_br => '0',
-         srr1 => (others => '0'), msr => (others => '0'));
+         srr1 => (others => '0'));
 
     type WritebackToExecute1Type is record
         valid : std_ulogic;

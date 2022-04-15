@@ -208,7 +208,9 @@ begin
         incr_tag := curr_tag;
         instr_tag.tag <= curr_tag;
         instr_tag.valid <= valid_out and not deferred;
-        if instr_tag.valid = '1' then
+        if flush_in = '1' then
+            incr_tag := 0;
+        elsif instr_tag.valid = '1' then
             incr_tag := (curr_tag + 1) mod TAG_COUNT;
         end if;
         next_tag <= incr_tag;

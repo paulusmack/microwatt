@@ -15,10 +15,12 @@ entity fpu is
     port (
         clk : in std_ulogic;
         rst : in std_ulogic;
+        flush_in : in std_ulogic;
 
         e_in  : in  Execute1toFPUType;
         e_out : out FPUToExecute1Type;
 
+        wb_stall : in std_ulogic;
         w_out : out FPUToWritebackType
         );
 end entity fpu;
@@ -84,6 +86,7 @@ architecture behaviour of fpu is
         is_cmp       : std_ulogic;
         single_prec  : std_ulogic;
         fpscr        : std_ulogic_vector(31 downto 0);
+        comm_fpscr   : std_ulogic_vector(31 downto 0);
         a            : fpu_reg_type;
         b            : fpu_reg_type;
         c            : fpu_reg_type;
@@ -542,13 +545,19 @@ begin
     fpu_0: process(clk)
     begin
         if rising_edge(clk) then
-            if rst = '1' then
+            if rst = '1' or flush_in = '1' then
                 r.state <= IDLE;
                 r.busy <= '0';
                 r.instr_done <= '0';
                 r.do_intr <= '0';
-                r.fpscr <= (others => '0');
                 r.writing_back <= '0';
+                if rst = '1' then
+                    r.fpscr <= (others => '0');
+                    r.comm_fpscr <= (others => '0');
+                else
+                    -- flush_in = 1, roll back to committed fpscr
+                    r.fpscr <= r.comm_fpscr;
+                end if;
             else
                 assert not (r.state /= IDLE and e_in.valid = '1') severity failure;
                 r <= rin;
@@ -572,10 +581,10 @@ begin
         end if;
     end process;
 
-    e_out.busy <= r.busy;
+    e_out.busy <= r.busy or wb_stall;
     e_out.exception <= r.fpscr(FPSCR_FEX);
 
-    w_out.valid <= r.instr_done and not r.do_intr;
+    w_out.valid <= r.instr_done;
     w_out.instr_tag <= r.instr_tag;
     w_out.write_enable <= r.writing_back;
     w_out.write_reg <= r.dest_fpr;
@@ -775,6 +784,15 @@ begin
         shiftin := '0';
         case r.state is
             when IDLE =>
+                if r.instr_done = '1' then
+                    if wb_stall = '1' then
+                        v.instr_done := '1';
+                        v.writing_back := r.writing_back;
+                        illegal := r.illegal;
+                    else
+                        v.comm_fpscr := r.fpscr;
+                    end if;
+                end if;
                 v.use_a := '0';
                 v.use_b := '0';
                 v.use_c := '0';
@@ -2551,14 +2569,13 @@ begin
 
         v.illegal := illegal;
         if illegal = '1' then
-            v.instr_done := '0';
             v.do_intr := '1';
             v.writing_back := '0';
             v.busy := '0';
             v.state := IDLE;
         else
             v.do_intr := v.instr_done and v.fpscr(FPSCR_FEX) and r.fe_mode;
-            if v.state /= IDLE or v.do_intr = '1' then
+            if v.state /= IDLE then
                 v.busy := '1';
             end if;
         end if;

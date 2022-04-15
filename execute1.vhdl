@@ -26,6 +26,7 @@ entity execute1 is
 	-- asynchronous
 	flush_in : in std_ulogic;
 	busy_out : out std_ulogic;
+        wb_stall : in std_ulogic;
 
 	e_in  : in Decode2ToExecute1Type;
         l_in  : in Loadstore1ToExecute1Type;
@@ -426,8 +427,8 @@ begin
     xerc_in <= ctrl.xerc;
 
     with e_in.unit select busy_out <=
-        l_in.busy or r.busy or fp_in.busy when LDST,
-        l_in.busy or l_in.in_progress or r.busy or fp_in.busy when others;
+        l_in.busy or r.busy or fp_in.busy or wb_stall when LDST,
+        l_in.busy or l_in.in_progress or r.busy or fp_in.busy or wb_stall when others;
 
     valid_in <= e_in.valid and not busy_out and not flush_in;
 
@@ -525,7 +526,9 @@ begin
                 ctrl.dec <= (others => '0');
                 ctrl.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
             else
-                r <= rin;
+                if wb_stall = '0' then
+                    r <= rin;
+                end if;
                 ctrl <= ctrl_tmp;
                 if valid_in = '1' then
                     report "execute " & to_hstring(e_in.nia) & " op=" & insn_type_t'image(e_in.insn_type) &
@@ -918,7 +921,6 @@ begin
         v.taken_branch_event := '0';
         v.br_mispredict := '0';
 
-        x_to_pmu.mfspr <= '0';
         x_to_pmu.mtspr <= '0';
         x_to_pmu.tbbits(3) <= ctrl.tb(63 - 47);
         x_to_pmu.tbbits(2) <= ctrl.tb(63 - 51);
@@ -1174,8 +1176,6 @@ begin
                     case e_in.spr_select.sel is
                         when SPRSEL_LOGD =>     -- LOG_DATA SPR
                             v.log_addr_spr := std_ulogic_vector(unsigned(r.log_addr_spr) + 1);
-                        when SPRSEL_PMU =>
-                            x_to_pmu.mfspr <= '1';
                         when others =>
                     end case;
                 else
@@ -1482,7 +1482,6 @@ begin
 	-- update outputs
         l_out <= lv;
 	e_out <= r.e;
-        e_out.msr <= msr_copy(ctrl.msr);
         fp_out <= fv;
 
         exception_log <= exception;

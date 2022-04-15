@@ -98,6 +98,10 @@ architecture behave of core is
     signal fpu_to_execute1: FPUToExecute1Type;
     signal fpu_to_writeback: FPUToWritebackType;
 
+    -- Writeback signals
+    signal wb_stall_ex : std_ulogic;
+    signal wb_stall_fpu : std_ulogic;
+
     -- local signals
     signal fetch1_stall_in : std_ulogic;
     signal icache_stall_out : std_ulogic;
@@ -356,6 +360,7 @@ begin
             rst => rst_ex1,
             flush_in => flush,
 	    busy_out => ex1_busy_out,
+            wb_stall => wb_stall_ex,
             e_in => decode2_to_execute1,
             l_in => loadstore1_to_execute1,
             fp_in => fpu_to_execute1,
@@ -391,6 +396,8 @@ begin
             port map (
                 clk => clk,
                 rst => rst_fpu,
+                flush_in => flush,
+                wb_stall => wb_stall_fpu,
                 e_in => execute1_to_fpu,
                 e_out => fpu_to_execute1,
                 w_out => fpu_to_writeback
@@ -471,7 +478,9 @@ begin
             f_out => writeback_to_fetch1,
             events => writeback_events,
             interrupt_out => do_interrupt,
-            complete_out => complete
+            complete_out => complete,
+            stall_ex => wb_stall_ex,
+            stall_fpu => wb_stall_fpu
             );
 
     log_data(150) <= '0';

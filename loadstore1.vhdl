@@ -869,6 +869,7 @@ begin
         v.interrupt := exception;
         if exception = '1' then
             v.nia := r2.req.nia;
+            v.instr_tag := r2.req.instr_tag;
             if r2.req.align_intr = '1' then
                 v.intr_vec := 16#600#;
                 v.dar := r2.req.addr;
@@ -955,7 +956,11 @@ begin
 
         -- Update outputs to writeback
         l_out.valid <= complete;
-        l_out.instr_tag <= r2.req.instr_tag;
+        if r3.interrupt = '1' then
+            l_out.instr_tag <= r3.instr_tag;
+        else
+            l_out.instr_tag <= r2.req.instr_tag;
+        end if;
         l_out.write_enable <= write_enable or do_update;
         l_out.write_reg <= r2.req.write_reg;
         l_out.write_data <= write_data;

@@ -87,6 +87,9 @@ architecture rtl of control is
 
     signal curr_cr_tag : tag_number_t;
 
+    type tag_bit_array is array(tag_number_t) of std_ulogic;
+    signal tag_outstanding : tag_bit_array;
+
 begin
     control0: process(clk)
     begin
@@ -98,11 +101,13 @@ begin
                 if rst = '1' or flush_in = '1' then
                     tag_regs(i).wr_gpr <= '0';
                     tag_regs(i).wr_cr <= '0';
+                    tag_outstanding(i) <= '0';
                 else
                     if complete_in.valid = '1' and i = complete_in.tag then
                         tag_regs(i).wr_gpr <= '0';
                         tag_regs(i).wr_cr <= '0';
                         report "tag " & integer'image(i) & " not valid";
+                        tag_outstanding(i) <= '0';
                     end if;
                     if gpr_write_valid = '1' and tag_regs(i).reg = gpr_write_in then
                         tag_regs(i).recent <= '0';
@@ -118,6 +123,7 @@ begin
                         if gpr_write_valid = '1' then
                             report "tag " & integer'image(i) & " valid for gpr " & to_hstring(gpr_write_in);
                         end if;
+                        tag_outstanding(i) <= '1';
                     end if;
                 end if;
             end loop;
@@ -239,7 +245,7 @@ begin
         elsif complete_in.valid = '1' then
             v_int.outstanding := r_int.outstanding - 1;
         end if;
-        if r_int.outstanding >= PIPELINE_DEPTH + 1 then
+        if tag_outstanding(curr_tag) = '1' then
             valid_tmp := '0';
             stall_tmp := '1';
         end if;

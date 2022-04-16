@@ -113,6 +113,7 @@ architecture behave of loadstore1 is
 
     type reg_stage1_t is record
         req : request_t;
+        stash : request_t;
         issued : std_ulogic;
         addr0 : std_ulogic_vector(63 downto 0);
     end record;
@@ -521,7 +522,12 @@ begin
         issue := '0';
 
         if busy = '0' then
-            req := req_in;
+            if r1.stash.valid = '1' then
+                req := r1.stash;
+            else
+                req := req_in;
+            end if;
+            v.stash.valid := '0';
             v.issued := '0';
             if flushing = '1' then
                 -- Make this a no-op request rather than simply invalid.
@@ -529,12 +535,18 @@ begin
                 -- it with align_intr = 1.
                 req.dc_req := '0';
             end if;
-            issue := l_in.valid and req.dc_req;
-            if l_in.valid = '1' then
+            issue := req.valid and req.dc_req;
+            if req.valid = '1' then
                 v.addr0 := req.addr;
             end if;
         else
+            if r1.stash.valid = '0' then
+                v.stash := req_in;
+            end if;
             req := r1.req;
+        end if;
+        if flushing = '1' then
+            v.stash.valid := '0';
         end if;
 
         if r1.req.valid = '1' then
@@ -560,6 +572,7 @@ begin
         if r3in.interrupt = '1' then
             req.valid := '0';
             issue := '0';
+            v.stash.valid := '0';
         end if;
 
         v.req := req;
@@ -955,7 +968,7 @@ begin
         l_out.srr1 <= r3.srr1;
 
         -- update busy signal back to execute1
-        e_out.busy <= busy;
+        e_out.busy <= r1.stash.valid;
         e_out.in_progress <= in_progress;
         e_out.interrupt <= r3.interrupt;
 

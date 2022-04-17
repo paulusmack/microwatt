@@ -103,9 +103,13 @@ architecture behaviour of execute1 is
          taken_branch_event => '0', br_mispredict => '0',
          others => (others => '0'));
 
-    type special_regs_t is record
+    type time_regs_t is record
 	tb: std_ulogic_vector(63 downto 0);
 	dec: std_ulogic_vector(63 downto 0);
+    end record;
+    constant time_regs_t_init : time_regs_t := (others => (others => '0'));
+
+    type special_regs_t is record
 	msr: std_ulogic_vector(63 downto 0);
         xerc: xer_common_t;
         xer_low: std_ulogic_vector(17 downto 0);
@@ -123,6 +127,8 @@ architecture behaviour of execute1 is
     signal valid_in : std_ulogic;
     signal ctrl: special_regs_t := special_regs_t_init;
     signal ctrl_tmp: special_regs_t := special_regs_t_init;
+    signal timeregs: time_regs_t := time_regs_t_init;
+    signal timeregs_next: time_regs_t;
     signal right_shift, rot_clear_left, rot_clear_right: std_ulogic;
     signal rot_sign_ext: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
@@ -497,9 +503,9 @@ begin
 
     -- SPR read mux
     with e_in.spr_select.sel select spr_result <=
-        ctrl.tb when SPRSEL_TB,
-        32x"0" & ctrl.tb(63 downto 32) when SPRSEL_TBU,
-        ctrl.dec when SPRSEL_DEC,
+        timeregs.tb when SPRSEL_TB,
+        32x"0" & timeregs.tb(63 downto 32) when SPRSEL_TBU,
+        timeregs.dec when SPRSEL_DEC,
         32x"0" & PVR_MICROWATT when SPRSEL_PVR,
         log_wr_addr & r.log_addr_spr when SPRSEL_LOGA,
         log_rd_data when SPRSEL_LOGD,
@@ -522,14 +528,15 @@ begin
 	if rising_edge(clk) then
             if rst = '1' then
                 r <= reg_type_init;
-                ctrl.tb <= (others => '0');
-                ctrl.dec <= (others => '0');
+                timeregs.tb <= (others => '0');
+                timeregs.dec <= (others => '0');
                 ctrl.msr <= (MSR_SF => '1', MSR_LE => '1', others => '0');
             else
                 if wb_stall = '0' then
                     r <= rin;
                 end if;
                 ctrl <= ctrl_tmp;
+                timeregs <= timeregs_next;
                 if valid_in = '1' then
                     report "execute " & to_hstring(e_in.nia) & " op=" & insn_type_t'image(e_in.insn_type) &
                         " wr=" & to_hstring(rin.e.write_reg) & " we=" & std_ulogic'image(rin.e.write_enable) &
@@ -922,19 +929,19 @@ begin
         v.br_mispredict := '0';
 
         x_to_pmu.mtspr <= '0';
-        x_to_pmu.tbbits(3) <= ctrl.tb(63 - 47);
-        x_to_pmu.tbbits(2) <= ctrl.tb(63 - 51);
-        x_to_pmu.tbbits(1) <= ctrl.tb(63 - 55);
-        x_to_pmu.tbbits(0) <= ctrl.tb(63 - 63);
+        x_to_pmu.tbbits(3) <= timeregs.tb(63 - 47);
+        x_to_pmu.tbbits(2) <= timeregs.tb(63 - 51);
+        x_to_pmu.tbbits(1) <= timeregs.tb(63 - 55);
+        x_to_pmu.tbbits(0) <= timeregs.tb(63 - 63);
         x_to_pmu.pmm_msr <= ctrl.msr(MSR_PMM);
         x_to_pmu.pr_msr <= ctrl.msr(MSR_PR);
 
 	ctrl_tmp <= ctrl;
 	-- FIXME: run at 512MHz not core freq
-	ctrl_tmp.tb <= std_ulogic_vector(unsigned(ctrl.tb) + 1);
-	ctrl_tmp.dec <= std_ulogic_vector(unsigned(ctrl.dec) - 1);
+	timeregs_next.tb <= std_ulogic_vector(unsigned(timeregs.tb) + 1);
+	timeregs_next.dec <= std_ulogic_vector(unsigned(timeregs.dec) - 1);
 
-        irq_valid := ctrl.msr(MSR_EE) and (pmu_to_x.intr or ctrl.dec(63) or ext_irq_in);
+        irq_valid := ctrl.msr(MSR_EE) and (pmu_to_x.intr or timeregs.dec(63) or ext_irq_in);
 
 	v.terminate := '0';
 	icache_inval <= '0';
@@ -1001,7 +1008,7 @@ begin
                 if pmu_to_x.intr = '1' then
                     v.e.intr_vec := 16#f00#;
                     report "IRQ valid: PMU";
-                elsif ctrl.dec(63) = '1' then
+                elsif timeregs.dec(63) = '1' then
                     v.e.intr_vec := 16#900#;
                     report "IRQ valid: DEC";
                 elsif ext_irq_in = '1' then
@@ -1226,7 +1233,7 @@ begin
 			ctrl_tmp.xerc.ca32 <= c_in(63-45);
                         ctrl_tmp.xer_low <= c_in(17 downto 0);
 		    when SPRSEL_DEC =>
-			ctrl_tmp.dec <= c_in;
+			timeregs_next.dec <= c_in;
                     when SPRSEL_LOGA =>     -- LOG_ADDR SPR
                         v.log_addr_spr := c_in(31 downto 0);
                     when SPRSEL_PMU =>

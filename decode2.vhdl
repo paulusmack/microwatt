@@ -469,6 +469,11 @@ begin
             when OP_RFID =>
                 v.e.ramspr_rdaddr := RAMSPR_SRR0;
                 sprs_busy := '1';
+            when OP_SC =>
+                -- write next_nia to SRR0
+                v.e.ramspr_even_wraddr := RAMSPR_SRR0;
+                v.e.ramspr_wr_sel := "11";
+                v.e.ramspr_write_even := '1';
             when others =>
         end case;
 

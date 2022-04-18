@@ -114,17 +114,16 @@ begin
 
         intr := ex_intr or ls_intr or fpu_intr;
         interrupt_out.valid <= intr;
+        interrupt_out.itag <= complete_tag;
+        interrupt_out.alt_srr0 <= ex_intr and e_in.alt_srr0;
         if ls_intr = '1' then
             vec := l_in.intr_vec;
-            interrupt_out.srr0 <= l_in.srr0;
             interrupt_out.srr1 <= l_in.srr1;
         elsif fpu_intr = '1' then
             vec := fp_in.intr_vec;
-            interrupt_out.srr0 <= fp_in.srr0;
             interrupt_out.srr1 <= fp_in.srr1;
         else
             vec := e_in.intr_vec;
-            interrupt_out.srr0 <= e_in.last_nia;
             interrupt_out.srr1 <= e_in.srr1;
         end if;
 

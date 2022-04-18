@@ -117,6 +117,10 @@ architecture behaviour of execute1 is
     constant special_regs_t_init: special_regs_t :=
         (xerc => xerc_init, xer_low => 18x"0", others => (others => '0'));
 
+    -- Array for storing instruction addresses
+    type ciaqueue is array(tag_number_t) of std_ulogic_vector(63 downto 0);
+    signal ciaq : ciaqueue;
+
     signal r, rin : reg_type;
 
     signal a_in, b_in, c_in : std_ulogic_vector(63 downto 0);
@@ -462,7 +466,7 @@ begin
     begin
         if rising_edge(clk) then
             if interrupt_in.valid = '1' then
-                even_wr_enab := '1';
+                even_wr_enab := not interrupt_in.alt_srr0;
                 odd_wr_enab := '1';
                 even_wr_addr := RAMSPR_SRR0;
                 odd_wr_addr := RAMSPR_SRR1;
@@ -479,7 +483,7 @@ begin
                     even_wr_data := c_in;
                     odd_wr_data := c_in;
                 when "01" =>
-                    even_wr_data := interrupt_in.srr0;
+                    even_wr_data := ciaq(interrupt_in.itag);
                     odd_wr_data := intr_srr1(ctrl.msr, interrupt_in.srr1);
                 when "10" =>
                     even_wr_data := std_ulogic_vector(unsigned(ramspr_even) - 1);
@@ -541,6 +545,9 @@ begin
                     report "execute " & to_hstring(e_in.nia) & " op=" & insn_type_t'image(e_in.insn_type) &
                         " wr=" & to_hstring(rin.e.write_reg) & " we=" & std_ulogic'image(rin.e.write_enable) &
                         " tag=" & integer'image(rin.e.instr_tag.tag) & std_ulogic'image(rin.e.instr_tag.valid);
+                end if;
+                if e_in.valid = '1' then
+                    ciaq(e_in.instr_tag.tag) <= e_in.nia;
                 end if;
             end if;
 	end if;
@@ -1061,7 +1068,7 @@ begin
                 if e_in.insn(1) = '1' then
                     exception := '1';
                     v.e.intr_vec := 16#C00#;
-                    v.e.last_nia := next_nia;
+                    v.e.alt_srr0 := '1';
                     report "sc";
                 else
                     illegal := '1';

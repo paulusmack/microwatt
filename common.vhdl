@@ -575,7 +575,6 @@ package common is
         store_done : std_ulogic;
         interrupt : std_ulogic;
         intr_vec : intr_vector_t;
-        srr0: std_ulogic_vector(63 downto 0);
         srr1: std_ulogic_vector(15 downto 0);
     end record;
     constant Loadstore1ToWritebackInit : Loadstore1ToWritebackType :=
@@ -583,7 +582,7 @@ package common is
          write_reg => (others => '0'), write_data => (others => '0'),
          xerc => xerc_init, rc => '0', store_done => '0',
          interrupt => '0', intr_vec => 0,
-         srr0 => (others => '0'), srr1 => (others => '0'));
+         srr1 => (others => '0'));
 
     type Loadstore1EventType is record
         load_complete  : std_ulogic;
@@ -605,6 +604,7 @@ package common is
 	xerc : xer_common_t;
         interrupt : std_ulogic;
         intr_vec : intr_vector_t;
+        alt_srr0 : std_ulogic;
 	redirect: std_ulogic;
         redir_mode: std_ulogic_vector(3 downto 0);
         last_nia: std_ulogic_vector(63 downto 0);
@@ -620,15 +620,17 @@ package common is
          xerc => xerc_init,
          write_data => (others => '0'), write_cr_mask => (others => '0'),
          write_cr_data => (others => '0'), write_reg => (others => '0'),
-         interrupt => '0', intr_vec => 0, redirect => '0', redir_mode => "0000",
+         interrupt => '0', intr_vec => 0, alt_srr0 => '0',
+         redirect => '0', redir_mode => "0000",
          last_nia => (others => '0'), br_offset => (others => '0'),
          br_last => '0', br_taken => '0', abs_br => '0',
          srr1 => (others => '0'));
 
     type WritebackToExecute1Type is record
         valid : std_ulogic;
-        srr0 : std_ulogic_vector(63 downto 0);
+        itag : tag_number_t;
         srr1 : std_ulogic_vector(15 downto 0);
+        alt_srr0 : std_ulogic;
     end record;
 
     type Execute1ToFPUType is record
@@ -670,7 +672,6 @@ package common is
         write_cr_mask   : std_ulogic_vector(7 downto 0);
         write_cr_data   : std_ulogic_vector(31 downto 0);
         intr_vec        : intr_vector_t;
-        srr0            : std_ulogic_vector(63 downto 0);
         srr1            : std_ulogic_vector(15 downto 0);
     end record;
     constant FPUToWritebackInit : FPUToWritebackType :=

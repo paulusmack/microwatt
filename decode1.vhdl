@@ -40,9 +40,10 @@ architecture behaviour of decode1 is
         override : std_ulogic;
         override_decode: decode_rom_t;
         override_unit: std_ulogic;
+        force_single: std_ulogic;
     end record;
     constant reg_internal_t_init : reg_internal_t :=
-        (override => '0', override_decode => illegal_inst, override_unit => '0');
+        (override => '0', override_decode => illegal_inst, override_unit => '0', force_single => '0');
 
     signal ri, ri_in : reg_internal_t;
     signal si        : reg_internal_t;
@@ -676,6 +677,10 @@ begin
                     when others =>
                 end case;
             end if;
+            -- make mtspr to slow SPRs single-issue
+            if f_in.insn(10 downto 1) = "0111010011" and v.spr_info.valid = '1' then
+                vi.force_single := '1';
+            end if;
             if std_match(f_in.insn(10 downto 1), "0100010100") then
                 -- lqarx, illegal if RA = RT or RB = RT
                 if f_in.insn(25 downto 21) = f_in.insn(20 downto 16) or
@@ -782,6 +787,9 @@ begin
             d_out.decode <= ri.override_decode;
         elsif ri.override_unit = '1' then
             d_out.decode.unit <= ri.override_decode.unit;
+        end if;
+        if ri.force_single = '1' then
+            d_out.decode.sgl_pipe <= '1';
         end if;
         f_out.redirect <= br.predict;
         f_out.redirect_nia <= br_target & "00";

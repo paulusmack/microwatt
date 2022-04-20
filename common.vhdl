@@ -401,7 +401,8 @@ package common is
 
     type Execute1ToPMUType is record
         mtspr   : std_ulogic;
-        spr_num : std_ulogic_vector(4 downto 0);
+        spr_rad : std_ulogic_vector(4 downto 0);        -- which SPR to read
+        spr_wad : std_ulogic_vector(4 downto 0);        -- which SPR to write
         spr_val : std_ulogic_vector(63 downto 0);
         tbbits  : std_ulogic_vector(3 downto 0);        -- event bits from timebase
         pmm_msr : std_ulogic;                           -- PMM bit from MSR

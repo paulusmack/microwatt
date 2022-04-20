@@ -122,7 +122,7 @@ architecture behaviour of pmu is
 
 begin
     -- mfspr mux
-    with p_in.spr_num(3 downto 0) select p_out.spr_val <=
+    with p_in.spr_rad(3 downto 0) select p_out.spr_val <=
         32x"0" & pmcs(1) when "0011",
         32x"0" & pmcs(2) when "0100",
         32x"0" & pmcs(3) when "0101",
@@ -145,15 +145,18 @@ begin
         if rising_edge(clk) then
             if rst = '1' then
                 mmcr0 <= 32x"80000000";
+                for i in 1 to 6 loop
+                    pmcs(i) <= 32x"0";
+                end loop;
             else
                 for i in 1 to 6 loop
-                    if p_in.mtspr = '1' and to_integer(unsigned(p_in.spr_num(3 downto 0))) = i + 2 then
+                    if p_in.mtspr = '1' and to_integer(unsigned(p_in.spr_wad(3 downto 0))) = i + 2 then
                         pmcs(i) <= p_in.spr_val(31 downto 0);
                     elsif doinc(i) = '1' then
                         pmcs(i) <= std_ulogic_vector(unsigned(pmcs(i)) + 1);
                     end if;
                 end loop;
-                if p_in.mtspr = '1' and p_in.spr_num(3 downto 0) = "1011" then
+                if p_in.mtspr = '1' and p_in.spr_wad(3 downto 0) = "1011" then
                     mmcr0 <= p_in.spr_val(31 downto 0);
                     mmcr0(MMCR0_BHRBA) <= '0';          -- no BHRB yet
                     mmcr0(MMCR0_EBE) <= '0';            -- no EBBs yet
@@ -170,28 +173,28 @@ begin
                         mmcr0(MMCR0_TRIGGER) <= '0';
                     end if;
                 end if;
-                if p_in.mtspr = '1' and p_in.spr_num(3 downto 0) = "1110" then
+                if p_in.mtspr = '1' and p_in.spr_wad(3 downto 0) = "1110" then
                     mmcr1 <= p_in.spr_val;
                 end if;
-                if p_in.mtspr = '1' and p_in.spr_num(3 downto 0) = "0001" then
+                if p_in.mtspr = '1' and p_in.spr_wad(3 downto 0) = "0001" then
                     mmcr2 <= p_in.spr_val;
                 end if;
-                if p_in.mtspr = '1' and p_in.spr_num(3 downto 0) = "0010" then
+                if p_in.mtspr = '1' and p_in.spr_wad(3 downto 0) = "0010" then
                     mmcra <= p_in.spr_val;
                     -- we don't support random sampling yet
                     mmcra(MMCRA_SE) <= '0';
                 end if;
-                if p_in.mtspr = '1' and p_in.spr_num(3 downto 0) = "1100" then
+                if p_in.mtspr = '1' and p_in.spr_wad(3 downto 0) = "1100" then
                     siar <= p_in.spr_val;
                 elsif doalert = '1' then
                     siar <= p_in.nia;
                 end if;
-                if p_in.mtspr = '1' and p_in.spr_num(3 downto 0) = "1101" then
+                if p_in.mtspr = '1' and p_in.spr_wad(3 downto 0) = "1101" then
                     sdar <= p_in.spr_val;
                 elsif doalert = '1' then
                     sdar <= p_in.addr;
                 end if;
-                if p_in.mtspr = '1' and p_in.spr_num(3 downto 0) = "0000" then
+                if p_in.mtspr = '1' and p_in.spr_wad(3 downto 0) = "0000" then
                     sier <= p_in.spr_val;
                 elsif doalert = '1' then
                     sier <= (others => '0');

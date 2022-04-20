@@ -203,14 +203,15 @@ architecture behaviour of decode2 is
         OP_SHL      => "010",
         OP_SHR      => "010",
         OP_EXTSWSLI => "010",
-        OP_MUL_L64  => "011",           -- muldiv_result
+        OP_MUL_L64  => "011",           -- slow_result
         OP_MUL_H64  => "011",
         OP_MUL_H32  => "011",
         OP_DIV      => "011",
         OP_DIVE     => "011",
         OP_MOD      => "011",
-        OP_CNTZ     => "100",           -- countbits_result
-        OP_POPCNT   => "100",
+        OP_CNTZ     => "011",
+        OP_POPCNT   => "011",
+        -- "100" ununsed at present
         OP_MFSPR    => "101",           -- spr_result
         OP_ADDG6S   => "111",           -- misc_result
         OP_ISEL     => "111",
@@ -223,11 +224,8 @@ architecture behaviour of decode2 is
 
     constant subresult_select : mux_select_array_t := (
         OP_MUL_L64 => "000",            -- muldiv_result
-        OP_MUL_H64 => "001",
-        OP_MUL_H32 => "010",
-        OP_DIV     => "011",
-        OP_DIVE    => "011",
-        OP_MOD     => "011",
+        OP_MUL_H64 => "010",
+        OP_MUL_H32 => "011",
         OP_ADDG6S  => "001",            -- misc_result
         OP_ISEL    => "010",
         OP_DARN    => "011",

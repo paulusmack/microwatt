@@ -70,54 +70,54 @@ architecture behaviour of decode1 is
     type op_63_subop_array_1_t is array(0 to 16) of decode_rom_t;
 
     constant major_decode_rom_array : major_rom_array_t := (
-        --          unit   fac   internal      in1         in2          in3   out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
-        --                            op                                            in   out   A   out  in    out  len        ext                                 pipe
-        12 =>       (ALU,  NONE, OP_ADD,       RA,         CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '1', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- addic
-        13 =>       (ALU,  NONE, OP_ADD,       RA,         CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '1', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '0', NONE), -- addic.
-        14 =>       (ALU,  NONE, OP_ADD,       RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- addi
-        15 =>       (ALU,  NONE, OP_ADD,       RA_OR_ZERO, CONST_SI_HI, NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- addis
-        28 =>       (ALU,  NONE, OP_AND,       NONE,       CONST_UI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '0', NONE), -- andi.
-        29 =>       (ALU,  NONE, OP_AND,       NONE,       CONST_UI_HI, RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '0', NONE), -- andis.
-         0 =>       (ALU,  NONE, OP_ATTN,      NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', NONE), -- attn
-        18 =>       (ALU,  NONE, OP_B,         NONE,       CONST_LI,    NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE), -- b
-        16 =>       (ALU,  NONE, OP_BC,        NONE,       CONST_BD,    NONE, NONE, '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE), -- bc
-        11 =>       (ALU,  NONE, OP_CMP,       RA,         CONST_SI,    NONE, NONE, '0', '1', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', NONE), -- cmpi
-        10 =>       (ALU,  NONE, OP_CMP,       RA,         CONST_UI,    NONE, NONE, '0', '1', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- cmpli
-        34 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lbz
-        35 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', DUPD), -- lbzu
-        50 =>       (LDST, FPU,  OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, FRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lfd
-        51 =>       (LDST, FPU,  OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, FRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', DUPD), -- lfdu
-        48 =>       (LDST, FPU,  OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, FRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE), -- lfs
-        49 =>       (LDST, FPU,  OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, FRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '1', '0', '1', '0', NONE, '0', '0', DUPD), -- lfsu
-        42 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lha
-        43 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '1', '0', '0', '0', NONE, '0', '0', DUPD), -- lhau
-        40 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lhz
-        41 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', DUPD), -- lhzu
-        56 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_DQ,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lq
-        32 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lwz
-        33 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', DUPD), -- lwzu
-         7 =>       (ALU,  NONE, OP_MUL_L64,   RA,         CONST_SI,    NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', NONE), -- mulli
-        24 =>       (ALU,  NONE, OP_OR,        NONE,       CONST_UI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- ori
-        25 =>       (ALU,  NONE, OP_OR,        NONE,       CONST_UI_HI, RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- oris
-        20 =>       (ALU,  NONE, OP_RLC,       RA,         CONST_SH32,  RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- rlwimi
-        21 =>       (ALU,  NONE, OP_RLC,       NONE,       CONST_SH32,  RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- rlwinm
-        23 =>       (ALU,  NONE, OP_RLC,       NONE,       RB,          RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- rlwnm
-        17 =>       (ALU,  NONE, OP_SC,        NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- sc
-        38 =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stb
-        39 =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', NONE), -- stbu
-        54 =>       (LDST, FPU,  OP_STORE,     RA_OR_ZERO, CONST_SI,    FRS,  NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stfd
-        55 =>       (LDST, FPU,  OP_STORE,     RA_OR_ZERO, CONST_SI,    FRS,  RA,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', NONE), -- stfdu
-        52 =>       (LDST, FPU,  OP_STORE,     RA_OR_ZERO, CONST_SI,    FRS,  NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE), -- stfs
-        53 =>       (LDST, FPU,  OP_STORE,     RA_OR_ZERO, CONST_SI,    FRS,  RA,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '1', '0', '1', '0', NONE, '0', '0', NONE), -- stfsu
-        44 =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- sth
-        45 =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', NONE), -- sthu
-        36 =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stw
-        37 =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', NONE), -- stwu
-         8 =>       (ALU,  NONE, OP_ADD,       RA,         CONST_SI,    NONE, RT,   '0', '0', '1', '0', ONE,  '1', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- subfic
-         2 =>       (ALU,  NONE, OP_TRAP,      RA,         CONST_SI,    NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- tdi
-         3 =>       (ALU,  NONE, OP_TRAP,      RA,         CONST_SI,    NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE), -- twi
-        26 =>       (ALU,  NONE, OP_XOR,       NONE,       CONST_UI,    RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- xori
-        27 =>       (ALU,  NONE, OP_XOR,       NONE,       CONST_UI_HI, RS,   RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- xoris
+        --          unit   fac   internal      in1         in2          in3       out   CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   sgl  rpt
+        --                            op                                                in   out   A   out  in    out  len        ext                                 pipe
+        12 =>       (ALU,  NONE, OP_ADD,       RA,         CONST_SI,    NONE,     RT,   '0', '0', '0', '0', ZERO, '1', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- addic
+        13 =>       (ALU,  NONE, OP_ADD,       RA,         CONST_SI,    NONE,     RT,   '0', '0', '0', '0', ZERO, '1', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '0', NONE), -- addic.
+        14 =>       (ALU,  NONE, OP_ADD,       RA_OR_ZERO, CONST_SI,    NONE,     RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- addi
+        15 =>       (ALU,  NONE, OP_ADD,       RA_OR_ZERO, CONST_SI_HI, NONE,     RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- addis
+        28 =>       (ALU,  NONE, OP_AND,       NONE,       CONST_UI,    RS,       RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '0', NONE), -- andi.
+        29 =>       (ALU,  NONE, OP_AND,       NONE,       CONST_UI_HI, RS,       RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', ONE,  '0', '0', NONE), -- andis.
+         0 =>       (ALU,  NONE, OP_ATTN,      NONE,       NONE,        NONE,     NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', NONE), -- attn
+        18 =>       (ALU,  NONE, OP_B,         CIA,        CONST_4,     CONST_LI, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE), -- b
+        16 =>       (ALU,  NONE, OP_BC,        CIA,        CONST_4,     CONST_BD, NONE, '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE), -- bc
+        11 =>       (ALU,  NONE, OP_CMP,       RA,         CONST_SI,    NONE,     NONE, '0', '1', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', NONE), -- cmpi
+        10 =>       (ALU,  NONE, OP_CMP,       RA,         CONST_UI,    NONE,     NONE, '0', '1', '1', '0', ONE,  '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- cmpli
+        34 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE,     RT,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lbz
+        35 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE,     RT,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', DUPD), -- lbzu
+        50 =>       (LDST, FPU,  OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE,     FRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lfd
+        51 =>       (LDST, FPU,  OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE,     FRT,  '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', DUPD), -- lfdu
+        48 =>       (LDST, FPU,  OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE,     FRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE), -- lfs
+        49 =>       (LDST, FPU,  OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE,     FRT,  '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '1', '0', '1', '0', NONE, '0', '0', DUPD), -- lfsu
+        42 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE,     RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lha
+        43 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE,     RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '1', '0', '0', '0', NONE, '0', '0', DUPD), -- lhau
+        40 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE,     RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lhz
+        41 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE,     RT,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', DUPD), -- lhzu
+        56 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_DQ,    NONE,     RT,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', DRTE), -- lq
+        32 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE,     RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- lwz
+        33 =>       (LDST, NONE, OP_LOAD,      RA_OR_ZERO, CONST_SI,    NONE,     RT,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', DUPD), -- lwzu
+         7 =>       (ALU,  NONE, OP_MUL_L64,   RA,         CONST_SI,    NONE,     RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', NONE), -- mulli
+        24 =>       (ALU,  NONE, OP_OR,        NONE,       CONST_UI,    RS,       RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- ori
+        25 =>       (ALU,  NONE, OP_OR,        NONE,       CONST_UI_HI, RS,       RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- oris
+        20 =>       (ALU,  NONE, OP_RLC,       RA,         CONST_SH32,  RS,       RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- rlwimi
+        21 =>       (ALU,  NONE, OP_RLC,       NONE,       CONST_SH32,  RS,       RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- rlwinm
+        23 =>       (ALU,  NONE, OP_RLC,       NONE,       RB,          RS,       RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', RC,   '0', '0', NONE), -- rlwnm
+        17 =>       (ALU,  NONE, OP_SC,        CIA,        CONST_4,     NONE,     NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- sc
+        38 =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,       NONE, '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stb
+        39 =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,       RA,   '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', NONE), -- stbu
+        54 =>       (LDST, FPU,  OP_STORE,     RA_OR_ZERO, CONST_SI,    FRS,      NONE, '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stfd
+        55 =>       (LDST, FPU,  OP_STORE,     RA_OR_ZERO, CONST_SI,    FRS,      RA,   '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', NONE), -- stfdu
+        52 =>       (LDST, FPU,  OP_STORE,     RA_OR_ZERO, CONST_SI,    FRS,      NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE), -- stfs
+        53 =>       (LDST, FPU,  OP_STORE,     RA_OR_ZERO, CONST_SI,    FRS,      RA,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '1', '0', '1', '0', NONE, '0', '0', NONE), -- stfsu
+        44 =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,       NONE, '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- sth
+        45 =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,       RA,   '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', NONE), -- sthu
+        36 =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,       NONE, '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- stw
+        37 =>       (LDST, NONE, OP_STORE,     RA_OR_ZERO, CONST_SI,    RS,       RA,   '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', NONE), -- stwu
+         8 =>       (ALU,  NONE, OP_ADD,       RA,         CONST_SI,    NONE,     RT,   '0', '0', '1', '0', ONE,  '1', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- subfic
+         2 =>       (ALU,  NONE, OP_TRAP,      RA,         CONST_SI,    NONE,     NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- tdi
+         3 =>       (ALU,  NONE, OP_TRAP,      RA,         CONST_SI,    NONE,     NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', NONE), -- twi
+        26 =>       (ALU,  NONE, OP_XOR,       NONE,       CONST_UI,    RS,       RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- xori
+        27 =>       (ALU,  NONE, OP_XOR,       NONE,       CONST_UI_HI, RS,       RA,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE), -- xoris
         others   => illegal_inst
         );
 
@@ -168,7 +168,7 @@ architecture behaviour of decode1 is
         -- addpcis
         2#001#    =>       (ALU, NONE, OP_ADD,       CIA,        CONST_DXHI4, NONE, RT,   '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', NONE),
         -- bclr, bcctr, bctar
-        2#100#    =>       (ALU, NONE, OP_BCREG,     NONE,       NONE,        NONE, NONE, '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
+        2#100#    =>       (ALU, NONE, OP_BCREG,     CIA,        CONST_4,     NONE, NONE, '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', NONE),
         -- isync
         2#111#    =>       (ALU, NONE, OP_ISYNC,     NONE,       NONE,        NONE, NONE, '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', NONE),
         -- rfid

@@ -526,13 +526,15 @@ architecture behaviour of decode1 is
         case sprn is
             when SPR_LR =>
                 ret.index := RAMSPR_LR;
+                ret.isodd := '1';
             when SPR_CTR =>
                 ret.index := RAMSPR_CTR;
+                ret.isodd := '1';
             when SPR_TAR =>
                 ret.index := RAMSPR_TAR;
+                ret.isodd := '1';
             when SPR_CFAR =>
                 ret.index := RAMSPR_CFAR;
-                ret.isodd := '1';
             when SPR_SRR0 =>
                 ret.index := RAMSPR_SRR0;
             when SPR_SRR1 =>

@@ -211,7 +211,10 @@ architecture behaviour of decode2 is
         OP_MOD      => "011",
         OP_CNTZ     => "011",
         OP_POPCNT   => "011",
-        -- "100" ununsed at present
+        OP_B        => "100",           -- next_nia
+        OP_BC       => "100",
+        OP_BCREG    => "100",
+        OP_SC       => "100",
         OP_MFSPR    => "101",           -- spr_result
         OP_ADDG6S   => "111",           -- misc_result
         OP_ISEL     => "111",
@@ -389,6 +392,7 @@ begin
              (op = OP_BCREG and not (d_in.insn(10) = '1' and d_in.insn(6) = '0'))) then
             decctr := '1';
         end if;
+        v.e.dec_ctr := decctr;
 
         if d_in.decode.repeat /= NONE then
             v.e.repeat := '1';
@@ -411,20 +415,12 @@ begin
                     end if;
                 when others =>
             end case;
-        elsif decctr = '1' and (v.e.lr = '1' or op = OP_BCREG) then
+        end if;
+        if decctr = '1' and (v.e.lr = '1' or op = OP_BCREG) then
             -- Branches that decrement CTR and read or write LR or
             -- read TAR need to be doubled
             v.e.repeat := '1';
             v.e.second := r.repeat;
-        end if;
-
-        if decctr = '1' and r.repeat = '0' then
-            -- read and write CTR
-            v.e.ramspr_rdaddr := RAMSPR_CTR;
-            v.e.ramspr_even_wraddr := RAMSPR_CTR;
-            v.e.ramspr_wr_sel := "10";
-            v.e.ramspr_write_even := '1';
-            sprs_busy := '1';
         end if;
 
         v.e.spr_select := d_in.spr_info;
@@ -438,42 +434,42 @@ begin
             when OP_MTSPR =>
                 v.e.ramspr_even_wraddr := d_in.ram_spr.index;
                 v.e.ramspr_odd_wraddr := d_in.ram_spr.index;
-                v.e.ramspr_wr_sel := "00";
                 v.e.ramspr_write_even := d_in.ram_spr.valid and not d_in.ram_spr.isodd;
                 v.e.ramspr_write_odd := d_in.ram_spr.valid and d_in.ram_spr.isodd;
                 v.e.spr_is_ram := d_in.ram_spr.valid;
-            when OP_B | OP_BC | OP_BCREG =>
-                if v.e.repeat = '0' or r.repeat = '1' then
-                    if op = OP_BCREG then
-                        if d_in.insn(10) = '0' then
-                            v.e.ramspr_rdaddr := RAMSPR_LR;
-                        elsif d_in.insn(6) = '0' then
-                            v.e.ramspr_rdaddr := RAMSPR_CTR;
-                        else
-                            v.e.ramspr_rdaddr := RAMSPR_TAR;
-                        end if;
-                        sprs_busy := '1';
-                    end if;
-                    v.e.ramspr_wr_sel := "10";
-                    v.e.ramspr_odd_wraddr := RAMSPR_CFAR;
-                    -- ramspr_write_odd is not set here because we only
-                    -- write CFAR if the branch is taken.
-                    if v.e.lr = '1' then
-                        v.e.ramspr_wr_sel := "11";
-                        v.e.ramspr_even_wraddr := RAMSPR_LR;
-                        v.e.ramspr_write_even := '1';
-                    end if;
+            when OP_BCREG =>
+                v.e.ramspr_rd_odd := '1';
+                if d_in.insn(10) = '0' then
+                    v.e.ramspr_rdaddr := RAMSPR_LR;
+                elsif d_in.insn(6) = '0' then
+                    v.e.ramspr_rdaddr := RAMSPR_CTR;
+                else
+                    v.e.ramspr_rdaddr := RAMSPR_TAR;
                 end if;
+                sprs_busy := '1';
             when OP_RFID =>
                 v.e.ramspr_rdaddr := RAMSPR_SRR0;
                 sprs_busy := '1';
-            when OP_SC =>
-                -- write next_nia to SRR0
-                v.e.ramspr_even_wraddr := RAMSPR_SRR0;
-                v.e.ramspr_wr_sel := "11";
-                v.e.ramspr_write_even := '1';
             when others =>
         end case;
+
+        if d_in.decode.lr = '1' then
+            -- it's OP_B, OP_BC or OP_BCREG
+            v.e.ramspr_even_wraddr := RAMSPR_CFAR;
+            -- ramspr_write_even is not set here because we only
+            -- write CFAR if the branch is taken.
+        end if;
+        if decctr = '1' and r.repeat = '0' then
+            -- read and write CTR
+            v.e.ramspr_rdaddr := RAMSPR_CTR;
+            v.e.ramspr_odd_wraddr := RAMSPR_CTR;
+            v.e.ramspr_rd_odd := '1';
+            v.e.ramspr_write_odd := '1';
+            sprs_busy := '1';
+        elsif v.e.lr = '1' then
+            v.e.ramspr_odd_wraddr := RAMSPR_LR;
+            v.e.ramspr_write_odd := '1';
+        end if;
 
         r_out.read1_enable <= decoded_reg_a.reg_valid and d_in.valid;
         r_out.read1_reg    <= decoded_reg_a.reg;
@@ -530,6 +526,9 @@ begin
                 -- writes the contents of RT back to RT (i.e. it's a no-op)
                 v.e.result_sel := "001";    -- logical_result
             end if;
+        end if;
+        if decctr = '1' and r.repeat = '0' then
+            v.e.result_sel := "110";    -- ramspr_result, for CTR
         end if;
 
         -- See if any of the operands can get their value via the bypass path.

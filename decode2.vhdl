@@ -105,10 +105,6 @@ architecture behaviour of decode2 is
                 ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_si(insn_in)) & x"0000", 64)));
             when CONST_UI_HI =>
                 ret := ('0', (others => '0'), std_ulogic_vector(resize(unsigned(insn_si(insn_in)) & x"0000", 64)));
-            when CONST_LI =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_li(insn_in)) & "00", 64)));
-            when CONST_BD =>
-                ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_bd(insn_in)) & "00", 64)));
             when CONST_DS =>
                 ret := ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_ds(insn_in)) & "00", 64)));
             when CONST_DQ =>
@@ -121,6 +117,8 @@ architecture behaviour of decode2 is
                 ret := ('0', (others => '0'), x"00000000000000" & "00" & insn_in(1) & insn_in(15 downto 11));
             when CONST_SH32 =>
                 ret := ('0', (others => '0'), x"00000000000000" & "000" & insn_in(15 downto 11));
+            when CONST_4 =>
+                ret := ('0', (others => '0'), 64x"4");
             when NONE =>
                 ret := ('0', (others => '0'), (others => '0'));
         end case;
@@ -148,6 +146,10 @@ architecture behaviour of decode2 is
                 else
                     return ('0', (others => '0'), (others => '0'));
                 end if;
+            when CONST_LI =>
+                return ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_li(insn_in)) & "00", 64)));
+            when CONST_BD =>
+                return ('0', (others => '0'), std_ulogic_vector(resize(signed(insn_bd(insn_in)) & "00", 64)));
             when NONE =>
                 return ('0', (others => '0'), (others => '0'));
         end case;
@@ -211,10 +213,7 @@ architecture behaviour of decode2 is
         OP_MOD      => "011",
         OP_CNTZ     => "011",
         OP_POPCNT   => "011",
-        OP_B        => "100",           -- next_nia
-        OP_BC       => "100",
-        OP_BCREG    => "100",
-        OP_SC       => "100",
+        -- "100" ununsed at present
         OP_MFSPR    => "101",           -- spr_result
         OP_ADDG6S   => "111",           -- misc_result
         OP_ISEL     => "111",

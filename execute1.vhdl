@@ -187,7 +187,6 @@ architecture behaviour of execute1 is
     signal alu_sel : std_ulogic_vector(2 downto 0);
     signal result_mux_sel: std_ulogic_vector(2 downto 0);
     signal sub_mux_sel: std_ulogic_vector(2 downto 0);
-    signal next_nia : std_ulogic_vector(63 downto 0);
 
     signal carry_32 : std_ulogic;
     signal carry_64 : std_ulogic;
@@ -602,7 +601,7 @@ begin
         logical_result     when "001",
         rotator_result     when "010",
         slow_result        when "011",
-        next_nia           when "100",
+        64x"0"             when "100",
         spr_result         when "101",
         ramspr_result      when "110",
         misc_result        when others;
@@ -1081,7 +1080,7 @@ begin
                 v.direct_branch := '1';
                 v.e.br_last := '1';
                 v.e.br_taken := '1';
-                v.e.br_offset := b_in;
+                v.e.br_offset := c_in;
                 v.e.abs_br := insn_aa(e_in.insn);
                 if e_in.br_pred = '0' then
                     -- should never happen
@@ -1103,7 +1102,7 @@ begin
                     v.take_branch := r.br_taken;
                 end if;
                 if v.take_branch = '1' then
-                    v.e.br_offset := b_in;
+                    v.e.br_offset := c_in;
                     v.e.abs_br := insn_aa(e_in.insn);
                 end if;
                 if e_in.repeat = '0' or e_in.second = '1' then
@@ -1394,9 +1393,6 @@ begin
 	timeregs_next.dec <= std_ulogic_vector(unsigned(timeregs.dec) - 1);
 
         irq_valid := r.msr(MSR_EE) and (pmu_to_x.intr or timeregs.dec(63) or ext_irq_in);
-
-	-- Next insn adder used in a couple of places
-	next_nia <= std_ulogic_vector(unsigned(e_in.nia) + 4);
 
 	-- rotator control signals
 	right_shift <= '1' when e_in.insn_type = OP_SHR else '0';

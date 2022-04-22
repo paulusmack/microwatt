@@ -116,16 +116,16 @@ package common is
     -- Even half:
     subtype ramspr_index is natural range 0 to 7;
     constant RAMSPR_SRR0  : ramspr_index := 0;
-    constant RAMSPR_TAR   : ramspr_index := 1;
+    constant RAMSPR_CFAR  : ramspr_index := 1;
     constant RAMSPR_SPRG0 : ramspr_index := 2;
     constant RAMSPR_SPRG2 : ramspr_index := 3;
-    constant RAMSPR_LR    : ramspr_index := 4;
-    constant RAMSPR_CTR   : ramspr_index := 5;
     -- Odd half:
     constant RAMSPR_SRR1  : ramspr_index := 0;
-    constant RAMSPR_CFAR  : ramspr_index := 1;
+    constant RAMSPR_TAR   : ramspr_index := 1;
     constant RAMSPR_SPRG1 : ramspr_index := 2;
     constant RAMSPR_SPRG3 : ramspr_index := 3;
+    constant RAMSPR_LR    : ramspr_index := 4;
+    constant RAMSPR_CTR   : ramspr_index := 5;
 
     type ram_spr_info is record
         index : ramspr_index;
@@ -316,11 +316,11 @@ package common is
         dbg_spr_access : std_ulogic;
         ramspr_rdaddr      : ramspr_index;
         ramspr_rd_odd      : std_ulogic;
-        ramspr_wr_sel      : std_ulogic_vector(1 downto 0);
         ramspr_even_wraddr : ramspr_index;
         ramspr_write_even  : std_ulogic;
         ramspr_odd_wraddr  : ramspr_index;
         ramspr_write_odd   : std_ulogic;
+        dec_ctr: std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => NONE, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
@@ -335,10 +335,10 @@ package common is
          result_sel => "000", sub_select => "000",
          repeat => '0', second => '0', spr_is_ram => '0', spr_select => spr_id_init,
          sprs_busy => '0', dbg_spr_access => '0',
-         ramspr_rdaddr => 0, ramspr_rd_odd => '0', ramspr_wr_sel => "00",
+         ramspr_rdaddr => 0, ramspr_rd_odd => '0',
          ramspr_even_wraddr => 0, ramspr_write_even => '0',
          ramspr_odd_wraddr => 0, ramspr_write_odd => '0',
-         others => (others => '0'));
+         dec_ctr => '0', others => (others => '0'));
 
     type MultiplyInputType is record
 	valid: std_ulogic;

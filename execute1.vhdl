@@ -72,12 +72,26 @@ entity execute1 is
 end entity execute1;
 
 architecture behaviour of execute1 is
+    type side_effect_type is record
+        terminate : std_ulogic;
+        icache_inval : std_ulogic;
+        write_cfar : std_ulogic;
+        write_xerlow : std_ulogic;
+        write_dec : std_ulogic;
+        write_loga : std_ulogic;
+        inc_loga : std_ulogic;
+        write_pmu_spr : std_ulogic;
+        ramspr_write_even : std_ulogic;
+        ramspr_write_odd : std_ulogic;
+    end record;
+    constant side_effect_init : side_effect_type := (others => '0');
+
     type reg_type is record
 	e : Execute1ToWritebackType;
+        se : side_effect_type;
         msr : std_ulogic_vector(63 downto 0);
         xerc : xer_common_t;
         busy: std_ulogic;
-        terminate: std_ulogic;
         intr_pending : std_ulogic;
         fp_exception_next : std_ulogic;
         trace_next : std_ulogic;
@@ -94,21 +108,12 @@ architecture behaviour of execute1 is
         ext_interrupt : std_ulogic;
         taken_branch_event : std_ulogic;
         br_mispredict : std_ulogic;
-        write_xerlow : std_ulogic;
-        write_dec : std_ulogic;
-        write_loga : std_ulogic;
-        inc_loga : std_ulogic;
-        write_pmu_spr : std_ulogic;
-        icache_inval : std_ulogic;
-        write_cfar : std_ulogic;
         ramspr_even_wraddr : ramspr_index;
-        ramspr_write_even : std_ulogic;
         ramspr_odd_wraddr : ramspr_index;
-        ramspr_write_odd : std_ulogic;
         pmu_spr_wr_num : std_ulogic_vector(4 downto 0);
     end record;
     constant reg_type_init : reg_type :=
-        (e => Execute1ToWritebackInit,
+        (e => Execute1ToWritebackInit, se => side_effect_init,
          msr => (others => '0'), xerc => xerc_init, prev_op => OP_ILLEGAL, mul_select => "00",
          ramspr_even_wraddr => 0, ramspr_odd_wraddr => 0,
          pmu_spr_wr_num => 5x"0",
@@ -116,19 +121,12 @@ architecture behaviour of execute1 is
 
     type actions_type is record
 	e : Execute1ToWritebackType;
+        se : side_effect_type;
         complete : std_ulogic;
         interrupt : std_ulogic;
-        terminate : std_ulogic;
         write_msr : std_ulogic;
         new_msr : std_ulogic_vector(63 downto 0);
         write_xerc : std_ulogic;
-        write_xerlow : std_ulogic;
-        write_ramspr : std_ulogic;
-        write_pmuspr : std_ulogic;
-        write_dec : std_ulogic;
-        write_loga : std_ulogic;
-        inc_loga : std_ulogic;
-        write_cfar : std_ulogic;
         take_branch : std_ulogic;
         direct_branch : std_ulogic;
         start_mul : std_ulogic;
@@ -136,10 +134,10 @@ architecture behaviour of execute1 is
         start_cntz : std_ulogic;
         do_trace : std_ulogic;
         fp_intr : std_ulogic;
-        icache_inval : std_ulogic;
     end record;
     constant actions_type_init : actions_type :=
-        (e => Execute1ToWritebackInit, new_msr => (others => '0'), others => '0');
+        (e => Execute1ToWritebackInit, se => side_effect_init,
+         new_msr => (others => '0'), others => '0');
     signal actions : actions_type;
 
     type time_regs_t is record
@@ -488,7 +486,7 @@ begin
 
     valid_in <= e_in.valid and not busy_out and not flush_in;
 
-    terminate_out <= r.terminate and not wb_stall;
+    terminate_out <= r.se.terminate and not wb_stall;
 
     -- SPRs stored in two small RAM arrays (two so that we can read and write
     -- two SPRs in each cycle).
@@ -522,8 +520,8 @@ begin
 
         -- Write address and data muxes
         doit := r.e.valid and not wb_stall;
-        even_wr_enab := (r.ramspr_write_even and doit) or interrupt_in.valid;
-        odd_wr_enab  := (r.ramspr_write_odd and doit) or interrupt_in.valid;
+        even_wr_enab := (r.se.ramspr_write_even and doit) or interrupt_in.valid;
+        odd_wr_enab  := (r.se.ramspr_write_odd and doit) or interrupt_in.valid;
         if interrupt_in.valid = '1' then
             even_wr_addr := RAMSPR_SRR0;
             odd_wr_addr := RAMSPR_SRR1;
@@ -531,7 +529,7 @@ begin
             even_wr_addr := r.ramspr_even_wraddr;
             odd_wr_addr  := r.ramspr_odd_wraddr;
         end if;
-        if (interrupt_in.valid = '1' and interrupt_in.alt_srr0 = '0') or r.write_cfar = '1' then
+        if (interrupt_in.valid = '1' and interrupt_in.alt_srr0 = '0') or r.se.write_cfar = '1' then
             even_wr_data := cia;
         else
             even_wr_data := r.e.write_data;
@@ -551,12 +549,12 @@ begin
         -- SPR RAM read with write data bypass
         -- We assume no instruction executes in the cycle immediately following
         -- an interrupt, so we don't need to bypass interrupt data
-        if r.ramspr_write_even = '1' and e_in.ramspr_rdaddr = r.ramspr_even_wraddr then
+        if r.se.ramspr_write_even = '1' and e_in.ramspr_rdaddr = r.ramspr_even_wraddr then
             ramspr_even <= even_wr_data;
         else
             ramspr_even <= even_rd_data;
         end if;
-        if r.ramspr_write_odd = '1' and e_in.ramspr_rdaddr = r.ramspr_odd_wraddr then
+        if r.se.ramspr_write_odd = '1' and e_in.ramspr_rdaddr = r.ramspr_odd_wraddr then
             ramspr_odd <= r.e.write_data;
         else
             ramspr_odd <= odd_rd_data;
@@ -987,6 +985,7 @@ begin
         variable srr1 : std_ulogic_vector(63 downto 0);
     begin
         v := actions_type_init;
+        v.se := side_effect_init;
         v.e.write_data := alu_result;
         v.e.write_reg := e_in.write_reg;
         v.e.write_enable := e_in.write_reg_enable;
@@ -1004,6 +1003,8 @@ begin
         v.e.instr_tag := e_in.instr_tag;
         v.e.last_nia := e_in.nia;
         v.e.br_offset := 64x"4";
+        v.se.ramspr_write_even := e_in.ramspr_write_even;
+        v.se.ramspr_write_odd := e_in.ramspr_write_odd;
 
         illegal := '0';
         privileged := '0';
@@ -1039,7 +1040,7 @@ begin
                 -- check bits 1-10 of the instruction to make sure it's attn
                 -- if not then it is illegal
                 if e_in.insn(10 downto 1) = "0100000000" and r.msr(MSR_PR) = '0' then
-                    v.terminate := '1';
+                    v.se.terminate := '1';
                     if e_in.valid = '1' then
                         report "ATTN";
                     end if;
@@ -1092,7 +1093,8 @@ begin
                 if r.msr(MSR_BE) = '1' then
                     v.do_trace := '1';
                 end if;
-                v.write_cfar := '1';
+                v.se.write_cfar := '1';
+                v.se.ramspr_write_even := '1';
             when OP_BC =>
                 -- If CTR is being decremented, it is in ramspr_odd.
                 -- This instruction is doubled if it decrements CTR
@@ -1119,7 +1121,10 @@ begin
                     if r.msr(MSR_BE) = '1' then
                         v.do_trace := '1';
                     end if;
-                    v.write_cfar := v.take_branch;
+                    if v.take_branch = '1' then
+                        v.se.write_cfar := '1';
+                        v.se.ramspr_write_even := '1';
+                    end if;
                 end if;
             when OP_BCREG =>
                 -- If CTR is being decremented, it is in ramspr_odd.
@@ -1142,7 +1147,10 @@ begin
                     if r.msr(MSR_BE) = '1' then
                         v.do_trace := '1';
                     end if;
-                    v.write_cfar := v.take_branch;
+                    if v.take_branch = '1' then
+                        v.se.write_cfar := '1';
+                        v.se.ramspr_write_even := '1';
+                    end if;
                 end if;
 
             when OP_RFID =>
@@ -1163,7 +1171,8 @@ begin
                 v.e.br_offset := ramspr_result;
                 v.e.abs_br := '1';
                 v.e.redirect := '1';
-                v.write_cfar := '1';
+                v.se.write_cfar := '1';
+                v.se.ramspr_write_even := '1';
                 if HAS_FPU then
                     v.fp_intr := fp_in.exception and
                                  (srr1(MSR_FE0) or srr1(MSR_FE1));
@@ -1191,7 +1200,7 @@ begin
                     end if;
                     case e_in.spr_select.sel is
                         when SPRSEL_LOGD =>
-                            v.inc_loga := '1';
+                            v.se.inc_loga := '1';
                         when others =>
                     end case;
                 else
@@ -1246,17 +1255,16 @@ begin
                             v.e.xerc.ov32 := c_in(63-44);
                             v.e.xerc.ca32 := c_in(63-45);
                             v.write_xerc := '1';
-                            v.write_xerlow := '1';
+                            v.se.write_xerlow := '1';
                         when SPRSEL_DEC =>
-                            v.write_dec := '1';
+                            v.se.write_dec := '1';
                         when SPRSEL_LOGA =>
-                            v.write_loga := '1';
+                            v.se.write_loga := '1';
                         when SPRSEL_PMU =>
-                            v.write_pmuspr := '1';
+                            v.se.write_pmu_spr := '1';
                         when others =>
                     end case;
                 end if;
-                v.write_ramspr := e_in.spr_is_ram;
                 if e_in.spr_select.valid = '0' and e_in.spr_is_ram = '0' then
                     -- mtspr to unimplemented SPRs should be a nop in
                     -- supervisor mode and a program interrupt for user mode
@@ -1275,7 +1283,7 @@ begin
                 v.e.redirect := '1';
 
             when OP_ICBI =>
-                v.icache_inval := '1';
+                v.se.icache_inval := '1';
 
             when OP_MUL_L64 =>
                 if HAS_SHORT_MULT and e_in.insn(26) = '1' and
@@ -1356,17 +1364,9 @@ begin
 	v := r;
         if r.busy = '0' and wb_stall = '0' then
             v.e := actions.e;
+            v.se := side_effect_init;
             v.oe := e_in.oe;
             v.mul_select := e_in.sub_select(1 downto 0);
-            v.write_xerlow := '0';
-            v.write_dec := '0';
-            v.write_loga := '0';
-            v.inc_loga := '0';
-            v.write_pmu_spr := '0';
-            v.icache_inval := '0';
-            v.terminate := '0';
-            v.ramspr_write_even := '0';
-            v.ramspr_write_odd := '0';
         end if;
 
         lv := Execute1ToLoadstore1Init;
@@ -1476,13 +1476,7 @@ begin
             v.trace_next := actions.do_trace;
             v.fp_exception_next := actions.fp_intr;
 
-            v.write_xerlow := actions.write_xerlow;
-            v.write_dec := actions.write_dec;
-            v.write_loga := actions.write_loga;
-            v.inc_loga := actions.inc_loga;
-            v.write_pmu_spr := actions.write_pmuspr;
-            v.icache_inval := actions.icache_inval;
-            v.terminate := actions.terminate;
+            v.se := actions.se;
 
             v.cntz_in_progress := actions.start_cntz;
             x_to_multiply.valid <= actions.start_mul;
@@ -1493,12 +1487,9 @@ begin
             v.br_taken := actions.take_branch;
             v.taken_branch_event := actions.take_branch;
             v.br_mispredict := v.e.redirect and actions.direct_branch;
-            v.write_cfar := actions.write_cfar;
 
             v.ramspr_even_wraddr := e_in.ramspr_even_wraddr;
-            v.ramspr_write_even := e_in.ramspr_write_even or actions.write_cfar;
             v.ramspr_odd_wraddr := e_in.ramspr_odd_wraddr;
-            v.ramspr_write_odd := e_in.ramspr_write_odd;
 
             v.busy := actions.start_cntz or actions.start_mul or actions.start_div;
             if actions.write_xerc = '1' then
@@ -1637,15 +1628,15 @@ begin
             -- instruction in r.e is now completing, commit its effects to ctrl
             ctrl_tmp.msr <= r.msr;
             ctrl_tmp.xerc <= r.xerc;
-            if r.write_xerlow = '1' then
+            if r.se.write_xerlow = '1' then
                 ctrl_tmp.xer_low <= r.e.write_data(17 downto 0);
             end if;
-            if r.write_dec = '1' then
+            if r.se.write_dec = '1' then
                 timeregs_next.dec <= r.e.write_data;
             end if;
-            if r.write_loga = '1' then
+            if r.se.write_loga = '1' then
                 ctrl_tmp.log_addr_spr <= r.e.write_data(31 downto 0);
-            elsif r.inc_loga = '1' then
+            elsif r.se.inc_loga = '1' then
                 ctrl_tmp.log_addr_spr <= std_ulogic_vector(unsigned(ctrl.log_addr_spr) + 1);
             end if;
         elsif flush_in = '1' then
@@ -1681,8 +1672,8 @@ begin
 	e_out <= r.e;
         fp_out <= fv;
 
-        x_to_pmu.mtspr <= r.write_pmu_spr and not wb_stall;
-        icache_inval <= r.icache_inval and not wb_stall;
+        x_to_pmu.mtspr <= r.se.write_pmu_spr and not wb_stall;
+        icache_inval <= r.se.icache_inval and not wb_stall;
 
         exception_log <= exception;
         irq_valid_log <= irq_valid;

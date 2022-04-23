@@ -157,7 +157,6 @@ architecture behave of loadstore1 is
 
     signal busy     : std_ulogic;
     signal complete : std_ulogic;
-    signal in_progress : std_ulogic;
     signal flushing : std_ulogic;
 
     signal store_sp_data : std_ulogic_vector(31 downto 0);
@@ -501,7 +500,6 @@ begin
                               (r1.req.dc_req and r1.req.two_dwords and not r1.req.dword_index));
     complete <= r2.one_cycle or (r2.wait_dc and d_in.valid) or
                 (r2.wait_mmu and m_in.done) or r3.convert_lfs;
-    in_progress <= r1.req.valid or (r2.req.valid and not complete);
 
     stage1_issue_enable <= r3.stage1_en and not (r1.req.valid and r1.req.mmu_op) and
                            not (r2.req.valid and r2.req.mmu_op);
@@ -967,8 +965,6 @@ begin
 
         -- update busy signal back to execute1
         e_out.busy <= r1.stash.valid;
-        e_out.in_progress <= in_progress;
-        e_out.interrupt <= r3.interrupt;
 
         events <= r3.events;
 

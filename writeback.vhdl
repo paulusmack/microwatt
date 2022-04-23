@@ -18,12 +18,12 @@ entity writeback is
         w_out        : out WritebackToRegisterFileType;
         c_out        : out WritebackToCrFileType;
         f_out        : out WritebackToFetch1Type;
+        e_out        : out WritebackToExecute1Type;
 
         -- PMU event bus
         events       : out WritebackEventType;
 
         flush_out    : out std_ulogic;
-        interrupt_out: out WritebackToExecute1Type;
         complete_out : out instr_tag_t;
 
         stall_ex     : out std_ulogic;
@@ -52,6 +52,12 @@ begin
             assert not ((l_in.valid or l_in.interrupt) = '1' and l_in.instr_tag.valid = '0') severity failure;
             assert not ((fp_in.valid or fp_in.interrupt) = '1' and fp_in.instr_tag.valid = '0') severity failure;
 
+            if complete_out.valid = '1' then
+                report "completed tag " & integer'image(complete_out.tag);
+            end if;
+            if e_out.interrupt = '1' then
+                report "interrupt at tag " & integer'image(e_out.itag);
+            end if;
             if rst = '1' or flush_out = '1' then
                 complete_tag <= 0;
             else
@@ -113,18 +119,18 @@ begin
         events.fp_complete <= fpu_valid;
 
         intr := ex_intr or ls_intr or fpu_intr;
-        interrupt_out.valid <= intr;
-        interrupt_out.itag <= complete_tag;
-        interrupt_out.alt_srr0 <= ex_intr and e_in.alt_srr0;
+        e_out.interrupt <= intr;
+        e_out.itag <= complete_tag;
+        e_out.alt_srr0 <= ex_intr and e_in.alt_srr0;
         if ls_intr = '1' then
             vec := l_in.intr_vec;
-            interrupt_out.srr1 <= l_in.srr1;
+            e_out.srr1 <= l_in.srr1;
         elsif fpu_intr = '1' then
             vec := fp_in.intr_vec;
-            interrupt_out.srr1 <= fp_in.srr1;
+            e_out.srr1 <= fp_in.srr1;
         else
             vec := e_in.intr_vec;
-            interrupt_out.srr1 <= e_in.srr1;
+            e_out.srr1 <= e_in.srr1;
         end if;
 
         if ex_valid = '1' and e_in.write_enable = '1' then

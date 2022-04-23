@@ -33,7 +33,7 @@ entity execute1 is
         fp_in : in FPUToExecute1Type;
 
 	ext_irq_in : std_ulogic;
-        interrupt_in : in WritebackToExecute1Type;
+        wb_in : in WritebackToExecute1Type;
 
 	-- asynchronous
         l_out : out Execute1ToLoadstore1Type;
@@ -92,7 +92,6 @@ architecture behaviour of execute1 is
         msr : std_ulogic_vector(63 downto 0);
         xerc : xer_common_t;
         busy: std_ulogic;
-        intr_pending : std_ulogic;
         fp_exception_next : std_ulogic;
         trace_next : std_ulogic;
         prev_op : insn_type_t;
@@ -481,8 +480,9 @@ begin
     xerc_in <= r.xerc;
 
     with e_in.unit select busy_out <=
-        l_in.busy or r.busy or fp_in.busy or wb_stall when LDST,
-        l_in.busy or l_in.in_progress or r.busy or fp_in.busy or wb_stall when others;
+        l_in.busy or fp_in.busy or r.busy or wb_stall when LDST,
+        fp_in.busy or r.busy or wb_stall when FPU,
+        r.busy or wb_stall when others;
 
     valid_in <= e_in.valid and not busy_out and not flush_in;
 
@@ -515,27 +515,26 @@ begin
         end if;
 
         -- completed instruction address
-        -- XXX change name of interrupt_in
-        cia := ciaq(interrupt_in.itag);
+        cia := ciaq(wb_in.itag);
 
         -- Write address and data muxes
         doit := r.e.valid and not wb_stall;
-        even_wr_enab := (r.se.ramspr_write_even and doit) or interrupt_in.valid;
-        odd_wr_enab  := (r.se.ramspr_write_odd and doit) or interrupt_in.valid;
-        if interrupt_in.valid = '1' then
+        even_wr_enab := (r.se.ramspr_write_even and doit) or wb_in.interrupt;
+        odd_wr_enab  := (r.se.ramspr_write_odd and doit) or wb_in.interrupt;
+        if wb_in.interrupt = '1' then
             even_wr_addr := RAMSPR_SRR0;
             odd_wr_addr := RAMSPR_SRR1;
         else
             even_wr_addr := r.ramspr_even_wraddr;
             odd_wr_addr  := r.ramspr_odd_wraddr;
         end if;
-        if (interrupt_in.valid = '1' and interrupt_in.alt_srr0 = '0') or r.se.write_cfar = '1' then
+        if (wb_in.interrupt = '1' and wb_in.alt_srr0 = '0') or r.se.write_cfar = '1' then
             even_wr_data := cia;
         else
             even_wr_data := r.e.write_data;
         end if;
-        if interrupt_in.valid = '1' then
-            odd_wr_data := intr_srr1(ctrl.msr, interrupt_in.srr1);
+        if wb_in.interrupt = '1' then
+            odd_wr_data := intr_srr1(ctrl.msr, wb_in.srr1);
         else
             odd_wr_data := r.e.write_data;
         end if;
@@ -628,8 +627,7 @@ begin
                     report "execute " & to_hstring(e_in.nia) & " op=" & insn_type_t'image(e_in.insn_type) &
                         " wr=" & to_hstring(rin.e.write_reg) & " we=" & std_ulogic'image(rin.e.write_enable) &
                         " tag=" & integer'image(rin.e.instr_tag.tag) & std_ulogic'image(rin.e.instr_tag.valid) &
-                        " wd=" & to_hstring(rin.e.write_data) & " sel=" & to_hstring(e_in.result_sel) &
-                        " ra=" & integer'image(e_in.ramspr_rdaddr) & " ro=" & std_ulogic'image(e_in.ramspr_rd_odd);
+                        " wd=" & to_hstring(rin.e.write_data);
                 end if;
                 if e_in.valid = '1' then
                     ciaq(e_in.instr_tag.tag) <= e_in.nia;
@@ -727,6 +725,7 @@ begin
         end if;
 
         -- Interface to multiply and divide units
+        x_to_divider.flush <= flush_in;
         x_to_divider.is_signed <= e_in.is_signed;
 	x_to_divider.is_32bit <= e_in.is_32bit;
         x_to_divider.is_extended <= '0';
@@ -1362,7 +1361,11 @@ begin
         variable go : std_ulogic;
     begin
 	v := r;
-        if r.busy = '0' and wb_stall = '0' then
+        if flush_in = '1' then
+            v.e.valid := '0';
+            v.e.interrupt := '0';
+            v.se := side_effect_init;
+        elsif r.busy = '0' and wb_stall = '0' then
             v.e := actions.e;
             v.se := side_effect_init;
             v.oe := e_in.oe;
@@ -1411,8 +1414,8 @@ begin
 
         -- Determine if there is any interrupt to be taken
         -- before/instead of executing this instruction
-        exception := r.intr_pending or (valid_in and actions.interrupt);
-        if valid_in = '1' and e_in.second = '0' and r.intr_pending = '0' then
+        exception := valid_in and actions.interrupt;
+        if valid_in = '1' and e_in.second = '0' then
             if HAS_FPU and r.fp_exception_next = '1' then
                 -- This is used for FP-type program interrupts that
                 -- become pending due to MSR[FE0,FE1] changing from 00 to non-zero.
@@ -1454,18 +1457,12 @@ begin
 
             end if;
         end if;
-        if exception = '1' and l_in.in_progress = '1' then
-            -- We can't send this interrupt to writeback yet because there are
-            -- still instructions in loadstore1 that haven't completed.
-            v.intr_pending := '1';
-            v.busy := '1';
-        end if;
-        v.e.interrupt := exception and not (l_in.in_progress or l_in.interrupt or flush_in);
-        if v.e.interrupt = '1' or interrupt_in.valid = '1' then
-            v.intr_pending := '0';
+        if exception = '1' then
+            v.e.interrupt := '1';
         end if;
 
-        v.no_instr_avail := not (e_in.valid or l_in.busy or l_in.in_progress or r.busy or fp_in.busy);
+        -- only approximate...
+        v.no_instr_avail := not (e_in.valid or l_in.busy or r.busy or fp_in.busy);
 
         go := valid_in and not exception;
         v.instr_dispatch := go;
@@ -1560,9 +1557,9 @@ begin
 
         bypass_data.tag.valid <= v.e.write_enable and v.e.valid;
         bypass_data.tag.tag <= v.e.instr_tag.tag;
-        bypass_data.data <= alu_result;
+        bypass_data.data <= v.e.write_data;
 
-        bypass_cr_data.tag.valid <= v.e.write_cr_enable and v.e.valid;
+        bypass_cr_data.tag.valid <= go and v.e.write_cr_enable and v.e.valid;
         bypass_cr_data.tag.tag <= v.e.instr_tag.tag;
         for i in 0 to 7 loop
             if write_cr_mask(i) = '1' then
@@ -1572,7 +1569,7 @@ begin
             end if;
         end loop;
 
-        if interrupt_in.valid = '1' then
+        if wb_in.interrupt = '1' then
             v.trace_next := '0';
             v.fp_exception_next := '0';
         end if;
@@ -1644,7 +1641,7 @@ begin
             v.msr := ctrl.msr;
             v.xerc := ctrl.xerc;
         end if;
-        if interrupt_in.valid = '1' then
+        if wb_in.interrupt = '1' then
             -- note: v.msr = ctrl_tmp.msr at this point since flush_in = 1
             v.msr(MSR_EE) := '0';
             v.msr(MSR_PR) := '0';
@@ -1710,7 +1707,7 @@ begin
                             ctrl.msr(MSR_IR) & ctrl.msr(MSR_DR) &
                             exception_log &
                             irq_valid_log &
-                            interrupt_in.valid &
+                            wb_in.interrupt &
                             "000" &
                             r.e.write_enable &
                             r.e.valid &

@@ -963,12 +963,18 @@ begin
                 crnum := fxm_to_num(insn_fxm(e_in.insn));
                 write_cr_mask <= num_to_fxm(crnum);
             end if;
-            write_cr_data <= c_in(31 downto 0);
         else
             write_cr_mask <= num_to_fxm(crnum);
-            write_cr_data <= newcrf & newcrf & newcrf & newcrf &
-                             newcrf & newcrf & newcrf & newcrf;
         end if;
+        for i in 0 to 7 loop
+            if write_cr_mask(i) = '0' then
+                write_cr_data(i*4 + 3 downto i*4) <= cr_in(i*4 + 3 downto i*4);
+            elsif e_in.insn_type = OP_MTCRF then
+                write_cr_data(i*4 + 3 downto i*4) <= c_in(i*4 + 3 downto i*4);
+            else
+                write_cr_data(i*4 + 3 downto i*4) <= newcrf;
+            end if;
+        end loop;
 
     end process;
 
@@ -1556,15 +1562,9 @@ begin
         bypass_data.tag.tag <= v.e.instr_tag.tag;
         bypass_data.data <= v.e.write_data;
 
-        bypass_cr_data.tag.valid <= go and v.e.write_cr_enable and v.e.valid;
+        bypass_cr_data.tag.valid <= v.e.write_cr_enable and v.e.valid;
         bypass_cr_data.tag.tag <= v.e.instr_tag.tag;
-        for i in 0 to 7 loop
-            if write_cr_mask(i) = '1' then
-                bypass_cr_data.data(i*4 + 3 downto i*4) <= write_cr_data(i*4 + 3 downto i*4);
-            else
-                bypass_cr_data.data(i*4 + 3 downto i*4) <= cr_in(i*4 + 3 downto i*4);
-            end if;
-        end loop;
+        bypass_cr_data.data <= v.e.write_cr_data;
 
         if wb_in.interrupt = '1' then
             v.trace_next := '0';

@@ -120,7 +120,8 @@ architecture behaviour of execute1 is
 	e : Execute1ToWritebackType;
         se : side_effect_type;
         complete : std_ulogic;
-        interrupt : std_ulogic;
+        exception : std_ulogic;
+        trap : std_ulogic;
         write_msr : std_ulogic;
         new_msr : std_ulogic_vector(63 downto 0);
         write_xerc : std_ulogic;
@@ -1008,6 +1009,17 @@ begin
         v.se.ramspr_write_even := e_in.ramspr_write_even;
         v.se.ramspr_write_odd := e_in.ramspr_write_odd;
 
+        -- Note the difference between v.exception and v.trap:
+        -- v.exception signals a condition that prevents execution of the
+        -- instruction, and hence shouldn't depend on operand data, so as to
+        -- avoid timing chains through both data and control paths.
+        -- v.trap also means we want to generate an interrupt, but doesn't
+        -- cancel instruction execution (hence we need to avoid setting any
+        -- side-effect flags or write enables when generating a trap).
+        -- With v.trap = 1 we will assert both r.e.valid and r.e.interrupt
+        -- to writeback, and it will complete the instruction and take
+        -- and interrupt.  It is OK for v.trap to depend on operand data.
+
         illegal := '0';
         privileged := '0';
         slow_op := '0';
@@ -1029,7 +1041,7 @@ begin
                 -- check bit 1 of the instruction is 1 so we know this is sc;
                 -- 0 would mean scv, so generate an illegal instruction interrupt
                 if e_in.insn(1) = '1' then
-                    v.interrupt := '1';
+                    v.trap := '1';
                     v.e.intr_vec := 16#C00#;
                     v.e.alt_srr0 := '1';
                     if e_in.valid = '1' then
@@ -1070,7 +1082,7 @@ begin
                 v.e.srr1(47 - 46) := '1';
                 if or (trapval and insn_to(e_in.insn)) = '1' then
                     -- generate trap-type program interrupt
-                    v.interrupt := '1';
+                    v.trap := '1';
                     if e_in.valid = '1' then
                         report "trap";
                     end if;
@@ -1321,7 +1333,7 @@ begin
 
         if privileged = '1' then
             -- generate a program interrupt
-            v.interrupt := '1';
+            v.exception := '1';
             -- set bit 45 to indicate privileged instruction type interrupt
             v.e.srr1(47 - 45) := '1';
             if e_in.valid = '1' then
@@ -1329,7 +1341,7 @@ begin
             end if;
 
         elsif illegal = '1' then
-            v.interrupt := '1';
+            v.exception := '1';
             -- Since we aren't doing Hypervisor emulation assist (0xe40) we
             -- set bit 44 to indicate we have an illegal
             v.e.srr1(47 - 44) := '1';
@@ -1339,7 +1351,7 @@ begin
 
         elsif HAS_FPU and r.msr(MSR_FP) = '0' and e_in.fac = FPU then
             -- generate a floating-point unavailable interrupt
-            v.interrupt := '1';
+            v.exception := '1';
             v.e.intr_vec := 16#800#;
             if e_in.valid = '1' then
                 report "FP unavailable interrupt";
@@ -1347,7 +1359,7 @@ begin
         end if;
 
         if e_in.unit = ALU then
-            v.complete := e_in.valid and not v.interrupt and not slow_op;
+            v.complete := e_in.valid and not v.exception and not slow_op;
         end if;
 
         actions <= v;
@@ -1417,7 +1429,7 @@ begin
 
         -- Determine if there is any interrupt to be taken
         -- before/instead of executing this instruction
-        exception := valid_in and actions.interrupt;
+        exception := valid_in and actions.exception;
         if valid_in = '1' and e_in.second = '0' then
             if HAS_FPU and r.fp_exception_next = '1' then
                 -- This is used for FP-type program interrupts that
@@ -1494,6 +1506,10 @@ begin
             v.busy := actions.start_cntz or actions.start_mul or actions.start_div;
             if actions.write_xerc = '1' then
                 v.xerc := actions.e.xerc;
+            end if;
+
+            if actions.trap = '1' then
+                v.e.interrupt := '1';
             end if;
 
             -- instruction for other units, i.e. LDST

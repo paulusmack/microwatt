@@ -1054,15 +1054,9 @@ begin
                     illegal := '1';
                 end if;
             when OP_ATTN =>
-                -- check bits 1-10 of the instruction to make sure it's attn
-                -- if not then it is illegal
-                if e_in.insn(10 downto 1) = "0100000000" and r.msr(MSR_PR) = '0' then
-                    v.se.terminate := '1';
-                    if e_in.valid = '1' then
-                        report "ATTN";
-                    end if;
-                else
-                    illegal := '1';
+                v.se.terminate := '1';
+                if e_in.valid = '1' then
+                    report "ATTN";
                 end if;
             when OP_NOP | OP_DCBF | OP_DCBST | OP_DCBT | OP_DCBTST | OP_ICBT =>
                 -- Do nothing

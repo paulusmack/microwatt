@@ -1468,6 +1468,64 @@ int fpu_test_24(void)
 	return 0;
 }
 
+struct wdiv_tests {
+	unsigned int denom;
+	unsigned int divisor;
+	unsigned int divw;
+	unsigned int divwu;
+	unsigned int divwe;
+	unsigned int divweu;
+	unsigned int modsw;
+	unsigned int moduw;
+} wdiv_tests[] = {
+	{ 0, 0,			0, 0, 0, 0, 0, 0 },
+	{ 0x56789a, 0x1234,	0x4c0, 0x4c0, 0, 0, 0x19a, 0x19a },
+	{ 2, 3,			0, 0, 0, 0xaaaaaaaa, 2, 2 },
+	{ 31, 157,		0, 0, 0x328c3ab3, 0x328c3ab3, 31, 31 },
+	{ -4329874, 43879,	-98, 0x17df7, 0, 0, -29732, 17165 },
+	{ -4329874, -43879,	98, 0, 0, 0xffbe99a9, -29732, -4329874 },
+	{ 0x80000000u, -1,	0, 0, 0, 0x80000000u, 0, 0x80000000u },
+};
+
+int fpu_test_25(void)
+{
+	long i;
+	unsigned int a, b, results[6];
+
+	for (i = 0; i < sizeof(wdiv_tests) / sizeof(wdiv_tests[0]); ++i) {
+		a = wdiv_tests[i].denom;
+		b = wdiv_tests[i].divisor;
+		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(491<<1)"
+		    : "=r" (results[0]) : "r" (a), "r" (b));
+		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(459<<1)"
+		    : "=r" (results[1]) : "r" (a), "r" (b));
+		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(427<<1)"
+		    : "=r" (results[2]) : "r" (a), "r" (b));
+		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(395<<1)"
+		    : "=r" (results[3]) : "r" (a), "r" (b));
+		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(779<<1)"
+		    : "=r" (results[4]) : "r" (a), "r" (b));
+		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(267<<1)"
+		    : "=r" (results[5]) : "r" (a), "r" (b));
+		if (results[0] != wdiv_tests[i].divw ||
+		    results[1] != wdiv_tests[i].divwu ||
+		    results[2] != wdiv_tests[i].divwe ||
+		    results[3] != wdiv_tests[i].divweu ||
+		    results[4] != wdiv_tests[i].modsw ||
+		    results[5] != wdiv_tests[i].moduw) {
+			print_hex(i, 2, " ");
+			print_hex(results[0], 8, " ");
+			print_hex(results[1], 8, " ");
+			print_hex(results[2], 8, " ");
+			print_hex(results[3], 8, " ");
+			print_hex(results[4], 8, " ");
+			print_hex(results[5], 8, "\r\n");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -1517,6 +1575,7 @@ int main(void)
 	do_test(22, fpu_test_22);
 	do_test(23, fpu_test_23);
 	do_test(24, fpu_test_24);
+	do_test(25, fpu_test_25);
 
 	return fail;
 }

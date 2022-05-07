@@ -81,7 +81,7 @@ architecture behaviour of fpu is
                      IDIV_NORMB, IDIV_NORMB2, IDIV_NORMB3,
                      IDIV_CLZA, IDIV_CLZA2, IDIV_CLZA3,
                      IDIV_NR0, IDIV_NR1, IDIV_NR2, IDIV_USE0_5,
-                     IDIV_DODIV,
+                     IDIV_DODIV, IDIV_SH32,
                      IDIV_DIV, IDIV_DIV2, IDIV_DIV3, IDIV_DIV4, IDIV_DIV5,
                      IDIV_DIV6, IDIV_DIV7, IDIV_DIV8, IDIV_DIV9,
                      IDIV_EXT_TBH, IDIV_EXT_TBH2, IDIV_EXT_TBH3,
@@ -438,17 +438,20 @@ architecture behaviour of fpu is
 
     -- Split a DP floating-point number into components and work out its class.
     -- If is_int = 1, the input is considered an integer
-    function decode_dp(fpr: std_ulogic_vector(63 downto 0); is_int: std_ulogic) return fpu_reg_type is
+    function decode_dp(fpr: std_ulogic_vector(63 downto 0); is_int: std_ulogic;
+                       is_32bint: std_ulogic; is_signed: std_ulogic) return fpu_reg_type is
         variable r       : fpu_reg_type;
         variable exp_nz  : std_ulogic;
         variable exp_ao  : std_ulogic;
         variable frac_nz : std_ulogic;
+        variable low_nz  : std_ulogic;
         variable cls     : std_ulogic_vector(2 downto 0);
     begin
         r.negative := fpr(63);
         exp_nz := or (fpr(62 downto 52));
         exp_ao := and (fpr(62 downto 52));
         frac_nz := or (fpr(51 downto 0));
+        low_nz := or (fpr(31 downto 0));
         if is_int = '0' then
             r.exponent := signed(resize(unsigned(fpr(62 downto 52)), EXP_BITS)) - to_signed(1023, EXP_BITS);
             if exp_nz = '0' then
@@ -465,6 +468,16 @@ architecture behaviour of fpu is
                 when "110"  => r.class := INFINITY;
                 when others => r.class := NAN;
             end case;
+        elsif is_32bint = '1' then
+            r.negative := fpr(31);
+            r.mantissa(31 downto 0) := fpr(31 downto 0);
+            r.mantissa(63 downto 32) := (others => (is_signed and fpr(31)));
+            r.exponent := (others => '0');
+            if low_nz = '1' then
+                r.class := FINITE;
+            else
+                r.class := ZERO;
+            end if;
         else
             r.mantissa := fpr;
             r.exponent := (others => '0');
@@ -639,6 +652,7 @@ begin
         variable j, k        : integer;
         variable flm         : std_ulogic_vector(7 downto 0);
         variable int_input   : std_ulogic;
+        variable is_32bint   : std_ulogic;
         variable mask        : std_ulogic_vector(63 downto 0);
         variable in_a0       : std_ulogic_vector(63 downto 0);
         variable in_b0       : std_ulogic_vector(63 downto 0);
@@ -690,11 +704,13 @@ begin
         variable round_inc   : std_ulogic_vector(63 downto 0);
         variable rbit_inc    : std_ulogic;
         variable mult_mask   : std_ulogic;
+        variable sign_bit    : std_ulogic;
     begin
         v := r;
         illegal := '0';
         v.busy := '0';
         int_input := '0';
+        is_32bint := '0';
 
         -- capture incoming instruction
         if e_in.valid = '1' then
@@ -704,7 +720,7 @@ begin
             v.fe_mode := or (e_in.fe_mode);
             v.dest_fpr := e_in.frt;
             v.single_prec := e_in.single;
-            v.longmask := e_in.single;
+            v.is_signed := e_in.is_signed;
             v.int_result := '0';
             v.rc := e_in.rc;
             v.is_cmp := e_in.out_cr;
@@ -713,9 +729,22 @@ begin
             else
                 v.cr_mask := num_to_fxm(to_integer(unsigned(insn_bf(e_in.insn))));
             end if;
-            int_input := '0';
-            if e_in.op = OP_FPOP_I then
+            v.longmask := '0';
+            v.divext := '0';
+            v.divmod := '0';
+            if e_in.op = OP_FPOP or e_in.op = OP_FPOP_I then
+                v.longmask := e_in.single;
+                if e_in.op = OP_FPOP_I then
+                    int_input := '1';
+                end if;
+            else -- OP_DIV, OP_DIVE, OP_MOD
                 int_input := '1';
+                is_32bint := e_in.single;
+                if e_in.op = OP_DIVE then
+                    v.divext := '1';
+                elsif e_in.op = OP_MOD then
+                    v.divmod := '1';
+                end if;
             end if;
             v.quieten_nan := '1';
             v.tiny := '0';
@@ -726,15 +755,12 @@ begin
             v.is_sqrt := '0';
             v.add_bsmall := '0';
             v.doing_ftdiv := "00";
-            v.divext := e_in.insn(8) and not e_in.insn(7);
-            v.divmod := not e_in.insn(8);
-            v.is_signed := e_in.is_signed;
             v.int_ovf := '0';
             v.div_close := '0';
 
-            adec := decode_dp(e_in.fra, int_input);
-            bdec := decode_dp(e_in.frb, int_input);
-            cdec := decode_dp(e_in.frc, int_input);
+            adec := decode_dp(e_in.fra, int_input, is_32bint, e_in.is_signed);
+            bdec := decode_dp(e_in.frb, int_input, is_32bint, e_in.is_signed);
+            cdec := decode_dp(e_in.frc, int_input, '0', '0');
             v.a := adec;
             v.b := bdec;
             v.c := cdec;
@@ -901,7 +927,7 @@ begin
                             else
                                 v.state := DO_FRI;
                             end if;
-                        when "01001" =>
+                        when "01001" | "01011" =>
                             -- integer divides and mods, major opcode 31
                             v.opsel_a := AIN_B;
                             v.state := DO_IDIVMOD;
@@ -2535,6 +2561,10 @@ begin
                     v.shift := to_signed(-UNIT_BIT, EXP_BITS);
                     v.first := '1';
                     v.state := IDIV_DIV;
+                elsif r.single_prec = '1' then
+                    -- divwe[u][o], shift A left 32 bits
+                    v.shift := to_signed(32, EXP_BITS);
+                    v.state := IDIV_SH32;
                 elsif r.div_close = '0' then
                     v.shift := to_signed(64 - UNIT_BIT, EXP_BITS);
                     v.state := IDIV_EXTDIV;
@@ -2544,6 +2574,12 @@ begin
                     v.opsel_a := AIN_C;
                     v.state := IDIV_EXT_TBH;
                 end if;
+            when IDIV_SH32 =>
+                -- r.shift = 32, R contains the dividend
+                opsel_r <= RES_SHIFT;
+                v.shift := to_signed(-UNIT_BIT, EXP_BITS);
+                v.first := '1';
+                v.state := IDIV_DIV;
             when IDIV_DIV =>
                 -- Dividing A by C, r.shift = -56; A is in R
                 -- Put A into the bottom 64 bits of Ahi/A/Alo
@@ -2780,7 +2816,12 @@ begin
                     v.state := IDIV_OVFCHK;
                 end if;
             when IDIV_OVFCHK =>
-                v.int_ovf := r.r(63) xor r.result_sign;
+                if r.single_prec = '0' then
+                    sign_bit := r.r(63);
+                else
+                    sign_bit := r.r(31);
+                end if;
+                v.int_ovf := sign_bit xor r.result_sign;
                 if v.int_ovf = '1' then
                     v.state := IDIV_ZERO;
                 else

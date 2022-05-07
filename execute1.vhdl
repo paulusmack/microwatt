@@ -1312,8 +1312,10 @@ begin
                 slow_op := '1';
 
             when OP_DIV | OP_DIVE | OP_MOD =>
-                v.start_div := '1';
-                slow_op := '1';
+                if e_in.unit = ALU then
+                    v.start_div := '1';
+                    slow_op := '1';
+                end if;
 
             when OP_FETCH_FAILED =>
                 -- Handling an ITLB miss doesn't count as having executed an instruction

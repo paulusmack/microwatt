@@ -1410,6 +1410,64 @@ int fpu_test_23(void)
 	return trapit(0, test23);
 }
 
+struct idiv_tests {
+	unsigned long denom;
+	unsigned long divisor;
+	unsigned long divd;
+	unsigned long divdu;
+	unsigned long divde;
+	unsigned long divdeu;
+	unsigned long modsd;
+	unsigned long modud;
+} idiv_tests[] = {
+	{ 0, 0,			0, 0, 0, 0, 0, 0 },
+	{ 0x56789a, 0x1234,	0x4c0, 0x4c0, 0, 0, 0x19a, 0x19a },
+	{ 2, 3,			0, 0, 0, 0xaaaaaaaaaaaaaaaa, 2, 2 },
+	{ 31, 157,		0, 0, 0x328c3ab35cf15328, 0x328c3ab35cf15328, 31, 31 },
+	{ -4329874, 43879,	-98, 0x17e5a119b9170, 0, 0, -29732, 39518 },
+	{ -4329874, -43879,	98, 0, 0, 0xffffffffffbe99d4, -29732, -4329874 },
+	{ 0x8000000000000000ul, -1, 0, 0, 0, 0x8000000000000000ul, 0, 0x8000000000000000ul },
+};
+
+int fpu_test_24(void)
+{
+	long i;
+	unsigned long a, b, results[6];
+
+	for (i = 0; i < sizeof(idiv_tests) / sizeof(idiv_tests[0]); ++i) {
+		a = idiv_tests[i].denom;
+		b = idiv_tests[i].divisor;
+		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(489<<1)"
+		    : "=r" (results[0]) : "r" (a), "r" (b));
+		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(457<<1)"
+		    : "=r" (results[1]) : "r" (a), "r" (b));
+		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(425<<1)"
+		    : "=r" (results[2]) : "r" (a), "r" (b));
+		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(393<<1)"
+		    : "=r" (results[3]) : "r" (a), "r" (b));
+		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(777<<1)"
+		    : "=r" (results[4]) : "r" (a), "r" (b));
+		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(265<<1)"
+		    : "=r" (results[5]) : "r" (a), "r" (b));
+		if (results[0] != idiv_tests[i].divd ||
+		    results[1] != idiv_tests[i].divdu ||
+		    results[2] != idiv_tests[i].divde ||
+		    results[3] != idiv_tests[i].divdeu ||
+		    results[4] != idiv_tests[i].modsd ||
+		    results[5] != idiv_tests[i].modud) {
+			print_hex(i, 2, " ");
+			print_hex(results[0], 16, " ");
+			print_hex(results[1], 16, " ");
+			print_hex(results[2], 16, " ");
+			print_hex(results[3], 16, " ");
+			print_hex(results[4], 16, " ");
+			print_hex(results[5], 16, "\r\n");
+			return i + 1;
+		}
+	}
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -1458,6 +1516,7 @@ int main(void)
 	do_test(21, fpu_test_21);
 	do_test(22, fpu_test_22);
 	do_test(23, fpu_test_23);
+	do_test(24, fpu_test_24);
 
 	return fail;
 }

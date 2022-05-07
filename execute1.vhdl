@@ -1615,6 +1615,7 @@ begin
         fv.insn := e_in.insn;
         fv.itag := e_in.instr_tag;
         fv.single := e_in.is_32bit;
+        fv.is_signed := e_in.is_signed;
         fv.fe_mode := r.msr(MSR_FE0) & r.msr(MSR_FE1);
         fv.fra := a_in;
         fv.frb := b_in;

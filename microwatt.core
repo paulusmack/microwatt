@@ -25,7 +25,6 @@ filesets:
       - loadstore1.vhdl
       - mmu.vhdl
       - dcache.vhdl
-      - divider.vhdl
       - rotator.vhdl
       - pmu.vhdl
       - writeback.vhdl

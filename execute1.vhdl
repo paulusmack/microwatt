@@ -128,7 +128,6 @@ architecture behaviour of execute1 is
         take_branch : std_ulogic;
         direct_branch : std_ulogic;
         start_mul : std_ulogic;
-        start_div : std_ulogic;
         div_wait_for_xer : std_ulogic;
         start_cntz : std_ulogic;
         do_trace : std_ulogic;
@@ -202,8 +201,8 @@ architecture behaviour of execute1 is
     signal multiply_to_x: MultiplyOutputType;
 
     -- divider signals
-    signal x_to_divider: Execute1ToDividerType;
-    signal divider_to_x: DividerToExecute1Type;
+    --signal x_to_divider: Execute1ToDividerType;
+    --signal divider_to_x: DividerToExecute1Type;
 
     -- random number generator signals
     signal random_raw  : std_ulogic_vector(63 downto 0);
@@ -408,13 +407,13 @@ begin
             m_out => multiply_to_x
             );
 
-    divider_0: entity work.divider
-        port map (
-            clk => clk,
-            rst => rst,
-            d_in => x_to_divider,
-            d_out => divider_to_x
-            );
+    --divider_0: entity work.divider
+    --    port map (
+    --        clk => clk,
+    --        rst => rst,
+    --        d_in => x_to_divider,
+    --        d_out => divider_to_x
+    --        );
 
     random_0: entity work.random
         port map (
@@ -724,14 +723,14 @@ begin
         end if;
 
         -- Interface to multiply and divide units
-        x_to_divider.flush <= flush_in;
-        x_to_divider.is_signed <= e_in.is_signed;
-	x_to_divider.is_32bit <= e_in.is_32bit;
-        x_to_divider.is_extended <= '0';
-        x_to_divider.is_modulus <= '0';
-        if e_in.insn_type = OP_MOD then
-            x_to_divider.is_modulus <= '1';
-        end if;
+        --x_to_divider.flush <= flush_in;
+        --x_to_divider.is_signed <= e_in.is_signed;
+	--x_to_divider.is_32bit <= e_in.is_32bit;
+        --x_to_divider.is_extended <= '0';
+        --x_to_divider.is_modulus <= '0';
+        --if e_in.insn_type = OP_MOD then
+        --    x_to_divider.is_modulus <= '1';
+        --end if;
 
         addend := (others => '0');
         if e_in.insn(26) = '0' then
@@ -748,27 +747,27 @@ begin
 	x_to_multiply.is_32bit <= e_in.is_32bit;
         x_to_multiply.not_result <= sign1 xor sign2;
         x_to_multiply.addend <= addend;
-        x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
+        --x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
         if e_in.is_32bit = '0' then
             -- 64-bit forms
             x_to_multiply.data1 <= std_ulogic_vector(abs1);
             x_to_multiply.data2 <= std_ulogic_vector(abs2);
-            if e_in.insn_type = OP_DIVE then
-                x_to_divider.is_extended <= '1';
-            end if;
-            x_to_divider.dividend <= std_ulogic_vector(abs1);
-            x_to_divider.divisor <= std_ulogic_vector(abs2);
+            --if e_in.insn_type = OP_DIVE then
+            --    x_to_divider.is_extended <= '1';
+            --end if;
+            --x_to_divider.dividend <= std_ulogic_vector(abs1);
+            --x_to_divider.divisor <= std_ulogic_vector(abs2);
         else
             -- 32-bit forms
             x_to_multiply.data1 <= x"00000000" & std_ulogic_vector(abs1(31 downto 0));
             x_to_multiply.data2 <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
-            x_to_divider.is_extended <= '0';
-            if e_in.insn_type = OP_DIVE then   -- extended forms
-                x_to_divider.dividend <= std_ulogic_vector(abs1(31 downto 0)) & x"00000000";
-            else
-                x_to_divider.dividend <= x"00000000" & std_ulogic_vector(abs1(31 downto 0));
-            end if;
-            x_to_divider.divisor <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
+            --x_to_divider.is_extended <= '0';
+            --if e_in.insn_type = OP_DIVE then   -- extended forms
+            --    x_to_divider.dividend <= std_ulogic_vector(abs1(31 downto 0)) & x"00000000";
+            --else
+            --    x_to_divider.dividend <= x"00000000" & std_ulogic_vector(abs1(31 downto 0));
+            --end if;
+            --x_to_divider.divisor <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
         end if;
 
         if HAS_SHORT_MULT and r.busy = '0' then
@@ -783,10 +782,11 @@ begin
             when others =>
                 slow_result <= multiply_to_x.result(63 downto 0);
             end case;
-        elsif r.cntz_in_progress = '1' then
-            slow_result <= countbits_result;
+        --elsif r.cntz_in_progress = '1' then
         else
-            slow_result <= divider_to_x.write_reg_data;
+            slow_result <= countbits_result;
+        --else
+        --    slow_result <= divider_to_x.write_reg_data;
         end if;
 
         -- Compute misc_result
@@ -1313,10 +1313,7 @@ begin
                 slow_op := '1';
 
             when OP_DIV | OP_DIVE | OP_MOD =>
-                if e_in.unit = ALU then
-                    v.start_div := '1';
-                    slow_op := '1';
-                elsif e_in.oe = '1' then
+                if e_in.oe = '1' then
                     -- divide with OE=1 executed in the FPU makes execute1 go
                     -- busy until the XER has been updated, in case the next
                     -- instruction uses or sets XER.
@@ -1393,7 +1390,7 @@ begin
         fv := Execute1ToFPUInit;
 
         x_to_multiply.valid <= '0';
-        x_to_divider.valid <= '0';
+        --x_to_divider.valid <= '0';
 	v.mul_in_progress := '0';
         v.div_in_progress := '0';
         v.cntz_in_progress := '0';
@@ -1495,8 +1492,7 @@ begin
             v.cntz_in_progress := actions.start_cntz;
             x_to_multiply.valid <= actions.start_mul;
             v.mul_in_progress := actions.start_mul;
-            x_to_divider.valid <= actions.start_div;
-            v.div_in_progress := actions.start_div or actions.div_wait_for_xer;
+            v.div_in_progress := actions.div_wait_for_xer;
 
             v.br_taken := actions.take_branch;
             v.taken_branch_event := actions.take_branch;
@@ -1506,7 +1502,7 @@ begin
             v.ramspr_odd_wraddr := e_in.ramspr_odd_wraddr;
 
             v.busy := actions.start_cntz or actions.start_mul or
-                      actions.start_div or actions.div_wait_for_xer;
+                      actions.div_wait_for_xer;
             if actions.write_xerc = '1' then
                 v.xerc := actions.e.xerc;
             end if;
@@ -1532,22 +1528,7 @@ begin
             v.e.write_data := alu_result;
         end if;
 	if r.div_in_progress = '1' and flush_in = '0' then
-	    if divider_to_x.valid = '1' then
-                v.e.write_data := alu_result;
-                overflow := divider_to_x.overflow;
-                -- We must test oe because the RC update code in writeback
-                -- will use the xerc value to set CR0:SO so we must not clobber
-                -- xerc if OE wasn't set.
-                if r.oe = '1' then
-                    v.e.xerc.ov := overflow;
-                    v.e.xerc.ov32 := overflow;
-                    if overflow = '1' then
-                        v.e.xerc.so := '1';
-                    end if;
-                    v.xerc := v.e.xerc;
-                end if;
-                v.e.valid := '1';
-	    elsif wb_in.write_xerc = '0' then
+	    if wb_in.write_xerc = '0' then
 		v.busy := '1';
 		v.div_in_progress := '1';
 	    end if;

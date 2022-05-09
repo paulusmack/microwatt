@@ -157,6 +157,9 @@ begin
             c_out.write_cr_data <= fp_in.write_cr_data;
         end if;
 
+        e_out.xerc <= fp_in.xerc;
+        e_out.write_xerc <= fpu_valid and fp_in.write_xerc;
+            
         if ls_valid = '1' and l_in.write_enable = '1' then
             w_out.write_reg <= l_in.write_reg;
             w_out.write_data <= l_in.write_data;

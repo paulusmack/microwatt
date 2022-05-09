@@ -129,6 +129,7 @@ architecture behaviour of execute1 is
         direct_branch : std_ulogic;
         start_mul : std_ulogic;
         start_div : std_ulogic;
+        div_wait_for_xer : std_ulogic;
         start_cntz : std_ulogic;
         do_trace : std_ulogic;
         fp_intr : std_ulogic;
@@ -475,7 +476,7 @@ begin
     x_to_pmu.run <= '1';
 
     -- XER is now maintained entirely in this module
-    xerc_in <= r.xerc;
+    xerc_in <= r.xerc when wb_in.write_xerc = '0' else wb_in.xerc;
 
     with e_in.unit select busy_out <=
         l_in.busy or fp_in.busy or r.busy or wb_stall when LDST,
@@ -1315,6 +1316,11 @@ begin
                 if e_in.unit = ALU then
                     v.start_div := '1';
                     slow_op := '1';
+                elsif e_in.oe = '1' then
+                    -- divide with OE=1 executed in the FPU makes execute1 go
+                    -- busy until the XER has been updated, in case the next
+                    -- instruction uses or sets XER.
+                    v.div_wait_for_xer := '1';
                 end if;
 
             when OP_FETCH_FAILED =>
@@ -1490,7 +1496,7 @@ begin
             x_to_multiply.valid <= actions.start_mul;
             v.mul_in_progress := actions.start_mul;
             x_to_divider.valid <= actions.start_div;
-            v.div_in_progress := actions.start_div;
+            v.div_in_progress := actions.start_div or actions.div_wait_for_xer;
 
             v.br_taken := actions.take_branch;
             v.taken_branch_event := actions.take_branch;
@@ -1499,7 +1505,8 @@ begin
             v.ramspr_even_wraddr := e_in.ramspr_even_wraddr;
             v.ramspr_odd_wraddr := e_in.ramspr_odd_wraddr;
 
-            v.busy := actions.start_cntz or actions.start_mul or actions.start_div;
+            v.busy := actions.start_cntz or actions.start_mul or
+                      actions.start_div or actions.div_wait_for_xer;
             if actions.write_xerc = '1' then
                 v.xerc := actions.e.xerc;
             end if;
@@ -1540,7 +1547,7 @@ begin
                     v.xerc := v.e.xerc;
                 end if;
                 v.e.valid := '1';
-	    else
+	    elsif wb_in.write_xerc = '0' then
 		v.busy := '1';
 		v.div_in_progress := '1';
 	    end if;
@@ -1625,6 +1632,14 @@ begin
         fv.frt := e_in.write_reg;
         fv.rc := e_in.rc;
         fv.out_cr := e_in.output_cr;
+        fv.m32b := not r.msr(MSR_SF);
+        fv.oe := e_in.oe;
+        fv.xerc := xerc_in;
+
+        if wb_in.write_xerc = '1' then
+            v.xerc := wb_in.xerc;
+            ctrl_tmp.xerc <= wb_in.xerc;
+        end if;
 
         -- Update committed state for completed instructions or
         -- reset working state to the last committed state if flushing.

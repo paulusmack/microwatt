@@ -88,7 +88,7 @@ architecture behaviour of fpu is
                      IDIV_EXT_TBH4, IDIV_EXT_TBH5,
                      IDIV_EXTDIV, IDIV_EXTDIV1, IDIV_EXTDIV2, IDIV_EXTDIV3,
                      IDIV_EXTDIV4, IDIV_EXTDIV5, IDIV_EXTDIV6,
-                     IDIV_MODADJ, IDIV_DIVADJ, IDIV_OVFCHK, IDIV_DONE, IDIV_ZERO);
+                     IDIV_MODADJ, IDIV_MODSUB, IDIV_DIVADJ, IDIV_OVFCHK, IDIV_DONE, IDIV_ZERO);
 
     type reg_type is record
         state        : state_t;
@@ -152,6 +152,9 @@ architecture behaviour of fpu is
         inc_quot     : std_ulogic;
         a_hi         : std_ulogic_vector(7 downto 0);
         a_lo         : std_ulogic_vector(55 downto 0);
+        m32b         : std_ulogic;
+        oe           : std_ulogic;
+        xerc         : xer_common_t;
     end record;
 
     type lookup_table is array(0 to 1023) of std_ulogic_vector(17 downto 0);
@@ -603,9 +606,6 @@ begin
             else
                 assert not (r.state /= IDLE and e_in.valid = '1') severity failure;
                 r <= rin;
-                report "state=" & state_t'image(rin.state) & " shift=" & to_hstring(rin.shift) & " opsel_a=" & to_hstring(rin.opsel_a) & " first=" & std_ulogic'image(rin.first) & " ext=" & std_ulogic'image(rin.divext) & " mod=" & std_ulogic'image(rin.divmod) & " sgn=" & std_ulogic'image(rin.is_signed) & " ovf=" & std_ulogic'image(rin.int_ovf) & " close=" & std_ulogic'image(rin.div_close) & " inc=" & std_ulogic'image(rin.inc_quot);
-                report " a=" & std_ulogic'image(rin.a.negative) & to_hstring(rin.a.exponent) & "#" & to_hstring(rin.a.mantissa) & " b=" & std_ulogic'image(rin.b.negative) & to_hstring(rin.b.exponent) & "#" & to_hstring(rin.b.mantissa) & " c=" & std_ulogic'image(rin.c.negative) & to_hstring(rin.c.exponent) & "#" & to_hstring(rin.c.mantissa);
-                report " r=" & to_hstring(rin.r) & " s=" & to_hstring(rin.s) & " p=" & to_hstring(rin.p) & " y=" & to_hstring(rin.y);
             end if;
         end if;
     end process;
@@ -638,6 +638,8 @@ begin
     w_out.write_cr_mask <= r.cr_mask;
     w_out.write_cr_data <= r.cr_result & r.cr_result & r.cr_result & r.cr_result &
                            r.cr_result & r.cr_result & r.cr_result & r.cr_result;
+    w_out.write_xerc <= r.oe;
+    w_out.xerc <= r.xerc;
     w_out.interrupt <= r.do_intr;
     w_out.intr_vec <= 16#700#;
     w_out.srr1 <= (47-44 => r.illegal, 47-43 => not r.illegal, others => '0');
@@ -705,6 +707,7 @@ begin
         variable rbit_inc    : std_ulogic;
         variable mult_mask   : std_ulogic;
         variable sign_bit    : std_ulogic;
+        variable rnd_b32     : std_ulogic;
     begin
         v := r;
         illegal := '0';
@@ -724,20 +727,24 @@ begin
             v.int_result := '0';
             v.rc := e_in.rc;
             v.is_cmp := e_in.out_cr;
-            if e_in.out_cr = '0' then
-                v.cr_mask := num_to_fxm(1);
-            else
-                v.cr_mask := num_to_fxm(to_integer(unsigned(insn_bf(e_in.insn))));
-            end if;
+            v.oe := e_in.oe;
+            v.m32b := e_in.m32b;
+            v.xerc := e_in.xerc;
             v.longmask := '0';
             v.divext := '0';
             v.divmod := '0';
             if e_in.op = OP_FPOP or e_in.op = OP_FPOP_I then
+                if e_in.out_cr = '0' then
+                    v.cr_mask := num_to_fxm(1);
+                else
+                    v.cr_mask := num_to_fxm(to_integer(unsigned(insn_bf(e_in.insn))));
+                end if;
                 v.longmask := e_in.single;
                 if e_in.op = OP_FPOP_I then
                     int_input := '1';
                 end if;
             else -- OP_DIV, OP_DIVE, OP_MOD
+                v.cr_mask := num_to_fxm(0);
                 int_input := '1';
                 is_32bint := e_in.single;
                 if e_in.op = OP_DIVE then
@@ -757,6 +764,7 @@ begin
             v.doing_ftdiv := "00";
             v.int_ovf := '0';
             v.div_close := '0';
+            v.cr_result := (others => '0');
 
             adec := decode_dp(e_in.fra, int_input, is_32bint, e_in.is_signed);
             bdec := decode_dp(e_in.frb, int_input, is_32bint, e_in.is_signed);
@@ -873,6 +881,7 @@ begin
         shiftin0 := '0';
         rbit_inc := '0';
         mult_mask := '0';
+        rnd_b32 := '0';
         case r.state is
             when IDLE =>
                 if r.instr_done = '1' then
@@ -2403,11 +2412,10 @@ begin
                 if r.b.class = ZERO then
                     -- B is zero, signal overflow
                     v.int_ovf := '1';
-                    v.state := IDIV_DONE;
+                    v.state := IDIV_ZERO;
                 elsif r.a.class = ZERO then
-                    -- A is zero, result is A (both for div and for mod)
-                    v.opsel_a := AIN_A;
-                    v.state := IDIV_DONE;
+                    -- A is zero, result is zero (both for div and for mod)
+                    v.state := IDIV_ZERO;
                 else
                     -- take absolute value for signed division, and
                     -- normalize and round up B to 8.56 format, like fcfid[u]
@@ -2527,7 +2535,12 @@ begin
                 f_to_multiply.valid <= r.first;
                 pshift := '1';
                 v.opsel_a := AIN_A;
-                v.shift := to_signed(63, EXP_BITS);
+                v.shift := to_signed(64, EXP_BITS);
+                -- Get 0.5 into R in case the inverse estimate turns out to be
+                -- less than 0.5, in which case we want to use 0.5, to avoid
+                -- infinite loops in some cases.
+                opsel_r <= RES_MISC;
+                misc_sel <= "0001";
                 if multiply_to_f.valid = '1' then
                     v.first := '1';
                     if r.count = "11" then
@@ -2542,19 +2555,20 @@ begin
                 opsel_r <= RES_MISC;
                 misc_sel <= "0001";
                 v.opsel_a := AIN_A;
-                v.shift := to_signed(63, EXP_BITS);
+                v.shift := to_signed(64, EXP_BITS);
                 v.state := IDIV_DODIV;
             when IDIV_DODIV =>
                 -- r.opsel_a = AIN_A
-                -- r.shift = 63
+                -- r.shift = 64
                 -- inverse estimate is in P or in R; copy it to Y
-                if r.b.mantissa(UNIT_BIT + 1) = '1' then
+                if r.b.mantissa(UNIT_BIT + 1) = '1' or
+                    (r.p(UNIT_BIT) = '0' and r.p(UNIT_BIT - 1) = '0') then
                     msel_2 <= MUL2_R;
                 else
                     msel_2 <= MUL2_P;
                 end if;
                 set_y := '1';
-                -- shift_res is 0 because r.shift = 63 and S = 0;
+                -- shift_res is 0 because r.shift = 64;
                 -- put that into B, which now holds the quotient
                 set_b_mant := '1';
                 if r.divext = '0' then
@@ -2799,6 +2813,20 @@ begin
                 -- r.shift = 56
                 -- result is in R/S
                 opsel_r <= RES_SHIFT;
+                if pcmpc_lt = '0' then
+                    v.opsel_a := AIN_C;
+                    v.state := IDIV_MODSUB;
+                elsif r.result_sign = '0' then
+                    v.state := IDIV_DONE;
+                else
+                    v.state := IDIV_DIVADJ;
+                end if;
+            when IDIV_MODSUB =>
+                -- r.opsel_a = AIN_C
+                -- Subtract divisor from remainder
+                opsel_ainv <= '1';
+                carry_in <= '1';
+                opsel_b <= BIN_R;
                 if r.result_sign = '0' then
                     v.state := IDIV_DONE;
                 else
@@ -2810,6 +2838,10 @@ begin
                 -- and also negate R if the answer is negative
                 opsel_ainv <= r.result_sign;
                 carry_in <= r.inc_quot xor r.result_sign;
+                rnd_b32 := '1';
+                if r.divmod = '0' then
+                    opsel_b <= BIN_RND;
+                end if;
                 if r.is_signed = '0' then
                     v.state := IDIV_DONE;
                 else
@@ -2828,12 +2860,40 @@ begin
                     v.state := IDIV_DONE;
                 end if;
             when IDIV_DONE =>
+                if r.oe = '1' then
+                    v.xerc.ov := '0';
+                    v.xerc.ov32 := '0';
+                end if;
+                if r.m32b = '0' then
+                    v.cr_result(3) := r.r(63);
+                    v.cr_result(2 downto 1) := "00";
+                    if r.r = 64x"0" then
+                        v.cr_result(1) := '1';
+                    else
+                        v.cr_result(2) := not r.r(63);
+                    end if;
+                else
+                    v.cr_result(3) := r.r(31);
+                    v.cr_result(2 downto 1) := "00";
+                    if r.r(31 downto 0) = 32x"0" then
+                        v.cr_result(1) := '1';
+                    else
+                        v.cr_result(2) := not r.r(63);
+                    end if;
+                end if;
+                v.cr_result(0) := v.xerc.so;
                 v.writing_back := '1';
                 v.instr_done := '1';
                 v.state := IDLE;
             when IDIV_ZERO =>
                 opsel_r <= RES_MISC;
                 misc_sel <= "0101";
+                if r.oe = '1' then
+                    v.xerc.ov := r.int_ovf;
+                    v.xerc.ov32 := r.int_ovf;
+                    v.xerc.so := r.xerc.so or r.int_ovf;
+                end if;
+                v.cr_result := "001" & v.xerc.so;
                 v.writing_back := '1';
                 v.instr_done := '1';
                 v.state := IDLE;
@@ -2964,7 +3024,9 @@ begin
             when BIN_R =>
                 in_b0 := r.r;
             when BIN_RND =>
-                if rbit_inc = '0' then
+                if rnd_b32 = '1' then
+                    round_inc := (32 => r.result_sign and r.single_prec, others => '0');
+                elsif rbit_inc = '0' then
                     round_inc := (SP_LSB => r.single_prec, DP_LSB => not r.single_prec, others => '0');
                 else
                     round_inc := (DP_RBIT => '1', others => '0');
@@ -3131,7 +3193,7 @@ begin
             (v.fpscr(FPSCR_VX downto FPSCR_XX) and not r.old_exc) /= "00000" then
             v.fpscr(FPSCR_FX) := '1';
         end if;
-        if r.rc = '1' then
+        if r.rc = '1' and (r.op = OP_FPOP or r.op = OP_FPOP_I) then
             v.cr_result := v.fpscr(FPSCR_FX downto FPSCR_OX);
         end if;
 

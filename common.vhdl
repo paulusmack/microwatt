@@ -633,6 +633,8 @@ package common is
         itag : tag_number_t;
         srr1 : std_ulogic_vector(15 downto 0);
         alt_srr0 : std_ulogic;
+        write_xerc : std_ulogic;
+        xerc : xer_common_t;
     end record;
 
     type Execute1ToFPUType is record
@@ -649,14 +651,18 @@ package common is
         frc       : std_ulogic_vector(63 downto 0);
         frt       : gspr_index_t;
         rc        : std_ulogic;
+        m32b      : std_ulogic;
         out_cr    : std_ulogic;
+        oe        : std_ulogic;
+        xerc      : xer_common_t;
     end record;
     constant Execute1ToFPUInit : Execute1ToFPUType := (valid => '0', op => OP_ILLEGAL, nia => (others => '0'),
                                                        itag => instr_tag_init,
                                                        insn => (others => '0'), fe_mode => "00", rc => '0',
                                                        fra => (others => '0'), frb => (others => '0'),
                                                        frc => (others => '0'), frt => (others => '0'),
-                                                       single => '0', is_signed => '0', out_cr => '0');
+                                                       single => '0', is_signed => '0', out_cr => '0',
+                                                       m32b => '0', oe => '0', xerc => xerc_init);
 
     type FPUToExecute1Type is record
         busy      : std_ulogic;
@@ -674,6 +680,8 @@ package common is
         write_cr_enable : std_ulogic;
         write_cr_mask   : std_ulogic_vector(7 downto 0);
         write_cr_data   : std_ulogic_vector(31 downto 0);
+        write_xerc      : std_ulogic;
+        xerc            : xer_common_t;
         intr_vec        : intr_vector_t;
         srr1            : std_ulogic_vector(15 downto 0);
     end record;
@@ -682,6 +690,7 @@ package common is
          write_enable => '0', write_reg => (others => '0'),
          write_cr_enable => '0', write_cr_mask => (others => '0'),
          write_cr_data => (others => '0'),
+         write_xerc => '0', xerc => xerc_init,
          intr_vec => 0, srr1 => (others => '0'),
          others => (others => '0'));
 

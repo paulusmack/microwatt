@@ -1437,18 +1437,12 @@ int fpu_test_24(void)
 	for (i = 0; i < sizeof(idiv_tests) / sizeof(idiv_tests[0]); ++i) {
 		a = idiv_tests[i].denom;
 		b = idiv_tests[i].divisor;
-		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(489<<1)"
-		    : "=r" (results[0]) : "r" (a), "r" (b));
-		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(457<<1)"
-		    : "=r" (results[1]) : "r" (a), "r" (b));
-		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(425<<1)"
-		    : "=r" (results[2]) : "r" (a), "r" (b));
-		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(393<<1)"
-		    : "=r" (results[3]) : "r" (a), "r" (b));
-		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(777<<1)"
-		    : "=r" (results[4]) : "r" (a), "r" (b));
-		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(265<<1)"
-		    : "=r" (results[5]) : "r" (a), "r" (b));
+		asm("divd %0,%1,%2" : "=r" (results[0]) : "r" (a), "r" (b));
+		asm("divdu %0,%1,%2" : "=r" (results[1]) : "r" (a), "r" (b));
+		asm("divde %0,%1,%2" : "=r" (results[2]) : "r" (a), "r" (b));
+		asm("divdeu %0,%1,%2" : "=r" (results[3]) : "r" (a), "r" (b));
+		asm("modsd %0,%1,%2" : "=r" (results[4]) : "r" (a), "r" (b));
+		asm("modud %0,%1,%2" : "=r" (results[5]) : "r" (a), "r" (b));
 		if (results[0] != idiv_tests[i].divd ||
 		    results[1] != idiv_tests[i].divdu ||
 		    results[2] != idiv_tests[i].divde ||
@@ -1495,18 +1489,12 @@ int fpu_test_25(void)
 	for (i = 0; i < sizeof(wdiv_tests) / sizeof(wdiv_tests[0]); ++i) {
 		a = wdiv_tests[i].denom;
 		b = wdiv_tests[i].divisor;
-		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(491<<1)"
-		    : "=r" (results[0]) : "r" (a), "r" (b));
-		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(459<<1)"
-		    : "=r" (results[1]) : "r" (a), "r" (b));
-		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(427<<1)"
-		    : "=r" (results[2]) : "r" (a), "r" (b));
-		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(395<<1)"
-		    : "=r" (results[3]) : "r" (a), "r" (b));
-		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(779<<1)"
-		    : "=r" (results[4]) : "r" (a), "r" (b));
-		asm(".long (63<<26)+(%0<<21)+(%1<<16)+(%2<<11)+(267<<1)"
-		    : "=r" (results[5]) : "r" (a), "r" (b));
+		asm("divw %0,%1,%2" : "=r" (results[0]) : "r" (a), "r" (b));
+		asm("divwu %0,%1,%2" : "=r" (results[1]) : "r" (a), "r" (b));
+		asm("divwe %0,%1,%2" : "=r" (results[2]) : "r" (a), "r" (b));
+		asm("divweu %0,%1,%2" : "=r" (results[3]) : "r" (a), "r" (b));
+		asm("modsw %0,%1,%2" : "=r" (results[4]) : "r" (a), "r" (b));
+		asm("moduw %0,%1,%2" : "=r" (results[5]) : "r" (a), "r" (b));
 		if (results[0] != wdiv_tests[i].divw ||
 		    results[1] != wdiv_tests[i].divwu ||
 		    results[2] != wdiv_tests[i].divwe ||

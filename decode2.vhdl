@@ -497,6 +497,9 @@ begin
         v.e.instr_tag := instr_tag;
         v.e.read_reg1 := decoded_reg_a.reg;
         v.e.read_reg2 := decoded_reg_b.reg;
+        v.e.reg_valid1 := decoded_reg_a.reg_valid;
+        v.e.reg_valid2 := decoded_reg_b.reg_valid;
+        v.e.reg_valid3 := decoded_reg_c.reg_valid;
         v.e.write_reg := decoded_reg_o.reg;
         v.e.write_reg_enable := decoded_reg_o.reg_valid;
         v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);

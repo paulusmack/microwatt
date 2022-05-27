@@ -592,15 +592,21 @@ architecture behaviour of fpu is
     end;
 
     -- Construct a DP floating-point result from components
-    function pack_dp(sign: std_ulogic; class: fp_number_class; exp: signed(EXP_BITS-1 downto 0);
-                     mantissa: std_ulogic_vector; single_prec: std_ulogic; quieten_nan: std_ulogic)
+    function pack_dp(negative: std_ulogic; class: fp_number_class; exp: signed(EXP_BITS-1 downto 0);
+                     mantissa: std_ulogic_vector; single_prec: std_ulogic; quieten_nan: std_ulogic;
+                     negate: std_ulogic; is_subtract: std_ulogic; round_mode: std_ulogic_vector)
         return std_ulogic_vector is
         variable result : std_ulogic_vector(63 downto 0);
+        variable sign : std_ulogic;
     begin
         result := (others => '0');
-        result(63) := sign;
+        sign := negative;
         case class is
             when ZERO =>
+                if is_subtract = '1' then
+                    -- set result sign depending on rounding mode
+                    sign := round_mode(0) and round_mode(1);
+                end if;
             when FINITE =>
                 if mantissa(UNIT_BIT) = '1' then
                     -- normalized number
@@ -620,6 +626,7 @@ architecture behaviour of fpu is
                     result(28 downto 0) := mantissa(SP_LSB - 1 downto DP_LSB);
                 end if;
         end case;
+        result(63) := sign xor negate;
         return result;
     end;
 
@@ -1430,8 +1437,8 @@ begin
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 is_add := r.a.negative xor r.b.negative xor r.insn(1);
+                v.is_subtract := not is_add;
                 if r.a.class = FINITE and r.b.class = FINITE then
-                    v.is_subtract := not is_add;
                     v.add_bsmall := r.exp_cmp;
                     v.opsel_a := AIN_B;
                     if r.exp_cmp = '0' then
@@ -1453,18 +1460,13 @@ begin
                         v.fpscr(FPSCR_VXISI) := '1';
                         qnan_result := '1';
                         arith_done := '1';
-                    elsif r.a.class = ZERO and r.b.class = ZERO and is_add = '0' then
-                        -- return -0 for rounding to -infinity
-                        v.result_sign := r.round_mode(1) and r.round_mode(0);
-                        arith_done := '1';
                     elsif r.a.class = INFINITY or r.b.class = ZERO then
-                        -- result is A
-                        v.opsel_a := AIN_A;
-                        v.state := EXC_RESULT;
+                        -- result is A; we're already set up to put A into R
+                        arith_done := '1';
                     else
                         -- result is +/- B
                         v.opsel_a := AIN_B;
-                        v.negate := not r.insn(1);
+                        v.result_sign := r.b.negative xnor r.insn(1);
                         v.state := EXC_RESULT;
                     end if;
                 end if;
@@ -1503,7 +1505,6 @@ begin
                     else
                         -- r.c.class is ZERO or INFINITY
                         v.opsel_a := AIN_C;
-                        v.negate := r.a.negative;
                         v.state := EXC_RESULT;
                     end if;
                 end if;
@@ -1561,8 +1562,10 @@ begin
                 v.fpscr(FPSCR_FI) := '0';
                 if r.a.class = ZERO or (r.a.negative = '0' and r.a.class /= NAN) then
                     v.opsel_a := AIN_C;
+                    v.result_sign := r.c.negative;
                 else
                     v.opsel_a := AIN_B;
+                    v.result_sign := r.b.negative;
                 end if;
                 v.quieten_nan := '0';
                 v.state := EXC_RESULT;
@@ -1682,9 +1685,10 @@ begin
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
                 is_add := r.a.negative xor r.c.negative xor r.b.negative xor r.insn(1);
+                v.negate := r.insn(2);
+                v.is_subtract := not is_add;
                 if r.a.class = FINITE and r.c.class = FINITE and
                     (r.b.class = FINITE or r.b.class = ZERO) then
-                    v.is_subtract := not is_add;
                     -- Make sure A and C are normalized
                     if r.a.mantissa(UNIT_BIT) = '0' then
                         v.state := RENORM_A;
@@ -1692,13 +1696,13 @@ begin
                         v.state := RENORM_C;
                     elsif r.b.class = ZERO then
                         -- no addend, degenerates to multiply
-                        v.result_sign := r.a.negative xor r.c.negative xor r.insn(2);
+                        v.result_sign := r.a.negative xor r.c.negative;
                         f_to_multiply.valid <= '1';
                         v.is_multiply := '1';
                         v.state := MULT_1;
                     elsif r.madd_cmp = '0' then
                         -- addend is bigger, do multiply first
-                        v.result_sign := not (r.b.negative xor r.insn(1) xor r.insn(2));
+                        v.result_sign := r.b.negative xnor r.insn(1);
                         f_to_multiply.valid <= '1';
                         v.first := '1';
                         v.state := FMADD_0;
@@ -1722,19 +1726,14 @@ begin
                         else
                             -- result is infinity
                             v.result_class := INFINITY;
-                            v.result_sign := r.a.negative xor r.c.negative xor r.insn(2);
+                            v.result_sign := r.a.negative xor r.c.negative;
                             arith_done := '1';
                         end if;
                     else
                         -- Here A is zero, C is zero, or B is infinity
                         -- Result is +/-B in all of those cases
                         v.opsel_a := AIN_B;
-                        if r.b.class /= ZERO or is_add = '1' then
-                            v.negate := not (r.insn(1) xor r.insn(2));
-                        else
-                            -- have to be careful about rule for 0 - 0 result sign
-                            v.negate := r.b.negative xor (r.round_mode(1) and r.round_mode(0)) xor r.insn(2);
-                        end if;
+                        v.result_sign := r.b.negative xnor r.insn(1);
                         v.state := EXC_RESULT;
                     end if;
                 end if;
@@ -1872,10 +1871,6 @@ begin
                 elsif (r_hi_nz or r_lo_nz or (or (r.r(DP_LSB - 1 downto 0)))) = '0' then
                     -- r.x must be zero at this point
                     v.result_class := ZERO;
-                    if r.is_subtract = '1' then
-                        -- set result sign depending on rounding mode
-                        v.result_sign := r.round_mode(1) and r.round_mode(0);
-                    end if;
                     arith_done := '1';
                 else
                     rs_norm <= '1';
@@ -1933,7 +1928,7 @@ begin
                 -- product is bigger here
                 -- shift B right and use it as the addend to the multiplier
                 -- for subtract, multiplier does B - A * C
-                v.result_sign := r.a.negative xor r.c.negative xor r.insn(2) xor r.is_subtract;
+                v.result_sign := r.a.negative xor r.c.negative xor r.is_subtract;
                 re_sel2 <= REXP2_B;
                 re_set_result <= '1';
                 -- set shift to b.exp - result_exp + 64
@@ -1993,7 +1988,6 @@ begin
                     if s_nz = '0' then
                         -- must be a subtraction, and r.x must be zero
                         v.result_class := ZERO;
-                        v.result_sign := r.round_mode(1) and r.round_mode(0);
                         arith_done := '1';
                     else
                         -- R is all zeroes but there are non-zero bits in S
@@ -2533,10 +2527,6 @@ begin
                 rs_neg2 <= '1';
                 if mant_nz = '0' then
                     v.result_class := ZERO;
-                    if r.is_subtract = '1' then
-                        -- set result sign depending on rounding mode
-                        v.result_sign := r.round_mode(1) and r.round_mode(0);
-                    end if;
                     arith_done := '1';
                 else
                     -- Renormalize result after rounding
@@ -2561,6 +2551,7 @@ begin
                 illegal := '1';
 
             when NAN_RESULT =>
+                v.negate := '0';
                 if (r.use_a = '1' and r.a.class = NAN and r.a.mantissa(QNAN_BIT) = '0') or
                     (r.use_b = '1' and r.b.class = NAN and r.b.mantissa(QNAN_BIT) = '0') or
                     (r.use_c = '1' and r.c.class = NAN and r.c.mantissa(QNAN_BIT) = '0') then
@@ -2570,10 +2561,13 @@ begin
                 end if;
                 if r.use_a = '1' and r.a.class = NAN then
                     v.opsel_a := AIN_A;
+                    v.result_sign := r.a.negative;
                 elsif r.use_b = '1' and r.b.class = NAN then
                     v.opsel_a := AIN_B;
+                    v.result_sign := r.b.negative;
                 elsif r.use_c = '1' and r.c.class = NAN then
                     v.opsel_a := AIN_C;
+                    v.result_sign := r.c.negative;
                 end if;
                 v.state := EXC_RESULT;
 
@@ -2581,15 +2575,12 @@ begin
                 -- r.opsel_a = AIN_A, AIN_B or AIN_C according to which input is the result
                 case r.opsel_a is
                     when AIN_B =>
-                        v.result_sign := r.b.negative xor r.negate;
                         re_sel2 <= REXP2_B;
                         v.result_class := r.b.class;
                     when AIN_C =>
-                        v.result_sign := r.c.negative xor r.negate;
                         re_sel2 <= REXP2_C;
                         v.result_class := r.c.class;
                     when others =>
-                        v.result_sign := r.a.negative xor r.negate;
                         re_sel1 <= REXP1_A;
                         v.result_class := r.a.class;
                 end case;
@@ -3132,6 +3123,7 @@ begin
             invalid := '1';
             v.result_class := NAN;
             v.result_sign := '0';
+            v.negate := '0';
             misc_sel <= "0001";
             opsel_r <= RES_MISC;
             arith_done := '1';
@@ -3486,7 +3478,8 @@ begin
             fp_result <= r.r;
         else
             fp_result <= pack_dp(r.result_sign, r.result_class, r.result_exp, r.r,
-                                 r.single_prec, r.quieten_nan);
+                                 r.single_prec, r.quieten_nan,
+                                 r.negate, r.is_subtract, r.round_mode);
         end if;
         if r.update_fprf = '1' then
             v.fpscr(FPSCR_C downto FPSCR_FU) := result_flags(r.result_sign, r.result_class,

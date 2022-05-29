@@ -148,6 +148,7 @@ architecture behaviour of fpu is
         use_c        : std_ulogic;
         invalid      : std_ulogic;
         negate       : std_ulogic;
+        negate_b     : std_ulogic;
         longmask     : std_ulogic;
         divext       : std_ulogic;
         divmod       : std_ulogic;
@@ -850,6 +851,7 @@ begin
             v.divmod := '0';
             v.is_sqrt := '0';
             v.is_multiply := '0';
+            v.negate_b := '0';
             fpin_a := '0';
             fpin_b := '0';
             fpin_c := '0';
@@ -871,6 +873,10 @@ begin
                     end if;
                     if e_in.insn(5 downto 1) = "10110" or e_in.insn(5 downto 1) = "11010" then
                         v.is_sqrt := '1';
+                    end if;
+                    if e_in.insn(5 downto 2) = "1010" or e_in.insn(5 downto 3) = "111" then
+                        -- fadd/fsub or fmadd family
+                        v.negate_b := not e_in.insn(1);
                     end if;
                     if e_in.insn(5 downto 1) = "01111" then
                         v.round_mode := "001";
@@ -929,7 +935,9 @@ begin
             v.c := cdec;
 
             v.exp_cmp := '0';
-            if adec.exponent > bdec.exponent then
+            -- compare the biased exponents; that is quicker and gets the right
+            -- result for zeroes and infinities too.
+            if unsigned(e_in.fra(62 downto 52)) > unsigned(e_in.frb(62 downto 52)) then
                 v.exp_cmp := '1';
             end if;
             v.madd_cmp := '0';
@@ -1426,7 +1434,11 @@ begin
             when DO_FADD =>
                 -- fadd[s] and fsub[s]
                 -- r.opsel_a = AIN_A
-                v.result_sign := r.a.negative;
+                if r.exp_cmp = '0' then
+                    v.result_sign := r.b.negative xor r.negate_b;
+                else
+                    v.result_sign := r.a.negative;
+                end if;
                 v.result_class := r.a.class;
                 re_sel1 <= REXP1_A;
                 re_set_result <= '1';
@@ -1436,13 +1448,12 @@ begin
                 rs_sel2 <= RSH2_A;
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
-                is_add := r.a.negative xor r.b.negative xor r.insn(1);
+                is_add := not (r.a.negative xor r.b.negative xor r.negate_b);
                 v.is_subtract := not is_add;
                 if r.a.class = FINITE and r.b.class = FINITE then
                     v.add_bsmall := r.exp_cmp;
                     v.opsel_a := AIN_B;
                     if r.exp_cmp = '0' then
-                        v.result_sign := r.b.negative xnor r.insn(1);
                         if r.a.exponent = r.b.exponent then
                             v.state := ADD_2;
                         else
@@ -1466,7 +1477,6 @@ begin
                     else
                         -- result is +/- B
                         v.opsel_a := AIN_B;
-                        v.result_sign := r.b.negative xnor r.insn(1);
                         v.state := EXC_RESULT;
                     end if;
                 end if;
@@ -1684,7 +1694,7 @@ begin
                 rs_sel1 <= RSH1_B;
                 v.fpscr(FPSCR_FR) := '0';
                 v.fpscr(FPSCR_FI) := '0';
-                is_add := r.a.negative xor r.c.negative xor r.b.negative xor r.insn(1);
+                is_add := not (r.a.negative xor r.c.negative xor r.b.negative xor r.negate_b);
                 v.negate := r.insn(2);
                 v.is_subtract := not is_add;
                 if r.a.class = FINITE and r.c.class = FINITE and
@@ -1702,7 +1712,7 @@ begin
                         v.state := MULT_1;
                     elsif r.madd_cmp = '0' then
                         -- addend is bigger, do multiply first
-                        v.result_sign := r.b.negative xnor r.insn(1);
+                        v.result_sign := r.b.negative xor r.negate_b;
                         f_to_multiply.valid <= '1';
                         v.first := '1';
                         v.state := FMADD_0;
@@ -1733,7 +1743,7 @@ begin
                         -- Here A is zero, C is zero, or B is infinity
                         -- Result is +/-B in all of those cases
                         v.opsel_a := AIN_B;
-                        v.result_sign := r.b.negative xnor r.insn(1);
+                        v.result_sign := r.b.negative xor r.negate_b;
                         v.state := EXC_RESULT;
                     end if;
                 end if;

@@ -87,7 +87,10 @@ architecture behaviour of fpu is
                      IDIV_EXT_TBH4, IDIV_EXT_TBH5,
                      IDIV_EXTDIV, IDIV_EXTDIV1, IDIV_EXTDIV2, IDIV_EXTDIV3,
                      IDIV_EXTDIV4, IDIV_EXTDIV5, IDIV_EXTDIV6,
-                     IDIV_MODADJ, IDIV_MODSUB, IDIV_DIVADJ, IDIV_OVFCHK, IDIV_DONE, IDIV_ZERO);
+                     IDIV_MODADJ, IDIV_MODSUB, IDIV_DIVADJ, IDIV_OVFCHK,
+                     INTOP_DONE, IDIV_ZERO,
+                     DO_INTMADD, DO_INTMUL,
+                     IMADD_SE, IMUL_NEGB, IMUL_MUL);
 
     type reg_type is record
         state        : state_t;
@@ -158,6 +161,9 @@ architecture behaviour of fpu is
         int_ovf      : std_ulogic;
         div_close    : std_ulogic;
         inc_quot     : std_ulogic;
+        integer_mul  : std_ulogic;
+        integer_madd : std_ulogic;
+        mul_high     : std_ulogic;
         a_hi         : std_ulogic_vector(7 downto 0);
         a_lo         : std_ulogic_vector(55 downto 0);
         m32b         : std_ulogic;
@@ -729,10 +735,14 @@ begin
         variable maddend     : std_ulogic_vector(127 downto 0);
         variable sum         : std_ulogic_vector(63 downto 0);
         variable round_inc   : std_ulogic_vector(63 downto 0);
+        variable rbit_lsb    : std_ulogic;
         variable rbit_inc    : std_ulogic;
+        variable rnd_b32     : std_ulogic;
+        variable rbit_8      : std_ulogic;
         variable mult_mask   : std_ulogic;
         variable sign_bit    : std_ulogic;
-        variable rnd_b32     : std_ulogic;
+        variable overflow    : std_ulogic;
+        variable opcode      : std_ulogic_vector(4 downto 0);
         variable int_result  : std_ulogic;
         variable illegal     : std_ulogic;
     begin
@@ -741,6 +751,7 @@ begin
         v.do_intr := '0';
         int_input := '0';
         is_32bint := '0';
+        opcode := "00001";
 
         if r.complete = '1' or r.do_intr = '1' then
             v.instr_done := '0';
@@ -769,11 +780,27 @@ begin
             v.integer_op := '0';
             v.divext := '0';
             v.divmod := '0';
+            v.integer_mul := '0';
+            v.integer_madd := '0';
+            v.mul_high := '0';
             if e_in.op = OP_FPOP or e_in.op = OP_FPOP_I then
                 v.longmask := e_in.single;
                 if e_in.op = OP_FPOP_I then
                     int_input := '1';
                 end if;
+                opcode := e_in.insn(5 downto 1);
+            elsif e_in.op = OP_MUL_L64 then
+                v.integer_op := '1';
+                v.integer_mul := '1';
+                int_input := '1';
+                -- use 2 for madd* (major 4), 3 for mul* (major 31 or 7)
+                opcode := "0001" & e_in.insn(26);
+            elsif e_in.op = OP_MUL_H64 then
+                v.integer_op := '1';
+                v.integer_mul := '1';
+                int_input := '1';
+                v.mul_high := '1';
+                opcode := "0001" & e_in.insn(26);
             else -- OP_DIV, OP_DIVE, OP_MOD
                 v.integer_op := '1';
                 int_input := '1';
@@ -783,6 +810,7 @@ begin
                 elsif e_in.op = OP_MOD then
                     v.divmod := '1';
                 end if;
+                opcode := "01001";
             end if;
             v.quieten_nan := '1';
             v.tiny := '0';
@@ -907,9 +935,11 @@ begin
         renorm_sqrt := '0';
         shiftin := '0';
         shiftin0 := '0';
+        rbit_lsb := '0';
         rbit_inc := '0';
-        mult_mask := '0';
+        rbit_8 := '0';
         rnd_b32 := '0';
+        mult_mask := '0';
         int_result := '0';
         illegal := '0';
         case r.state is
@@ -921,7 +951,7 @@ begin
                 v.negate := '0';
                 if e_in.valid = '1' then
                     v.busy := '1';
-                    case e_in.insn(5 downto 1) is
+                    case opcode is
                         when "00000" =>
                             if e_in.insn(8) = '1' then
                                 if e_in.insn(6) = '0' then
@@ -935,6 +965,14 @@ begin
                                 v.opsel_a := AIN_B;
                                 v.state := DO_FCMP;
                             end if;
+                        when "00010" =>
+                            -- madd*
+                            v.opsel_a := AIN_C;
+                            v.state := DO_INTMADD;
+                        when "00011" =>
+                            -- mulhd[u], mulld[o], mulli
+                            v.opsel_a := AIN_A;
+                            v.state := DO_INTMUL;
                         when "00110" =>
                             if e_in.insn(10) = '0' then
                                 if e_in.insn(8) = '0' then
@@ -958,7 +996,7 @@ begin
                             else
                                 v.state := DO_FRI;
                             end if;
-                        when "01001" | "01011" =>
+                        when "01001" =>
                             -- integer divides and mods, major opcode 31
                             v.opsel_a := AIN_B;
                             v.state := DO_IDIVMOD;
@@ -2320,6 +2358,7 @@ begin
                 opsel_mask <= '1';
                 round := fp_rounding(r.r, r.x, r.single_prec, r.round_mode, r.result_sign);
                 v.fpscr(FPSCR_FR downto FPSCR_FI) := round;
+                rbit_lsb := '1';
                 if round(1) = '1' then
                     -- increment the LSB for the precision
                     opsel_b <= BIN_RND;
@@ -2834,7 +2873,7 @@ begin
                     v.opsel_a := AIN_C;
                     v.state := IDIV_MODSUB;
                 elsif r.result_sign = '0' then
-                    v.state := IDIV_DONE;
+                    v.state := INTOP_DONE;
                 else
                     v.state := IDIV_DIVADJ;
                 end if;
@@ -2845,7 +2884,7 @@ begin
                 carry_in <= '1';
                 opsel_b <= BIN_R;
                 if r.result_sign = '0' then
-                    v.state := IDIV_DONE;
+                    v.state := INTOP_DONE;
                 else
                     v.state := IDIV_DIVADJ;
                 end if;
@@ -2860,7 +2899,7 @@ begin
                     opsel_b <= BIN_RND;
                 end if;
                 if r.is_signed = '0' then
-                    v.state := IDIV_DONE;
+                    v.state := INTOP_DONE;
                 else
                     v.state := IDIV_OVFCHK;
                 end if;
@@ -2874,13 +2913,15 @@ begin
                 if v.int_ovf = '1' then
                     v.state := IDIV_ZERO;
                 else
-                    v.state := IDIV_DONE;
+                    v.state := INTOP_DONE;
                 end if;
-            when IDIV_DONE =>
+            when INTOP_DONE =>
                 v.xerc_result := v.xerc;
                 if r.oe = '1' then
-                    v.xerc_result.ov := '0';
-                    v.xerc_result.ov32 := '0';
+                    overflow := r.integer_mul and multiply_to_f.overflow;
+                    v.xerc_result.ov := overflow;
+                    v.xerc_result.ov32 := overflow;
+                    v.xerc_result.so := r.xerc.so or overflow;
                     v.writing_xer := '1';
                 end if;
                 if r.m32b = '0' then
@@ -2900,7 +2941,7 @@ begin
                         v.cr_result(2) := not r.r(31);
                     end if;
                 end if;
-                v.cr_result(0) := v.xerc.so;
+                v.cr_result(0) := v.xerc_result.so;
                 int_result := '1';
                 v.writing_fpr := '1';
                 v.instr_done := '1';
@@ -2918,6 +2959,83 @@ begin
                 int_result := '1';
                 v.writing_fpr := '1';
                 v.instr_done := '1';
+
+            when DO_INTMADD =>
+                -- Here we want to put C (sign-extended if this is a signed
+                -- multiplication) into A_hi:A:A_lo, and A into R.
+                -- In this cycle C goes into R.
+                if r.is_signed = '1' then
+                    v.state := IMADD_SE;
+                else
+                    v.opsel_a := AIN_A;
+                    v.shift := to_signed(-56, EXP_BITS);
+                    v.state := DO_INTMUL;
+                end if;
+                v.integer_madd := '1';
+            when IMADD_SE =>
+                -- Here we have C in R and it is a signed multiply-add
+                -- We need C sign-extended and shifted right 56 bits
+                -- Put R (top 56 bits) into S and R (bottom 56 bits) into A_lo
+                opsel_s <= S_SHIFT;
+                set_s := '1';
+                set_a_lo := '1';
+                -- Get 0 or -1 into R for sign extension
+                misc_sel <= "111" & (not r.c.negative);
+                opsel_r <= RES_MISC;
+                -- Set shift to 8 for next state
+                v.shift := to_signed(8, EXP_BITS);
+                v.opsel_a := AIN_A;
+                v.state := DO_INTMUL;
+
+            when DO_INTMUL =>
+                -- opsel_a = AIN_A
+                -- In this cycle A goes into R, negated if A is -ve
+                -- and this is a signed multiply.
+                -- If we are doing multiply-add, either C is in R,
+                -- shift = -56 and R goes into A/A_lo; or (for signed
+                -- multiply-add) R = 0 or -1, S = C(63:8), shift = 8
+                if r.integer_madd = '1' then
+                    set_a_mant := '1';
+                    if r.is_signed = '1' then
+                        set_a_hi := '1';
+                    else
+                        set_a_lo := '1';
+                    end if;
+                end if;
+                if r.is_signed = '1' and r.a.negative = '1' then
+                    opsel_ainv <= '1';
+                    carry_in <= '1';
+                end if;
+                v.first := '1';
+                v.opsel_a := AIN_B;
+                if r.is_signed = '1' and r.b.negative = '1' then
+                    v.state := IMUL_NEGB;
+                else
+                    v.state := IMUL_MUL;
+                end if;
+            when IMUL_NEGB =>
+                -- opsel_a = AIN_B
+                -- In this cycle, R goes into B and the
+                -- original B gets negated and put in R.
+                set_b_mant := '1';
+                opsel_ainv <= '1';
+                carry_in <= '1';
+                v.first := '1';
+                v.state := IMUL_MUL;
+            when IMUL_MUL =>
+                -- Start the multiplication and wait for it to finish
+                -- Result goes into R
+                msel_1 <= MUL1_B;
+                msel_2 <= MUL2_R;
+                if r.integer_madd = '1' then
+                    msel_add <= MULADD_A;
+                end if;
+                msel_inv <= r.is_signed and (r.a.negative xor r.b.negative);
+                f_to_multiply.valid <= r.first;
+                if multiply_to_f.valid = '1' then
+                    v.state := INTOP_DONE;
+                end if;
+                opsel_r <= RES_MULT;
 
         end case;
 
@@ -3044,13 +3162,12 @@ begin
             when BIN_R =>
                 in_b0 := r.r;
             when BIN_RND =>
-                if rnd_b32 = '1' then
-                    round_inc := (32 => r.result_sign and r.single_prec, others => '0');
-                elsif rbit_inc = '0' then
-                    round_inc := (SP_LSB => r.single_prec, DP_LSB => not r.single_prec, others => '0');
-                else
-                    round_inc := (DP_RBIT => '1', others => '0');
-                end if;
+                round_inc := (others => '0');
+                round_inc(DP_RBIT) := rbit_inc;
+                round_inc(DP_LSB) := rbit_lsb and not r.single_prec;
+                round_inc(8) := rbit_8;
+                round_inc(SP_LSB) := rbit_lsb and r.single_prec;
+                round_inc(32) := rnd_b32 and r.result_sign and r.single_prec;
                 in_b0 := round_inc;
             when others =>
                 -- BIN_PS8, 8 LSBs of P sign-extended to 64
@@ -3080,10 +3197,16 @@ begin
             when RES_SHIFT =>
                 result <= shift_res;
             when RES_MULT =>
-                result <= multiply_to_f.result(UNIT_BIT + 63 downto UNIT_BIT);
-                if mult_mask = '1' then
-                    -- trim to 54 fraction bits if mult_mask = 1, for quotient when dividing
-                    result(UNIT_BIT - 55 downto 0) <= (others => '0');
+                if r.integer_mul = '0' then
+                    result <= multiply_to_f.result(UNIT_BIT + 63 downto UNIT_BIT);
+                    if mult_mask = '1' then
+                        -- trim to 54 fraction bits if mult_mask = 1, for quotient when dividing
+                        result(UNIT_BIT - 55 downto 0) <= (others => '0');
+                    end if;
+                elsif r.mul_high = '0' then
+                    result <= multiply_to_f.result(63 downto 0);
+                else
+                    result <= multiply_to_f.result(127 downto 64);
                 end if;
             when others =>
                 misc := (others => '0');

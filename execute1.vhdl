@@ -202,7 +202,7 @@ architecture behaviour of execute1 is
 
     -- multiply signals
     signal x_to_multiply: MultiplyInputType;
-    signal multiply_to_x: MultiplyOutputType;
+    signal multiply_to_x: MultiplyOutputType := MultiplyOutputInit;
     signal x_to_mult_32s: MultiplyInputType;
     signal mult_32s_to_x: MultiplyOutputType;
 
@@ -406,12 +406,14 @@ begin
 	    result => countbits_result
 	    );
 
-    multiply_0: entity work.multiply
-        port map (
-            clk => clk,
-            m_in => x_to_multiply,
-            m_out => multiply_to_x
-            );
+    multiply_0: if not HAS_FPU generate
+        mul_0: entity work.multiply
+            port map (
+                clk => clk,
+                m_in => x_to_multiply,
+                m_out => multiply_to_x
+                );
+    end generate;
 
     mult_32s_0: entity work.multiply_32s
         port map (
@@ -684,74 +686,76 @@ begin
         overflow_32 <= calc_ov(a_inv(31), b_in(31), carry_32, sum_with_carry(31));
         overflow_64 <= calc_ov(a_inv(63), b_in(63), carry_64, sum_with_carry(63));
 
-        -- signals to multiply and divide units
-        sign1 := '0';
-        sign2 := '0';
-        if e_in.is_signed = '1' then
-            if e_in.is_32bit = '1' then
-                sign1 := a_in(31);
-                sign2 := b_in(31);
-            else
-                sign1 := a_in(63);
-                sign2 := b_in(63);
-            end if;
-        end if;
-        -- take absolute values
-        if sign1 = '0' then
-            abs1 := signed(a_in);
-        else
-            abs1 := - signed(a_in);
-        end if;
-        if sign2 = '0' then
-            abs2 := signed(b_in);
-        else
-            abs2 := - signed(b_in);
-        end if;
-
-        -- Interface to multiply and divide units
-        x_to_divider.is_signed <= e_in.is_signed;
-	x_to_divider.is_32bit <= e_in.is_32bit;
-        x_to_divider.is_extended <= '0';
-        x_to_divider.is_modulus <= '0';
-        if e_in.insn_type = OP_MOD then
-            x_to_divider.is_modulus <= '1';
-        end if;
-        x_to_divider.flush <= flush_in;
-
-        addend := (others => '0');
-        if e_in.insn(26) = '0' then
-            -- integer multiply-add, major op 4 (if it is a multiply)
-            addend(63 downto 0) := c_in;
+        if not HAS_FPU then
+            -- signals to multiply and divide units
+            sign1 := '0';
+            sign2 := '0';
             if e_in.is_signed = '1' then
-                addend(127 downto 64) := (others => c_in(63));
+                if e_in.is_32bit = '1' then
+                    sign1 := a_in(31);
+                    sign2 := b_in(31);
+                else
+                    sign1 := a_in(63);
+                    sign2 := b_in(63);
+                end if;
             end if;
-        end if;
-        if (sign1 xor sign2) = '1' then
-            addend := not addend;
-        end if;
-
-        x_to_multiply.data1 <= std_ulogic_vector(abs1);
-        x_to_multiply.data2 <= std_ulogic_vector(abs2);
-	x_to_multiply.is_32bit <= e_in.is_32bit;
-        x_to_multiply.not_result <= sign1 xor sign2;
-        x_to_multiply.addend <= addend;
-        x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
-        if e_in.is_32bit = '0' then
-            -- 64-bit forms
-            if e_in.insn_type = OP_DIVE then
-                x_to_divider.is_extended <= '1';
-            end if;
-            x_to_divider.dividend <= std_ulogic_vector(abs1);
-            x_to_divider.divisor <= std_ulogic_vector(abs2);
-        else
-            -- 32-bit forms
-            x_to_divider.is_extended <= '0';
-            if e_in.insn_type = OP_DIVE then   -- extended forms
-                x_to_divider.dividend <= std_ulogic_vector(abs1(31 downto 0)) & x"00000000";
+            -- take absolute values
+            if sign1 = '0' then
+                abs1 := signed(a_in);
             else
-                x_to_divider.dividend <= x"00000000" & std_ulogic_vector(abs1(31 downto 0));
+                abs1 := - signed(a_in);
             end if;
-            x_to_divider.divisor <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
+            if sign2 = '0' then
+                abs2 := signed(b_in);
+            else
+                abs2 := - signed(b_in);
+            end if;
+
+            -- Interface to multiply and divide units
+            x_to_divider.is_signed <= e_in.is_signed;
+            x_to_divider.is_32bit <= e_in.is_32bit;
+            x_to_divider.is_extended <= '0';
+            x_to_divider.is_modulus <= '0';
+            if e_in.insn_type = OP_MOD then
+                x_to_divider.is_modulus <= '1';
+            end if;
+            x_to_divider.flush <= flush_in;
+
+            addend := (others => '0');
+            if e_in.insn(26) = '0' then
+                -- integer multiply-add, major op 4 (if it is a multiply)
+                addend(63 downto 0) := c_in;
+                if e_in.is_signed = '1' then
+                    addend(127 downto 64) := (others => c_in(63));
+                end if;
+            end if;
+            if (sign1 xor sign2) = '1' then
+                addend := not addend;
+            end if;
+
+            x_to_multiply.data1 <= std_ulogic_vector(abs1);
+            x_to_multiply.data2 <= std_ulogic_vector(abs2);
+            x_to_multiply.is_32bit <= e_in.is_32bit;
+            x_to_multiply.not_result <= sign1 xor sign2;
+            x_to_multiply.addend <= addend;
+            x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
+            if e_in.is_32bit = '0' then
+                -- 64-bit forms
+                if e_in.insn_type = OP_DIVE then
+                    x_to_divider.is_extended <= '1';
+                end if;
+                x_to_divider.dividend <= std_ulogic_vector(abs1);
+                x_to_divider.divisor <= std_ulogic_vector(abs2);
+            else
+                -- 32-bit forms
+                x_to_divider.is_extended <= '0';
+                if e_in.insn_type = OP_DIVE then   -- extended forms
+                    x_to_divider.dividend <= std_ulogic_vector(abs1(31 downto 0)) & x"00000000";
+                else
+                    x_to_divider.dividend <= x"00000000" & std_ulogic_vector(abs1(31 downto 0));
+                end if;
+                x_to_divider.divisor <= x"00000000" & std_ulogic_vector(abs2(31 downto 0));
+            end if;
         end if;
 
         -- signals to 32-bit multiplier
@@ -763,17 +767,20 @@ begin
         x_to_mult_32s.addend <= (others => '0');
 
         shortmul_result <= std_ulogic_vector(resize(signed(mshort_p), 64));
-        case ex1.mul_select is
-            when "00" =>
-                muldiv_result <= multiply_to_x.result(63 downto 0);
-            when "01" =>
-                muldiv_result <= multiply_to_x.result(127 downto 64);
-            when "10" =>
-                muldiv_result <= multiply_to_x.result(63 downto 32) &
-                                 multiply_to_x.result(63 downto 32);
-            when others =>
-                muldiv_result <= divider_to_x.write_reg_data;
-        end case;
+        muldiv_result <= (others => '0');
+        if not HAS_FPU then
+            case ex1.mul_select is
+                when "00" =>
+                    muldiv_result <= multiply_to_x.result(63 downto 0);
+                when "01" =>
+                    muldiv_result <= multiply_to_x.result(127 downto 64);
+                when "10" =>
+                    muldiv_result <= multiply_to_x.result(63 downto 32) &
+                                     multiply_to_x.result(63 downto 32);
+                when others =>
+                    muldiv_result <= divider_to_x.write_reg_data;
+            end case;
+        end if;
 
         -- Compute misc_result
         case e_in.sub_select is
@@ -1288,7 +1295,7 @@ begin
                         -- Note 16x16 multiply can't overflow, even for mullwo
                         set_ov(v.e, '0', '0');
                     end if;
-                else
+                elsif not HAS_FPU then
                     -- Use standard multiplier
                     v.start_mul := '1';
                     slow_op := '1';
@@ -1296,9 +1303,11 @@ begin
                 end if;
 
 	    when OP_MUL_H64 =>
-                v.start_mul := '1';
-                slow_op := '1';
-                owait := '1';
+                if not HAS_FPU then
+                    v.start_mul := '1';
+                    slow_op := '1';
+                    owait := '1';
+                end if;
 
             when OP_MUL_H32 =>
                 v.se.mult_32s := '1';
@@ -1495,7 +1504,7 @@ begin
             end if;
         end if;
 
-        if ex1.div_in_progress = '1' then
+        if not HAS_FPU and ex1.div_in_progress = '1' then
             v.div_in_progress := not divider_to_x.valid;
             v.busy := not divider_to_x.valid;
             if divider_to_x.valid = '1' and ex1.oe = '1' then
@@ -1509,7 +1518,7 @@ begin
             v.e.write_data := alu_result;
             bypass_valid := v.e.valid;
         end if;
-        if ex1.mul_in_progress = '1' then
+        if not HAS_FPU and ex1.mul_in_progress = '1' then
             v.mul_in_progress := not multiply_to_x.valid;
             v.mul_finish := multiply_to_x.valid and ex1.oe;
             v.e.valid := multiply_to_x.valid and not ex1.oe;
@@ -1517,7 +1526,7 @@ begin
             v.e.write_data := alu_result;
             bypass_valid := v.e.valid;
         end if;
-        if ex1.mul_finish = '1' then
+        if not HAS_FPU and ex1.mul_finish = '1' then
             v.mul_finish := '0';
             v.e.xerc.ov := multiply_to_x.overflow;
             v.e.xerc.ov32 := multiply_to_x.overflow;

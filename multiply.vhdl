@@ -7,7 +7,7 @@ use work.common.all;
 
 entity multiply is
     generic (
-        PIPELINE_DEPTH : natural := 3
+        PIPELINE_DEPTH : natural := 2
         );
     port (
         clk   : in std_logic;
@@ -59,11 +59,15 @@ begin
         a := (m.is_signed and m.data1(63)) & m.data1;
         b := (m.is_signed and m.data2(63)) & m.data2;
         prod := std_ulogic_vector(signed(a) * signed(b));
-        v.multiply_pipeline(0).valid := m.valid;
-        if m.subtract = '1' then
-            v.multiply_pipeline(0).data := unsigned(m.addend) - unsigned(prod(127 downto 0));
-        else
-            v.multiply_pipeline(0).data := unsigned(m.addend) + unsigned(prod(127 downto 0));
+
+        v.multiply_pipeline(0) := MultiplyPipelineStageInit;
+        if m.valid = '1' then
+            v.multiply_pipeline(0).valid := '1';
+            if m.subtract = '1' then
+                v.multiply_pipeline(0).data := unsigned(m.addend) - unsigned(prod(127 downto 0));
+            else
+                v.multiply_pipeline(0).data := unsigned(m.addend) + unsigned(prod(127 downto 0));
+            end if;
         end if;
 
         loop_0: for i in 1 to PIPELINE_DEPTH-1 loop

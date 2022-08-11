@@ -397,6 +397,7 @@ architecture rtl of dcache is
     -- PLRU output interface
     type plru_out_t is array(index_t) of std_ulogic_vector(WAY_BITS-1 downto 0);
     signal plru_victim : plru_out_t;
+    signal rand_victim : unsigned(WAY_BITS-1 downto 0);
     signal replace_way : way_t;
 
     -- Wishbone read/write/cache write formatting signals
@@ -421,6 +422,7 @@ architecture rtl of dcache is
     -- TLB PLRU output interface
     type tlb_plru_out_t is array(tlb_index_t) of std_ulogic_vector(TLB_WAY_BITS-1 downto 0);
     signal tlb_plru_victim : tlb_plru_out_t;
+    signal tlb_rand_victim : unsigned(TLB_WAY_BITS-1 downto 0);
 
     signal snoop_tag_set : cache_tags_set_t;
     signal snoop_valid   : std_ulogic;
@@ -636,7 +638,7 @@ begin
     end process;
 
     -- Generate TLB PLRUs
-    maybe_tlb_plrus: if TLB_NUM_WAYS > 1 generate
+    maybe_tlb_plrus: if false and TLB_NUM_WAYS > 1 generate
     begin
 	tlb_plrus: for i in 0 to TLB_SET_SIZE - 1 generate
 	    -- TLB PLRU interface
@@ -733,7 +735,7 @@ begin
                 if tlb_hit = '1' then
                     repl_way := tlb_hit_way;
                 else
-                    repl_way := to_integer(unsigned(tlb_plru_victim(tlb_req_index)));
+                    repl_way := to_integer(tlb_rand_victim);
                 end if;
                 eatag := r0.req.addr(63 downto TLB_LG_PGSZ + TLB_SET_BITS);
                 tagset := tlb_tag_way;
@@ -744,11 +746,16 @@ begin
                 dtlb_ptes(tlb_req_index) <= pteset;
                 dtlb_valids(tlb_req_index)(repl_way) <= '1';
             end if;
+            if rst = '1' then
+                tlb_rand_victim <= (others => '0');
+            else
+                tlb_rand_victim <= tlb_rand_victim + 1;
+            end if;
         end if;
     end process;
 
     -- Generate PLRUs
-    maybe_plrus: if NUM_WAYS > 1 generate
+    maybe_plrus: if false and NUM_WAYS > 1 generate
     begin
 	plrus: for i in 0 to NUM_LINES-1 generate
 	    -- PLRU interface
@@ -918,7 +925,7 @@ begin
 
         -- The way to replace on a miss
         if r1.write_tag = '1' then
-            replace_way <= to_integer(unsigned(plru_victim(r1.store_index)));
+            replace_way <= to_integer(rand_victim);
         else
             replace_way <= r1.store_way;
         end if;
@@ -1303,6 +1310,8 @@ begin
 
 		-- Not useful normally but helps avoiding tons of sim warnings
 		r1.wb.adr <= (others => '0');
+
+                rand_victim <= (others => '0');
             else
 		-- One cycle pulses reset
 		r1.slow_valid <= '0';
@@ -1584,6 +1593,8 @@ begin
 			r1.wb.stb <= '0';
 		    end if;
                 end case;
+
+                rand_victim <= rand_victim + 1;
 	    end if;
 	end if;
     end process;

@@ -237,7 +237,7 @@ architecture rtl of icache is
     -- PLRU output interface
     type plru_out_t is array(index_t) of std_ulogic_vector(WAY_BITS-1 downto 0);
     signal plru_victim : plru_out_t;
-    signal replace_way : way_t;
+    signal rand_victim : unsigned(WAY_BITS-1 downto 0);
 
     -- Memory write snoop signals
     signal snoop_valid : std_ulogic;
@@ -447,7 +447,7 @@ begin
     end generate;
     
     -- Generate PLRUs
-    maybe_plrus: if NUM_WAYS > 1 generate
+    maybe_plrus: if false and NUM_WAYS > 1 generate
     begin
 	plrus: for i in 0 to NUM_LINES-1 generate
 	    -- PLRU interface
@@ -598,13 +598,6 @@ begin
         end if;
 	req_hit_way <= hit_way;
 
-        -- The way to replace on a miss
-        if r.state = CLR_TAG then
-            replace_way <= to_integer(unsigned(plru_victim(r.store_index)));
-        else
-            replace_way <= r.store_way;
-        end if;
-
 	-- Output instruction from current cache row
 	--
 	-- Note: This is a mild violation of our design principle of having pipeline
@@ -711,6 +704,8 @@ begin
                 snoop_valid <= '0';
                 snoop_index <= 0;
                 snoop_hits <= (others => '0');
+
+                rand_victim <= (others => '0');
             else
                 -- Detect snooped writes and decode address into index and tag
                 -- Since we never write, any write should be snooped
@@ -731,6 +726,9 @@ begin
                         snoop_hits(i) <= '1';
                     end if;
                 end loop;
+
+                -- Increment on every cycle
+                rand_victim <= rand_victim + 1;
 
                 -- Process cache invalidations
                 if inval_in = '1' then
@@ -788,7 +786,7 @@ begin
 		when CLR_TAG | WAIT_ACK =>
                     if r.state = CLR_TAG then
                         -- Get victim way from plru
-                        replace_way := to_integer(unsigned(plru_victim(r.store_index)));
+                        replace_way := to_integer(rand_victim);
 			r.store_way <= replace_way;
 
 			-- Force misses on that way while reloading that line

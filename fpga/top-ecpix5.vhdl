@@ -170,6 +170,8 @@ architecture behaviour of toplevel is
     signal soc_rst : std_ulogic;
     signal pll_rst : std_ulogic;
 
+    signal run_out : std_ulogic;
+
     -- Internal clock signals:
     signal system_clk        : std_ulogic;
     signal system_clk_locked : std_ulogic;
@@ -273,6 +275,7 @@ begin
             -- System signals
             system_clk        => system_clk,
             rst               => soc_rst,
+            run_out           => run_out,
 
             -- UART signals
             uart0_txd         => uart0_txd,
@@ -646,7 +649,7 @@ begin
     led6_g_n <= '1';
     led6_b_n <= '1';
     led7_r_n <= not soc_rst;
-    led7_g_n <= not system_clk_locked;
-    led7_b_n <= '1';
+    led7_g_n <= not run_out;
+    led7_b_n <= system_clk_locked;
 
 end architecture behaviour;

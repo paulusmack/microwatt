@@ -2,7 +2,7 @@ library ieee;
 use ieee.std_logic_1164.all;
 
 package decode_types is
-    type insn_type_t is (OP_ILLEGAL, OP_NOP, OP_ADD,
+    type insn_type_t is (OP_ILLEGAL, OP_NOP,
 			 OP_ATTN, OP_B, OP_BC, OP_BCREG,
 			 OP_BSORT,
                          OP_COMPUTE,

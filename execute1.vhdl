@@ -1337,7 +1337,7 @@ begin
             end if;
         end if;
 
-        if e_in.opv(OP_ADD) = '1' then
+        if e_in.opv(OP_COMPUTE) = '1' then
             if e_in.oe = '1' then
                 set_ov(v.e, overflow_64, overflow_32);
             end if;

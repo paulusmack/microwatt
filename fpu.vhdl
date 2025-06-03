@@ -1242,32 +1242,15 @@ begin
                     end case;
                 when OP_DIV =>
                     v.integer_op := '1';
+                    v.divext := e_in.ext_div;
+                    v.divmod := e_in.modulus;
                     is_32bint := e_in.single;
                     if e_in.single = '0' then
-                        v.result_sign := e_in.is_signed and (e_in.fra(63) xor e_in.frb(63));
+                        sign_bit := e_in.fra(63) xor (e_in.frb(63) and not e_in.modulus);
                     else
-                        v.result_sign := e_in.is_signed and (e_in.fra(31) xor e_in.frb(31));
+                        sign_bit := e_in.fra(31) xor (e_in.frb(31) and not e_in.modulus);
                     end if;
-                    exec_state := DO_IDIVMOD;
-                when OP_DIVE =>
-                    v.integer_op := '1';
-                    v.divext := '1';
-                    is_32bint := e_in.single;
-                    if e_in.single = '0' then
-                        v.result_sign := e_in.is_signed and (e_in.fra(63) xor e_in.frb(63));
-                    else
-                        v.result_sign := e_in.is_signed and (e_in.fra(31) xor e_in.frb(31));
-                    end if;
-                    exec_state := DO_IDIVMOD;
-                when OP_MOD =>
-                    v.integer_op := '1';
-                    v.divmod := '1';
-                    is_32bint := e_in.single;
-                    if e_in.single = '0' then
-                        v.result_sign := e_in.is_signed and e_in.fra(63);
-                    else
-                        v.result_sign := e_in.is_signed and e_in.fra(31);
-                    end if;
+                    v.result_sign := e_in.is_signed and sign_bit;
                     exec_state := DO_IDIVMOD;
                 when others =>
                     exec_state := DO_ILLEGAL;

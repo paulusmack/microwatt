@@ -923,6 +923,8 @@ package common is
         is_signed : std_ulogic;
         negate    : std_ulogic;
         negate_b  : std_ulogic;
+        ext_div   : std_ulogic;
+        modulus   : std_ulogic;
         fe_mode   : std_ulogic_vector(1 downto 0);
         fra       : std_ulogic_vector(63 downto 0);
         frb       : std_ulogic_vector(63 downto 0);
@@ -945,7 +947,8 @@ package common is
                                                        frc => (others => '0'), frt => (others => '0'),
                                                        valid_a => '0', valid_b => '0', valid_c => '0',
                                                        single => '0', is_signed => '0',
-                                                       negate => '0', negate_b => '0', out_cr => '0',
+                                                       negate => '0', negate_b => '0',
+                                                       ext_div => '0', modulus => '0', out_cr => '0',
                                                        m32b => '0', oe => '0', xerc => xerc_init,
                                                        stall => '0');
 

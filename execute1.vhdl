@@ -969,22 +969,20 @@ begin
             x_to_divider.is_32bit <= e_in.is_32bit;
             x_to_divider.is_extended <= '0';
             x_to_divider.is_modulus <= '0';
-            if e_in.insn_type = OP_MOD then
-                x_to_divider.is_modulus <= '1';
-            end if;
+            -- repurpose invert_out field to indicate modulus vs division
+            x_to_divider.is_modulus <= e_in.invert_out;
             x_to_divider.flush <= flush_in;
             x_to_divider.neg_result <= sign1 xor (sign2 and not x_to_divider.is_modulus);
             if e_in.is_32bit = '0' then
                 -- 64-bit forms
-                if e_in.insn_type = OP_DIVE then
-                    x_to_divider.is_extended <= '1';
-                end if;
+                -- repurpose invert_a to indicate extended division
+                x_to_divider.is_extended <= e_in.invert_a;
                 x_to_divider.dividend <= std_ulogic_vector(abs1);
                 x_to_divider.divisor <= std_ulogic_vector(abs2);
             else
                 -- 32-bit forms
                 x_to_divider.is_extended <= '0';
-                if e_in.insn_type = OP_DIVE then   -- extended forms
+                if e_in.invert_a = '1' then   -- extended forms
                     x_to_divider.dividend <= std_ulogic_vector(abs1(31 downto 0)) & x"00000000";
                 else
                     x_to_divider.dividend <= x"00000000" & std_ulogic_vector(abs1(31 downto 0));
@@ -1630,7 +1628,7 @@ begin
                 v.res2_sel := "01";
                 slow_op := '1';
 
-	    when OP_DIV | OP_DIVE | OP_MOD =>
+	    when OP_DIV =>
                 if not HAS_FPU then
                     v.start_div := '1';
                     slow_op := '1';
@@ -2079,6 +2077,8 @@ begin
         fv.is_signed := e_in.is_signed;
         fv.negate_b := e_in.invert_a;
         fv.negate := e_in.invert_out;
+        fv.ext_div := e_in.invert_a;
+        fv.modulus := e_in.invert_out;
         fv.fe_mode := ex1.msr(MSR_FE0) & ex1.msr(MSR_FE1);
         fv.fra := a_in;
         fv.frb := b_in;

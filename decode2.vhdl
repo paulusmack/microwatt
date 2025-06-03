@@ -474,14 +474,13 @@ begin
                 -- for them, but not ultimately v.e.rc.
                 v.e.rc := '0';
             end if;
+            if d_in.decode.rc = RCOE and insn_oe(d_in.insn) = '1' then
+                v.e.oe := '1';
+                v.e.output_xer := '1';
+                v.output_ov := '1';
+                v.input_ov := '1';      -- need SO state if setting OV to 0
+            end if;
             case d_in.decode.insn_type is
-                when OP_ADD | OP_MUL_L64 | OP_DIV | OP_DIVE =>
-                    if d_in.decode.rc = RCOE and insn_oe(d_in.insn) = '1' then
-                        v.e.oe := '1';
-                        v.e.output_xer := '1';
-                        v.output_ov := '1';
-                        v.input_ov := '1';      -- need SO state if setting OV to 0
-                    end if;
                 when OP_MFSPR =>
                     if is_X(d_in.insn) then
                         v.input_ov := 'X';

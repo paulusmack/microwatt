@@ -107,7 +107,7 @@ architecture behaviour of decode1 is
         INSN_bcctr       =>  (ALU,  NONE, OP_BCREG,     NONE,       IMM, NONE,        NONE, NONE, SPR, "000", '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', '0', NONE),
         INSN_bclr        =>  (ALU,  NONE, OP_BCREG,     NONE,       IMM, NONE,        NONE, NONE, SPR, "000", '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', '0', NONE),
         INSN_bctar       =>  (ALU,  NONE, OP_BCREG,     NONE,       IMM, NONE,        NONE, NONE, SPR, "000", '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '1', '0', '0', NONE),
-        INSN_bperm       =>  (ALU,  NONE, OP_BPERM,     NONE,       RB,  NONE,        RS,   RA,   ADD, "100", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_bperm       =>  (ALU,  NONE, OP_BSORT,     NONE,       RB,  NONE,        RS,   RA,   ADD, "100", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_brh         =>  (ALU,  NONE, OP_COMPUTE,   NONE,       IMM, NONE,        RS,   RA,   LOG, "010", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_brw         =>  (ALU,  NONE, OP_COMPUTE,   NONE,       IMM, NONE,        RS,   RA,   LOG, "010", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_brd         =>  (ALU,  NONE, OP_COMPUTE,   NONE,       IMM, NONE,        RS,   RA,   LOG, "010", '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),

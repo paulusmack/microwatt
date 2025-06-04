@@ -86,11 +86,11 @@ struct log_entry {
 const char *units[4] = { "al", "ls", "fp", "3?" };
 const char *ops[64] =
 {
-	"illegal", "nop    ", "add    ", "attn   ", "b      ", "bc     ", "bcreg  ", "bperm  ",
-	"bsort  ", "compute", "countb ", "darn   ", "dcbf   ", "dcbst  ", "icbi   ", "icbt   ",
-	"fpcmp  ", "fparith", "fpmove ", "fpmisc ", "div    ", "isync  ", "ld     ", "st     ",
-	"mfmsr  ", "mfspr  ", "msg    ", "mtcrf  ", "mtmsr  ", "mtspr  ", "mul    ", "rfid   ",
-	"sc     ", "sync   ", "tlbie  ", "trap   ", "wait   ", "vperm  ", "mtfrin ", "ffail  ",
+	"illegal", "nop    ", "add    ", "attn   ", "b      ", "bc     ", "bcreg  ", "bsort  ",
+	"compute", "countb ", "darn   ", "dcbf   ", "dcbst  ", "icbi   ", "icbt   ", "fpcmp  ",
+	"fparith", "fpmove ", "fpmisc ", "div    ", "isync  ", "ld     ", "st     ", "mfmsr  ",
+	"mfspr  ", "msg    ", "mtcrf  ", "mtmsr  ", "mtspr  ", "mul    ", "rfid   ", "sc     ",
+	"sync   ", "tlbie  ", "trap   ", "wait   ", "vperm  ", "mtfrin ", "ffail  ", "?39    ",
 	"?40    ", "?41    ", "?42    ", "?43    ", "?44    ", "?45    ", "?46    ", "?47    ",
 	"?48    ", "?49    ", "?50    ", "?51    ", "?52    ", "?53    ", "?54    ", "?55    ",
 	"?56    ", "?57    ", "?58    ", "?59    ", "?60    ", "?61    ", "?62    ", "?63    "

@@ -29,8 +29,6 @@ entity bit_sorter is
         go          : in std_ulogic;
         opc         : in std_ulogic_vector(1 downto 0);
         done        : out std_ulogic;
-        do_bperm    : in std_ulogic;
-        bperm_done  : out std_ulogic;
         result      : out std_ulogic_vector(63 downto 0)
         );
 end entity bit_sorter;
@@ -65,7 +63,7 @@ begin
                 st <= '0';
                 opr <= "00";
                 val <= (others => '0');
-            elsif go = '1' then
+            elsif go = '1' and opc /= "11" then
                 st <= '1';
                 sr_ml <= rb;
                 sr_mr <= rb;
@@ -121,7 +119,7 @@ begin
                 bp_done <= '0';
                 bperm_res(6 downto 0) <= (others => '0');
                 bpc <= to_unsigned(0, 3);
-            elsif do_bperm = '1' then
+            elsif go = '1' and opc = "11" then
                 is_bperm <= '1';
                 bp_done <= '0';
                 bperm_res(6 downto 0) <= (others => '0');
@@ -142,8 +140,7 @@ begin
         end if;
     end process;
 
-    done <= sd;
-    bperm_done <= bp_done;
+    done <= sd or bp_done;
     result <= val when is_bperm = '0' else (56x"0" & bperm_res);
 
 end behaviour;

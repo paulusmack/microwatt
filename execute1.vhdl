@@ -1607,25 +1607,15 @@ begin
                 slow_op := '1';
                 owait := '1';
 
-	    when OP_MUL_L64 =>
+	    when OP_MUL =>
                 if e_in.is_32bit = '1' then
                     v.se.mult_32s := '1';
-                    v.res2_sel := "00";
+                    v.res2_sel(0) := e_in.sub_select(0);
                 else
                     -- Use standard multiplier
                     v.start_mul := '1';
                     owait := '1';
                 end if;
-                slow_op := '1';
-
-	    when OP_MUL_H64 =>
-                v.start_mul := '1';
-                slow_op := '1';
-                owait := '1';
-
-            when OP_MUL_H32 =>
-                v.se.mult_32s := '1';
-                v.res2_sel := "01";
                 slow_op := '1';
 
 	    when OP_DIV =>

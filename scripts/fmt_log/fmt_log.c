@@ -89,9 +89,9 @@ const char *ops[64] =
 	"illegal", "nop    ", "add    ", "attn   ", "b      ", "bc     ", "bcreg  ", "bperm  ",
 	"bsort  ", "compute", "countb ", "darn   ", "dcbf   ", "dcbst  ", "icbi   ", "icbt   ",
 	"fpcmp  ", "fparith", "fpmove ", "fpmisc ", "div    ", "isync  ", "ld     ", "st     ",
-	"mfmsr  ", "mfspr  ", "msg    ", "mtcrf  ", "mtmsr  ", "mtspr  ", "mull64 ", "mulh64 ",
-	"mulh32 ", "rfid   ", "sc     ", "sync   ", "tlbie  ", "trap   ", "wait   ", "vperm  ",
-	"mtfrin ", "ffail  ", "?42    ", "?43    ", "?44    ", "?45    ", "?46    ", "?47    ",
+	"mfmsr  ", "mfspr  ", "msg    ", "mtcrf  ", "mtmsr  ", "mtspr  ", "mul    ", "rfid   ",
+	"sc     ", "sync   ", "tlbie  ", "trap   ", "wait   ", "vperm  ", "mtfrin ", "ffail  ",
+	"?40    ", "?41    ", "?42    ", "?43    ", "?44    ", "?45    ", "?46    ", "?47    ",
 	"?48    ", "?49    ", "?50    ", "?51    ", "?52    ", "?53    ", "?54    ", "?55    ",
 	"?56    ", "?57    ", "?58    ", "?59    ", "?60    ", "?61    ", "?62    ", "?63    "
 };

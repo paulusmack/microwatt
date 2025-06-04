@@ -467,6 +467,13 @@ begin
             if v.e.rc = '1' and d_in.decode.facility /= FPU then
                 v.input_ov := '1';
             end if;
+            if d_in.decode.output_cr = '1' then
+                -- The combination of output_cr = 1 and rc = ONE is used
+                -- to indicate instructions like cmp and mcrxrx which use
+                -- the OV bit and set a CR field.  So we want v.input_ov set
+                -- for them, but not ultimately v.e.rc.
+                v.e.rc := '0';
+            end if;
             case d_in.decode.insn_type is
                 when OP_ADD | OP_MUL_L64 | OP_DIV | OP_DIVE =>
                     if d_in.decode.rc = RCOE and insn_oe(d_in.insn) = '1' then
@@ -523,8 +530,6 @@ begin
                             v.sgl_pipe := '1';
                         end if;
                     end if;
-                when OP_CMP | OP_MCRXRX =>
-                    v.input_ov := '1';
                 when others =>
             end case;
 
@@ -672,6 +677,11 @@ begin
             v.e.input_carry := d_in.decode.input_carry;
             v.e.output_carry := d_in.decode.output_carry;
             v.e.is_32bit := d_in.decode.is_32bit;
+            if d_in.decode.output_cr = '1' and d_in.decode.rc = ONE and
+                insn_l(d_in.insn) = '0' then
+                -- cmp instructions (also mcrxrx, but that doesn't matter)
+                v.e.is_32bit := '1';
+            end if;
             v.e.is_signed := d_in.decode.is_signed;
             v.e.insn := d_in.insn;
             v.e.data_len := length;

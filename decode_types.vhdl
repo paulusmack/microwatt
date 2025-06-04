@@ -4,7 +4,7 @@ use ieee.std_logic_1164.all;
 package decode_types is
     type insn_type_t is (OP_ILLEGAL, OP_NOP, OP_ADD,
 			 OP_ATTN, OP_B, OP_BC, OP_BCREG,
-			 OP_BPERM, OP_BSORT, OP_CMP,
+			 OP_BPERM, OP_BSORT,
                          OP_COMPUTE,
 			 OP_COUNTB,
 			 OP_DARN, OP_DCBF, OP_DCBST,
@@ -13,7 +13,7 @@ package decode_types is
                          OP_DIV, OP_DIVE, OP_MOD,
                          OP_ISYNC,
 			 OP_LOAD, OP_STORE,
-			 OP_MCRXRX, OP_MFMSR, OP_MFSPR,
+			 OP_MFMSR, OP_MFSPR,
                          OP_MSG,
 			 OP_MTCRF, OP_MTMSRD, OP_MTSPR, OP_MUL_L64,
 			 OP_MUL_H64, OP_MUL_H32,

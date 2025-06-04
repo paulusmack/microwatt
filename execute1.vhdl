@@ -1110,11 +1110,7 @@ begin
 
         -- compute comparison results
         -- Note, we have done RB - RA, not RA - RB
-        if e_in.insn_type = OP_CMP then
-            l := insn_l(e_in.insn);
-        else
-            l := not e_in.is_32bit;
-        end if;
+        l := not e_in.is_32bit;
         zerolo := not (or (a_in(31 downto 0) xor b_in(31 downto 0)));
         zerohi := not (or (a_in(63 downto 32) xor b_in(63 downto 32)));
         if zerolo = '1' and (l = '0' or zerohi = '1') then
@@ -1362,7 +1358,6 @@ begin
                     set_ov(v.e, overflow_64, overflow_32);
                 end if;
             when OP_COMPUTE =>
-            when OP_CMP =>
             when OP_TRAP =>
                 -- trap instructions (tw, twi, td, tdi)
                 v.e.intr_vec := 16#700#;
@@ -1453,7 +1448,6 @@ begin
             when OP_COUNTB =>
                 v.res2_sel := "01";
                 slow_op := '1';
-            when OP_MCRXRX =>
             when OP_DARN =>
 	    when OP_MFMSR =>
 

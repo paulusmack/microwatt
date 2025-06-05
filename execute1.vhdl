@@ -1777,10 +1777,9 @@ begin
                 v.e.srr1(47 - 33) := '1';
                 v.e.srr1(47 - 34) := ex1.prev_prefixed;
                 if (ex1.prev_op = OP_LOAD or ex1.prev_op = OP_ICBI or ex1.prev_op = OP_ICBT or
-                    ex1.prev_op = OP_DCBF) and ex1.trace_ciabr = '0' then
+                    ex1.prev_op = OP_DCBF or ex1.prev_op = OP_DCBST) and ex1.trace_ciabr = '0' then
                     v.e.srr1(47 - 35) := '1';
-                elsif (ex1.prev_op = OP_STORE or ex1.prev_op = OP_DCBZ) and
-                    ex1.trace_ciabr = '0' then
+                elsif ex1.prev_op = OP_STORE and ex1.trace_ciabr = '0' then
                     v.e.srr1(47 - 36) := '1';
                 end if;
                 v.e.srr1(47 - 43) := ex1.trace_ciabr;
@@ -1964,8 +1963,7 @@ begin
         lv.sign_extend := e_in.sign_extend;
         lv.update := e_in.update;
         -- Use sub_select decode field to indicate cache-inhibited and hash store/check instructions
-        lv.ci := e_in.sub_select(0);
-        lv.hash := e_in.sub_select(1);
+        lv.mode := e_in.sub_select;
         lv.xerc := xerc_in;
         lv.reserve := e_in.reserve;
         lv.rc := e_in.rc;

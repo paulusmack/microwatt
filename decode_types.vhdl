@@ -7,7 +7,7 @@ package decode_types is
 			 OP_BPERM, OP_BSORT, OP_CMP,
                          OP_COMPUTE,
 			 OP_COUNTB,
-			 OP_DARN, OP_DCBF, OP_DCBST, OP_DCBZ,
+			 OP_DARN, OP_DCBF, OP_DCBST,
                          OP_ICBI, OP_ICBT,
                          OP_FP_CMP, OP_FP_ARITH, OP_FP_MOVE, OP_FP_MISC,
                          OP_DIV, OP_DIVE, OP_MOD,

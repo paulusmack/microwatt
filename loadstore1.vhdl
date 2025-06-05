@@ -586,7 +586,6 @@ begin
         v.xerc := l_in.xerc;
         v.reserve := l_in.reserve;
         v.rc := l_in.rc;
-        v.nc := l_in.ci;
         v.virt_mode := l_in.virt_mode;
         v.priv_mode := l_in.priv_mode;
         v.ric := l_in.insn(19 downto 18);
@@ -601,9 +600,22 @@ begin
             v.sprsel := "100" & sprn(8);
         end if;
 
-        disp := l_in.addr2;
-        if l_in.hash = '1' then
-        end if;
+        hash_nop := '0';
+        case l_in.mode is
+            when "001" =>
+                v.nc := '1';
+            when "010" =>
+                if l_in.op = OP_STORE then
+                    v.hashst := '1';
+                elsif l_in.op = OP_LOAD then
+                    v.hashcmp := '1';
+                end if;
+                hash_nop := not l_in.hash_enable;
+            when "011" =>
+                v.dcbz := '1';
+            when others =>
+        end case;
+
         lsu_sum := std_ulogic_vector(unsigned(l_in.addr1) + unsigned(l_in.addr2));
 
         if HAS_FPU and l_in.is_32bit = '1' then
@@ -653,7 +665,7 @@ begin
         if l_in.repeat = '1' and l_in.update = '0' and addr(3) /= l_in.second then
             misaligned := '1';
         end if;
-        v.align_intr := (l_in.reserve or (l_in.hash and l_in.hash_enable)) and misaligned;
+        v.align_intr := (l_in.reserve or ((v.hashst or v.hashcmp) and l_in.hash_enable)) and misaligned;
 
         v.atomic_first := not misaligned and not l_in.second;
         v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);
@@ -673,18 +685,15 @@ begin
             end if;
         end if;
 
-        hash_nop := '0';
         case l_in.op is
             when OP_SYNC =>
                 v.sync := '1';
                 v.ea_valid := '0';
             when OP_STORE =>
                 v.store := '1';
-                if l_in.length = "0000" then
+                if l_in.length = "0000" and v.dcbz = '0' then
                     v.touch := '1';
                 end if;
-                v.hashst := l_in.hash;
-                hash_nop := not l_in.hash_enable;
             when OP_LOAD =>
                 if l_in.update = '0' or l_in.second = '0' then
                     v.load := '1';
@@ -699,13 +708,9 @@ begin
                     -- write back address to RA
                     v.do_update := '1';
                 end if;
-                v.hashcmp := l_in.hash;
-                hash_nop := not l_in.hash_enable;
             when OP_DCBF =>
                 v.load := '1';
                 v.flush := '1';
-            when OP_DCBZ =>
-                v.dcbz := '1';
             when OP_TLBIE =>
                 v.tlbie := '1';
                 v.is_slbia := l_in.insn(7);

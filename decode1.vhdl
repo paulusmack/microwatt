@@ -135,7 +135,7 @@ architecture behaviour of decode1 is
         INSN_dcbst       =>  (ALU,  NONE, OP_DCBST,     NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_dcbt        =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_dcbtst      =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
-        INSN_dcbz        =>  (LDST, NONE, OP_DCBZ,      RA_OR_ZERO, RB,  NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_dcbz        =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        NONE, NONE, ADD, "011", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_divd        =>  (DVU,  NONE, OP_DIV,       RA,         RB,  NONE,        NONE, RT,   ADD, "101", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RCOE, '0', '0', '0', NONE),
         INSN_divde       =>  (DVU,  NONE, OP_DIVE,      RA,         RB,  NONE,        NONE, RT,   ADD, "101", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RCOE, '0', '0', '0', NONE),
         INSN_divdeu      =>  (DVU,  NONE, OP_DIVE,      RA,         RB,  NONE,        NONE, RT,   ADD, "101", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RCOE, '0', '0', '0', NONE),

@@ -636,11 +636,10 @@ package common is
 	data : std_ulogic_vector(63 downto 0);		-- data to write, unused for read
 	write_reg : gspr_index_t;
 	length : std_ulogic_vector(3 downto 0);
-        ci : std_ulogic;                                -- cache-inhibited load/store
 	byte_reverse : std_ulogic;
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
-        hash : std_ulogic;
+        mode : std_ulogic_vector(2 downto 0);           -- normal, CI, hash, dcbz, etc.
 	xerc : xer_common_t;
         reserve : std_ulogic;                           -- set for larx/stcx.
         rc : std_ulogic;                                -- set for stcx.
@@ -657,8 +656,9 @@ package common is
         hash_enable : std_ulogic;
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type :=
-        (valid => '0', op => OP_ILLEGAL, ci => '0', byte_reverse => '0',
-         sign_extend => '0', update => '0', hash => '0', xerc => xerc_init,
+        (valid => '0', op => OP_ILLEGAL, byte_reverse => '0',
+         sign_extend => '0', update => '0', mode => "000",
+         xerc => xerc_init,
          reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
          insn => (others => '0'),
          instr_tag => instr_tag_init,

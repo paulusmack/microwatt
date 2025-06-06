@@ -14,6 +14,7 @@ use work.helpers.all;
 entity loadstore1 is
     generic (
         HAS_FPU : boolean := true;
+        HAS_VEC : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -113,7 +114,7 @@ architecture behave of loadstore1 is
     constant request_init : request_t := (addr => (others => '0'),
                                           byte_sel => x"00", second_bytes => x"00",
                                           store_data => (others => '0'), instr_tag => instr_tag_init,
-                                          write_reg => 6x"00", length => x"0",
+                                          write_reg => (others => '0'), length => x"0",
                                           elt_length => x"0", brev_mask => "000",
                                           xerc => xerc_init,
                                           sprsel => "0000", ric => "00",

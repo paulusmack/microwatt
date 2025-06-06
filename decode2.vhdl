@@ -12,6 +12,7 @@ entity decode2 is
     generic (
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
+        HAS_VEC : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -66,6 +67,8 @@ architecture behaviour of decode2 is
     end record;
     constant reg_type_init : reg_type :=
         (e => Decode2ToExecute1Init, repeat => NONE, others => '0');
+
+    constant no_reg : gspr_index_t := (others => '0');
 
     signal dc2, dc2in : reg_type;
 
@@ -162,7 +165,7 @@ architecture behaviour of decode2 is
         return std_ulogic is
     begin
         case t is
-            when RS | RCR | FRS | FRC =>
+            when RS | RCR | FRS | FRC | VRS =>
                 return '1';
             when NONE =>
                 return '0';
@@ -181,10 +184,16 @@ architecture behaviour of decode2 is
                 if HAS_FPU then
                     return ('1', fpr_to_gspr(insn_frt(insn_in)));
                 else
-                    return ('0', "000000");
+                    return ('0', no_reg);
+                end if;
+            when VRT =>
+                if HAS_VEC then
+                    return ('1', vr_hi_to_gspr(insn_vrt(insn_in)));
+                else
+                    return ('0', no_reg);
                 end if;
             when NONE =>
-                return ('0', "000000");
+                return ('0', no_reg);
         end case;
     end;
 

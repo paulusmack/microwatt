@@ -10,6 +10,7 @@ use work.insn_helpers.all;
 entity decode1 is
     generic (
         HAS_FPU : boolean := true;
+        HAS_VEC : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -674,14 +675,14 @@ begin
         -- Work out GPR/FPR read addresses
         if double = '0' then
             maybe_rb := '0';
-            vr.reg_1_addr := '0' & insn_ra(f_in.insn);
-            vr.reg_2_addr := '0' & insn_rb(f_in.insn);
-            vr.reg_3_addr := '0' & insn_rs(f_in.insn);
+            vr.reg_1_addr := "00" & insn_ra(f_in.insn);
+            vr.reg_2_addr := "00" & insn_rb(f_in.insn);
+            vr.reg_3_addr := "00" & insn_rs(f_in.insn);
             if icode >= INSN_first_rb then
                 maybe_rb := '1';
                 if icode < INSN_first_frs then
                     if icode >= INSN_first_rc then
-                        vr.reg_3_addr := '0' & insn_rcreg(f_in.insn);
+                        vr.reg_3_addr := "00" & insn_rcreg(f_in.insn);
                     end if;
                 else
                     -- access FRS operand
@@ -693,7 +694,7 @@ begin
                     end if;
                     if icode >= INSN_first_frabc then
                         -- access FRC operand
-                        vr.reg_3_addr := '1' & insn_rcreg(f_in.insn);
+                        vr.reg_3_addr := "01" & insn_rcreg(f_in.insn);
                     end if;
                 end if;
             end if;

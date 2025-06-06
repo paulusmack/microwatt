@@ -14,6 +14,7 @@ entity core is
 	DISABLE_FLATTEN : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
+        HAS_VEC : boolean := true;
         HAS_BTC : boolean := true;
 	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0');
         LOG_LENGTH : natural := 512;
@@ -257,6 +258,7 @@ begin
         generic map(
             SIM => SIM,
             HAS_FPU => HAS_FPU,
+            HAS_VEC => HAS_VEC,
             LINE_SIZE => 64,
             NUM_LINES => ICACHE_NUM_LINES,
             NUM_WAYS => ICACHE_NUM_WAYS,
@@ -283,6 +285,7 @@ begin
     decode1_0: entity work.decode1
         generic map(
             HAS_FPU => HAS_FPU,
+            HAS_VEC => HAS_VEC,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -305,6 +308,7 @@ begin
         generic map (
             EX1_BYPASS => EX1_BYPASS,
             HAS_FPU => HAS_FPU,
+            HAS_VEC => HAS_VEC,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -337,6 +341,7 @@ begin
         generic map (
             SIM => SIM,
             HAS_FPU => HAS_FPU,
+            HAS_VEC => HAS_VEC,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -377,6 +382,7 @@ begin
             NCPUS => NCPUS,
             EX1_BYPASS => EX1_BYPASS,
             HAS_FPU => HAS_FPU,
+            HAS_VEC => HAS_VEC,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -441,6 +447,7 @@ begin
     loadstore1_0: entity work.loadstore1
         generic map (
             HAS_FPU => HAS_FPU,
+            HAS_VEC => HAS_VEC,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (

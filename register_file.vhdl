@@ -9,6 +9,7 @@ entity register_file is
     generic (
         SIM : boolean := false;
         HAS_FPU : boolean := true;
+        HAS_VEC : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -36,7 +37,19 @@ entity register_file is
 end entity register_file;
 
 architecture behaviour of register_file is
-    type regfile is array(0 to 63) of std_ulogic_vector(63 downto 0);
+
+    function regfilesize return integer is
+    begin
+        if HAS_VEC then
+            return 128;
+        elsif HAS_FPU then
+            return 64;
+        else
+            return 32;
+        end if;
+    end;
+
+    type regfile is array(0 to regfilesize - 1) of std_ulogic_vector(63 downto 0);
     signal registers : regfile := (others => (others => '0'));
     signal dbg_data : std_ulogic_vector(63 downto 0);
     signal dbg_ack : std_ulogic;
@@ -63,10 +76,14 @@ begin
         if rising_edge(clk) then
             if w_in.write_enable = '1' then
                 w_addr := w_in.write_reg;
-                if HAS_FPU and w_addr(5) = '1' then
+                if HAS_VEC and w_addr(6) = '1' then
+                    report "Writing VR " & to_hstring(w_addr(4 downto 0)) & "." &
+                        std_ulogic'image(w_addr(5)) & " " & to_hstring(w_in.write_data);
+                elsif HAS_FPU and w_addr(5) = '1' then
+                    w_addr(6) := '0';
                     report "Writing FPR " & to_hstring(w_addr(4 downto 0)) & " " & to_hstring(w_in.write_data);
                 else
-                    w_addr(5) := '0';
+                    w_addr(6 downto 5) := "00";
                     report "Writing GPR " & to_hstring(w_addr) & " " & to_hstring(w_in.write_data);
                 end if;
                 assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
@@ -107,14 +124,20 @@ begin
             -- Do debug reads to GPRs and FPRs using the B port when it is not in use
             if dbg_gpr_req = '1' then
                 if b_enable = '0' then
-                    b_addr := dbg_gpr_addr(5 downto 0);
+                    b_addr := dbg_gpr_addr;
                     dbg_gpr_done <= '1';
                 end if;
             else
                 dbg_gpr_done <= '0';
             end if;
 
-            if not HAS_FPU then
+            if not HAS_VEC then
+                -- Make it obvious that we only want 64 GSPRs for a no-vector implementation
+                a_addr(6) := '0';
+                b_addr(6) := '0';
+                c_addr(6) := '0';
+            end if;
+            if not HAS_FPU and not HAS_VEC then
                 -- Make it obvious that we only want 32 GSPRs for a no-FPU implementation
                 a_addr(5) := '0';
                 b_addr(5) := '0';
@@ -220,7 +243,7 @@ begin
             if rising_edge(clk) then
                 log_data <= w_in.write_data &
                             w_in.write_enable &
-                            '0' & w_in.write_reg;
+                            w_in.write_reg;
             end if;
         end process;
         log_out <= log_data;

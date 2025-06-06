@@ -13,6 +13,7 @@ use work.insn_helpers.all;
 entity predecoder is
     generic (
         HAS_FPU   : boolean := true;
+        HAS_VEC   : boolean := true;
         WIDTH     : natural := 2;
         ICODE_LEN : natural := 10;
         IMAGE_LEN : natural := 26;

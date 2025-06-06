@@ -158,6 +158,7 @@ targets:
       - has_dmi_counters
       - uart_is_16550
       - has_fpu
+      - has_vecvsx
       - has_btc
     tools:
       vivado: {part : xc7a100tcsg324-1}
@@ -215,6 +216,7 @@ targets:
       - has_dmi_counters
       - uart_is_16550
       - has_fpu
+      - has_vecvsx
       - has_btc
     generate: [litedram_acorn_cle_215, git_hash]
     tools:
@@ -254,6 +256,7 @@ targets:
       - has_dmi_counters
       - uart_is_16550
       - has_fpu
+      - has_vecvsx
       - has_btc
     generate: [git_hash]
     tools:
@@ -276,6 +279,7 @@ targets:
       - has_dmi_counters
       - uart_is_16550
       - has_fpu
+      - has_vecvsx
       - has_btc
     generate: [litedram_nexys_video, liteeth_nexys_video, litesdcard_nexys_video, git_hash]
     tools:
@@ -297,6 +301,7 @@ targets:
       - uart_is_16550
       - has_uart1
       - has_fpu=false
+      - has_vecvsx=false
       - has_btc=false
       - use_litesdcard
     generate: [git_hash]
@@ -321,6 +326,7 @@ targets:
       - uart_is_16550
       - has_uart1
       - has_fpu=false
+      - has_vecvsx=false
       - has_btc=false
     generate: [litedram_arty, liteeth_arty, litesdcard_arty, git_hash]
     tools:
@@ -342,6 +348,7 @@ targets:
       - uart_is_16550
       - has_uart1
       - has_fpu
+      - has_vecvsx
       - has_btc
       - use_litesdcard
     generate: [git_hash]
@@ -368,6 +375,7 @@ targets:
       - uart_is_16550
       - has_uart1
       - has_fpu
+      - has_vecvsx
       - has_btc
     generate: [litedram_arty, liteeth_arty, litesdcard_arty, git_hash]
     tools:
@@ -391,6 +399,7 @@ targets:
       - uart_is_16550
       - has_uart1
       - has_fpu
+      - has_vecvsx
       - has_btc
     generate: [litedram_nexys_video, liteeth_nexys_video, git_hash]
     tools:
@@ -413,6 +422,7 @@ targets:
       - has_dmi_counters
       - uart_is_16550
       - has_fpu
+      - has_vecvsx
       - has_btc
     generate: [litesdcard_wukong-v2, git_hash]
     tools:
@@ -435,6 +445,7 @@ targets:
       - has_dmi_counters
       - uart_is_16550
       - has_fpu
+      - has_vecvsx
       - has_btc
     generate: [litedram_wukong-v2, liteeth_wukong-v2, litesdcard_wukong-v2, git_hash]
     tools:
@@ -455,6 +466,7 @@ targets:
       - has_dmi_counters
       - uart_is_16550
       - has_fpu=false
+      - has_vecvsx=false
       - has_btc=false
     generate: [git_hash]
     tools:
@@ -562,6 +574,12 @@ parameters:
   has_fpu:
     datatype    : bool
     description : Include a floating-point unit in the core
+    paramtype   : generic
+    default     : true
+
+  has_vecvsx:
+    datatype    : bool
+    description : Include a vector/VSX unit in the core
     paramtype   : generic
     default     : true
 

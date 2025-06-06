@@ -42,6 +42,10 @@ package insn_helpers is
     function insn_fra (insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_frb (insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_frc (insn_in : std_ulogic_vector) return std_ulogic_vector;
+    function insn_vrt (insn_in : std_ulogic_vector) return std_ulogic_vector;
+    function insn_vra (insn_in : std_ulogic_vector) return std_ulogic_vector;
+    function insn_vrb (insn_in : std_ulogic_vector) return std_ulogic_vector;
+    function insn_vrc (insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_u (insn_in : std_ulogic_vector) return std_ulogic_vector;
     function insn_prefix_r(prefix : std_ulogic_vector) return std_ulogic;
     function insn_prefixed_si(prefix : std_ulogic_vector; suffix : std_ulogic_vector)
@@ -245,6 +249,26 @@ package body insn_helpers is
     end;
 
     function insn_frc(insn_in : std_ulogic_vector) return std_ulogic_vector is
+    begin
+        return insn_in(10 downto 6);
+    end;
+
+    function insn_vrt(insn_in : std_ulogic_vector) return std_ulogic_vector is
+    begin
+        return insn_in(25 downto 21);
+    end;
+
+    function insn_vra(insn_in : std_ulogic_vector) return std_ulogic_vector is
+    begin
+        return insn_in(20 downto 16);
+    end;
+
+    function insn_vrb(insn_in : std_ulogic_vector) return std_ulogic_vector is
+    begin
+        return insn_in(15 downto 11);
+    end;
+
+    function insn_vrc(insn_in : std_ulogic_vector) return std_ulogic_vector is
     begin
         return insn_in(10 downto 6);
     end;

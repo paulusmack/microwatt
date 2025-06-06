@@ -13,6 +13,8 @@ package common is
     -- MSR bit numbers
     constant MSR_SF  : integer := (63 - 0);     -- Sixty-Four bit mode
     constant MSR_HV  : integer := (63 - 3);     -- Hypervisor mode (always 1)
+    constant MSR_VEC : integer := (63 - 38);    -- Vector (VMX) available
+    constant MSR_VSX : integer := (63 - 40);    -- VSX available
     constant MSR_EE  : integer := (63 - 48);    -- External interrupt Enable
     constant MSR_PR  : integer := (63 - 49);    -- PRoblem state
     constant MSR_FP  : integer := (63 - 50);    -- Floating Point available
@@ -123,20 +125,31 @@ package common is
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
 
-    -- Extended GPR index (can hold a GPR or a FPR)
-    subtype gspr_index_t is std_ulogic_vector(5 downto 0);
+    -- Extended GPR index (can hold a GPR or VSR (FPR or VR))
+    subtype gspr_index_t is std_ulogic_vector(6 downto 0);
 
     -- FPR indices
+    -- FPRs (aka VSR0-31) are stored in the register file, using GSPR
+    -- numbers from 64 to 95.  For VSRs, a single index addresses
+    -- both the high half (= FPR) and the low half.
     subtype fpr_index_t is std_ulogic_vector(4 downto 0);
 
-    -- FPRs are stored in the register file, using GSPR
-    -- numbers from 32 to 63.
-    --
+    -- VR indices
+    -- VRs are stored in the register file, using GSPR numbers from
+    -- 96 to 127.  A single index addresses all 16 bytes.
+    subtype vr_index_t is std_ulogic_vector(4 downto 0);
+
+    -- VSR indices
+    -- The VSX register file contains the FPRs and VRs and an additional 32x64
+    -- bits of storage, effectively making a total of 64 registers of 128 bits.
+    subtype vsr_index_t is std_ulogic_vector(5 downto 0);
 
     -- Indices conversion functions
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t;
     function gpr_to_gspr(i: gpr_index_t) return gspr_index_t;
     function fpr_to_gspr(f: fpr_index_t) return gspr_index_t;
+    function vr_to_gspr(v: vr_index_t) return gspr_index_t;
+    function vsr_to_gspr(v: vsr_index_t) return gspr_index_t;
 
     -- The XER is split: the common bits (CA, OV, SO, OV32 and CA32) are
     -- in the CR file as a kind of CR extension (with a separate write
@@ -615,6 +628,9 @@ package common is
         read1_data : std_ulogic_vector(63 downto 0);
         read2_data : std_ulogic_vector(63 downto 0);
         read3_data : std_ulogic_vector(63 downto 0);
+        lovr1_data : std_ulogic_vector(63 downto 0);
+        lovr2_data : std_ulogic_vector(63 downto 0);
+        lovr3_data : std_ulogic_vector(63 downto 0);
     end record;
 
     type Decode2ToCrFileType is record
@@ -931,6 +947,7 @@ package common is
     type WritebackToRegisterFileType is record
 	write_reg : gspr_index_t;
 	write_data : std_ulogic_vector(63 downto 0);
+        lovrw_data : std_ulogic_vector(63 downto 0);
 	write_enable : std_ulogic;
     end record;
     constant WritebackToRegisterFileInit : WritebackToRegisterFileType :=
@@ -976,12 +993,22 @@ package body common is
 
     function gpr_to_gspr(i: gpr_index_t) return gspr_index_t is
     begin
-	return "0" & i;
+	return "00" & i;
     end;
 
     function fpr_to_gspr(f: fpr_index_t) return gspr_index_t is
     begin
-        return "1" & f;
+        return "10" & f;
+    end;
+
+    function vr_to_gspr(v: vr_index_t) return gspr_index_t is
+    begin
+        return "11" & v;
+    end;
+
+    function vsr_to_gspr(v: vsr_index_t) return gspr_index_t is
+    begin
+        return '1' & v;
     end;
 
     function tag_match(tag1 : instr_tag_t; tag2 : instr_tag_t) return boolean is

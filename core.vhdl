@@ -14,6 +14,7 @@ entity core is
 	DISABLE_FLATTEN : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
+        HAS_VECVSX : boolean := true;
         HAS_BTC : boolean := true;
 	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0');
         LOG_LENGTH : natural := 512;
@@ -159,6 +160,7 @@ architecture behave of core is
     signal dbg_gpr_ack : std_ulogic;
     signal dbg_gpr_addr : gspr_index_t;
     signal dbg_gpr_data : std_ulogic_vector(63 downto 0);
+    signal dbg_gpr_lo_data : std_ulogic_vector(63 downto 0);
     signal dbg_spr_req : std_ulogic;
     signal dbg_spr_ack : std_ulogic;
     signal dbg_spr_addr : std_ulogic_vector(7 downto 0);
@@ -257,6 +259,7 @@ begin
         generic map(
             SIM => SIM,
             HAS_FPU => HAS_FPU,
+            HAS_VECVSX => HAS_VECVSX,
             LINE_SIZE => 64,
             NUM_LINES => ICACHE_NUM_LINES,
             NUM_WAYS => ICACHE_NUM_WAYS,
@@ -283,6 +286,7 @@ begin
     decode1_0: entity work.decode1
         generic map(
             HAS_FPU => HAS_FPU,
+            HAS_VECVSX => HAS_VECVSX,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -305,6 +309,7 @@ begin
         generic map (
             EX1_BYPASS => EX1_BYPASS,
             HAS_FPU => HAS_FPU,
+            HAS_VECVSX => HAS_VECVSX,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -337,6 +342,7 @@ begin
         generic map (
             SIM => SIM,
             HAS_FPU => HAS_FPU,
+            HAS_VECVSX => HAS_VECVSX,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -350,6 +356,7 @@ begin
             dbg_gpr_ack => dbg_gpr_ack,
             dbg_gpr_addr => dbg_gpr_addr,
             dbg_gpr_data => dbg_gpr_data,
+            dbg_gpr_ldata => dbg_gpr_lo_data,
 	    sim_dump => terminate,
 	    sim_dump_done => sim_ex_dump,
             log_out => log_data(255 downto 184)
@@ -377,6 +384,7 @@ begin
             NCPUS => NCPUS,
             EX1_BYPASS => EX1_BYPASS,
             HAS_FPU => HAS_FPU,
+            HAS_VECVSX => HAS_VECVSX,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -441,6 +449,7 @@ begin
     loadstore1_0: entity work.loadstore1
         generic map (
             HAS_FPU => HAS_FPU,
+            HAS_VECVSX => HAS_VECVSX,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -543,6 +552,7 @@ begin
             dbg_gpr_ack => dbg_gpr_ack,
             dbg_gpr_addr => dbg_gpr_addr,
             dbg_gpr_data => dbg_gpr_data,
+            dbg_gpr_lo_data => dbg_gpr_lo_data,
             dbg_spr_req => dbg_spr_req,
             dbg_spr_ack => dbg_spr_ack,
             dbg_spr_addr => dbg_spr_addr,

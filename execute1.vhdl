@@ -15,6 +15,7 @@ entity execute1 is
         SIM : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
+        HAS_VECVSX : boolean := true;
         CPU_INDEX : natural;
         NCPUS : positive := 1;
         -- Non-zero to enable log data collection
@@ -1691,6 +1692,15 @@ begin
             if e_in.valid = '1' then
                 report "FP unavailable interrupt";
             end if;
+
+        elsif HAS_VECVSX and ex1.msr(MSR_VEC) = '0' and e_in.fac = VEC then
+            -- generate a vector unavailable interrupt
+            v.exception := '1';
+            v.e.srr1(47 - 34) := e_in.prefixed;
+            v.e.intr_vec := 16#f20#;
+            if e_in.valid = '1' then
+                report "VEC unavailable interrupt";
+            end if;
         end if;
 
         if e_in.unit = ALU then
@@ -2236,6 +2246,7 @@ begin
             ctrl_tmp.msr(MSR_PR) <= '0';
             ctrl_tmp.msr(MSR_SE) <= '0';
             ctrl_tmp.msr(MSR_BE) <= '0';
+            ctrl_tmp.msr(MSR_VEC) <= '0';
             ctrl_tmp.msr(MSR_FP) <= '0';
             ctrl_tmp.msr(MSR_FE0) <= '0';
             ctrl_tmp.msr(MSR_FE1) <= '0';

@@ -1961,15 +1961,13 @@ begin
         lv.byte_reverse := e_in.byte_reverse xnor ex1.msr(MSR_LE);
         lv.sign_extend := e_in.sign_extend;
         lv.update := e_in.update;
-        -- abuse e_in.is_signed to indicate hash store/check instructions
-        lv.hash := e_in.is_signed;
+        -- Use sub_select decode field to indicate cache-inhibited and hash store/check instructions
+        lv.ci := e_in.sub_select(0);
+        lv.hash := e_in.sub_select(1);
         lv.xerc := xerc_in;
         lv.reserve := e_in.reserve;
         lv.rc := e_in.rc;
         lv.insn := e_in.insn;
-        -- invert_a field is overloaded for load/store instructions
-        -- to mark l*cix and st*cix
-        lv.ci := e_in.invert_a;
         lv.virt_mode := ex1.msr(MSR_DR);
         lv.priv_mode := not ex1.msr(MSR_PR);
         lv.mode_32bit := not ex1.msr(MSR_SF);

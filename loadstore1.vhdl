@@ -133,7 +133,7 @@ architecture behave of loadstore1 is
     type reg_stage2_t is record
         req        : request_t;
         byte_index : byte_index_t;
-        use_second : std_ulogic_vector(7 downto 0);
+        trim_ctl   : trim_ctl_t;
         busy       : std_ulogic;
         wait_dc    : std_ulogic;
         wait_mmu   : std_ulogic;
@@ -956,8 +956,12 @@ begin
                 for i in 0 to 7 loop
                     idx := to_unsigned(i, 3) xor r1.req.brev_mask;
                     kk := ('0' & idx) + ('0' & byte_offset);
-                    v.use_second(i) := kk(3);
                     v.byte_index(i) := kk(2 downto 0);
+                    v.trim_ctl(i) := "00";
+                    if not is_X(r1.req.length) and i < to_integer(unsigned(r1.req.length)) then
+                        v.trim_ctl(i)(0) := r1.req.dword_index and not kk(3);
+                        v.trim_ctl(i)(1) := '1';
+                    end if;
                 end loop;
             else
                 v.req.valid := '0';
@@ -1074,23 +1078,8 @@ begin
                         (r2.req.length(0) and data_permuted(7));
         end if;
 
-        -- trim and sign-extend
         for i in 0 to 7 loop
-	    if is_X(r2.req.length) then
-		trim_ctl(i) := "XX";
-            elsif i < to_integer(unsigned(r2.req.length)) then
-                if r2.req.dword_index = '1' then
-                    trim_ctl(i) := '1' & not r2.use_second(i);
-                else
-                    trim_ctl(i) := "10";
-                end if;
-            else
-                trim_ctl(i) := "00";
-            end if;
-        end loop;
-
-        for i in 0 to 7 loop
-            case trim_ctl(i) is
+            case r2.trim_ctl(i) is
                 when "11" =>
                     data_trimmed(i * 8 + 7 downto i * 8) := r3.load_data(i * 8 + 7 downto i * 8);
                 when "10" =>

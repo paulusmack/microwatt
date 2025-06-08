@@ -560,7 +560,7 @@ begin
                     end if;
                     sprs_busy := '1';
                 when OP_LOAD | OP_STORE =>
-                    if d_in.decode.is_signed = '1' then
+                    if d_in.decode.subresult(1) = '1' then
                         -- hash{st,chk}[p]
                         if d_in.insn(7) = '1' then
                             v.e.ramspr_odd_rdaddr := RAMSPR_HASHKY;

@@ -432,7 +432,7 @@ package decode_types is
 
     type unit_t is (ALU, LDST, FPU);
     type facility_t is (NONE, FPU);
-    type length_t is (NONE, is1B, is2B, is4B, is8B);
+    type length_t is (NONE, is1B, is2B, is4B, is8B, i16B);
 
     type result_sel_t is (ADD, LOG, ROT, UN3, MCYC, SPR, UN6, MSC);
     subtype subresult_sel_t is std_ulogic_vector(2 downto 0);

@@ -566,7 +566,7 @@ begin
         variable addr : std_ulogic_vector(63 downto 0);
         variable sprn : std_ulogic_vector(9 downto 0);
         variable misaligned : std_ulogic;
-        variable addr_mask : std_ulogic_vector(2 downto 0);
+        variable addr_mask : std_ulogic_vector(3 downto 0);
         variable hash_nop : std_ulogic;
         variable disp : std_ulogic_vector(63 downto 0);
     begin
@@ -578,8 +578,9 @@ begin
         v.mode_32bit := l_in.mode_32bit;
         v.prefixed := l_in.prefixed;
         v.write_reg := l_in.write_reg;
-        v.length := l_in.length;
-        v.elt_length := l_in.length;
+        -- map l_in.length = 16 to v.length = 8
+        v.length := (l_in.length(4) or l_in.length(3)) & l_in.length(2 downto 0);
+        v.elt_length := l_in.length(3 downto 0);
         v.byte_reverse := l_in.byte_reverse;
         v.sign_extend := l_in.sign_extend;
         v.update := l_in.update;
@@ -650,10 +651,10 @@ begin
             v.nc := '1';
         end if;
 
-        addr_mask := std_ulogic_vector(unsigned(l_in.length(2 downto 0)) - 1);
+        addr_mask := std_ulogic_vector(unsigned(l_in.length(3 downto 0)) - 1);
 
         -- Do length_to_sel and work out if we are doing 2 dwords
-        long_sel := xfer_data_sel(l_in.length, addr(2 downto 0));
+        long_sel := xfer_data_sel(v.length, addr(2 downto 0));
         v.byte_sel := long_sel(7 downto 0);
         v.second_bytes := long_sel(15 downto 8);
         if long_sel(15 downto 8) /= "00000000" then
@@ -661,10 +662,8 @@ begin
         end if;
 
         -- check alignment for larx/stcx
-        misaligned := or (addr_mask and addr(2 downto 0));
-        if l_in.repeat = '1' and l_in.update = '0' and addr(3) /= l_in.second then
-            misaligned := '1';
-        end if;
+        -- for doubled instructions, only check the first one
+        misaligned := (or (addr_mask and addr(3 downto 0))) and not l_in.second;
         v.align_intr := (l_in.reserve or ((v.hashst or v.hashcmp) and l_in.hash_enable)) and misaligned;
 
         v.atomic_first := not misaligned and not l_in.second;
@@ -691,7 +690,7 @@ begin
                 v.ea_valid := '0';
             when OP_STORE =>
                 v.store := '1';
-                if l_in.length = "0000" and v.dcbz = '0' then
+                if l_in.length = "00000" and v.dcbz = '0' then
                     v.touch := '1';
                 end if;
             when OP_LOAD =>
@@ -701,7 +700,7 @@ begin
                         -- Allow an extra cycle for SP->DP precision conversion
                         v.load_sp := '1';
                     end if;
-                    if l_in.length = "0000" then
+                    if l_in.length = "00000" then
                         v.touch := '1';
                     end if;
                 else

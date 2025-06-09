@@ -384,7 +384,7 @@ begin
 
     decode2_1: process(all)
         variable v : reg_type;
-        variable length : std_ulogic_vector(3 downto 0);
+        variable length : std_ulogic_vector(4 downto 0);
         variable op : insn_type_t;
         variable unit : unit_t;
         variable valid_in : std_ulogic;
@@ -576,15 +576,17 @@ begin
 
             case d_in.decode.length is
                 when is1B =>
-                    length := "0001";
+                    length := "00001";
                 when is2B =>
-                    length := "0010";
+                    length := "00010";
                 when is4B =>
-                    length := "0100";
+                    length := "00100";
                 when is8B =>
-                    length := "1000";
+                    length := "01000";
+                when i16B =>
+                    length := "10000";
                 when NONE =>
-                    length := "0000";
+                    length := "00000";
             end case;
 
             -- execute unit

@@ -346,13 +346,9 @@ begin
                     -- update-form loads, 2nd instruction writes RA
                     dec_o.reg := dec_a.reg;
                 end if;
-            when DRSP =>
-                -- non-prefixed stq, stqcx do RS|1, RS in LE mode; others do RS, RS|1
-                if d_in.second = (d_in.big_endian or d_in.prefixed) then
-                    dec_c.reg(0) := '1';            -- do RS, RS|1
-                end if;
-            when DRTP =>
+            when DRP =>
                 -- non-prefixed lq, lqarx do RT|1, RT in LE mode; others do RT, RT|1
+                -- (if this is a store-quad instruction then dec_o.reg is not used)
                 if d_in.second = (d_in.big_endian or d_in.prefixed) then
                     dec_o.reg(0) := '1';
                 end if;
@@ -640,13 +636,13 @@ begin
 
             -- check for invalid forms that cause an illegal instruction interrupt
             -- Does RA = RT for a load quadword instr, or RB = RT for lqarx?
-            if d_in.decode.repeat = DRTP and
+            if d_in.decode.repeat = DRP and d_in.decode.output_reg_a = RT and
                 (insn_ra(d_in.insn) = insn_rt(d_in.insn) or
                  (d_in.decode.reserve = '1' and insn_rb(d_in.insn) = insn_rt(d_in.insn))) then
                 v.e.illegal_form := '1';
             end if;
             -- Is RS/RT odd for a load/store quadword instruction?
-            if (d_in.decode.repeat = DRSP or d_in.decode.repeat = DRTP) and d_in.insn(21) = '1' then
+            if d_in.decode.repeat = DRP and d_in.insn(21) = '1' then
                 v.e.illegal_form := '1';
             end if;
         end if;

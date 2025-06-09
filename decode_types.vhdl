@@ -439,8 +439,7 @@ package decode_types is
 
     type repeat_t is (NONE,      -- instruction is not repeated
                       DUPD,      -- update-form load
-                      DRSP,      -- double RS (RS, RS+1)
-                      DRTP);     -- double RT (RT, RT+1, or RT+1, RT)
+                      DRP);      -- double RS or RT (R, R+1, or R+1, R)
 
     type decode_rom_t is record
 	unit         : unit_t;

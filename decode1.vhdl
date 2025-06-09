@@ -243,8 +243,8 @@ architecture behaviour of decode1 is
         INSN_lhzu        =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, IMM, CONST_SI,    NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', '0', DUPD),
         INSN_lhzux       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', '0', DUPD),
         INSN_lhzx        =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
-        INSN_lq          =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, IMM, CONST_DQ,    NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DRTP),
-        INSN_lqarx       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '1', '0', '0', NONE, '0', '0', '0', DRTP),
+        INSN_lq          =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, IMM, CONST_DQ,    NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DRP),
+        INSN_lqarx       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '1', '0', '0', NONE, '0', '0', '0', DRP),
         INSN_lwa         =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, IMM, CONST_DS,    NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_lwarx       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '1', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_lwaux       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '1', '0', '0', '0', NONE, '0', '0', '0', DUPD),
@@ -303,7 +303,7 @@ architecture behaviour of decode1 is
         INSN_plfs        =>  (LDST, FPU,  OP_LOAD,      RA0_OR_CIA, IMM, CONST_PSI,   NONE, FRT,  ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', '0', NONE),
         INSN_plha        =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, IMM, CONST_PSI,   NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is2B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_plhz        =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, IMM, CONST_PSI,   NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
-        INSN_plq         =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, IMM, CONST_PSI,   NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DRTP),
+        INSN_plq         =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, IMM, CONST_PSI,   NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DRP),
         INSN_plwa        =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, IMM, CONST_PSI,   NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_plwz        =>  (LDST, NONE, OP_LOAD,      RA0_OR_CIA, IMM, CONST_PSI,   NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_pnop        =>  (ALU,  NONE, OP_NOP,       NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
@@ -312,7 +312,7 @@ architecture behaviour of decode1 is
         INSN_pstfd       =>  (LDST, FPU,  OP_STORE,     RA0_OR_CIA, IMM, CONST_PSI,   FRS,  NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_pstfs       =>  (LDST, FPU,  OP_STORE,     RA0_OR_CIA, IMM, CONST_PSI,   FRS,  NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '1', '0', NONE, '0', '0', '0', NONE),
         INSN_psth        =>  (LDST, NONE, OP_STORE,     RA0_OR_CIA, IMM, CONST_PSI,   RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
-        INSN_pstq        =>  (LDST, NONE, OP_STORE,     RA0_OR_CIA, IMM, CONST_PSI,   RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DRSP),
+        INSN_pstq        =>  (LDST, NONE, OP_STORE,     RA0_OR_CIA, IMM, CONST_PSI,   RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DRP),
         INSN_pstw        =>  (LDST, NONE, OP_STORE,     RA0_OR_CIA, IMM, CONST_PSI,   RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_popcntb     =>  (ALU,  NONE, OP_COUNTB,    NONE,       IMM, NONE,        RS,   RA,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_popcntd     =>  (ALU,  NONE, OP_COUNTB,    NONE,       IMM, NONE,        RS,   RA,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is8B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
@@ -371,8 +371,8 @@ architecture behaviour of decode1 is
         INSN_sthu        =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, IMM, CONST_SI,    RS,   RA,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_sthux       =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        RS,   RA,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '1', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_sthx        =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
-        INSN_stq         =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, IMM, CONST_DS,    RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DRSP),
-        INSN_stqcx       =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '1', '0', '0', ONE,  '0', '0', '0', DRSP),
+        INSN_stq         =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, IMM, CONST_DS,    RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DRP),
+        INSN_stqcx       =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '1', '0', '0', ONE,  '0', '0', '0', DRP),
         INSN_stw         =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, IMM, CONST_SI,    RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_stwbrx      =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '1', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_stwcix      =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        RS,   NONE, ADD, "001", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '1', '0', NONE),
@@ -697,7 +697,7 @@ begin
                     end if;
                 end if;
             end if;
-            -- See if this is an instruction where repeat_t = DRSP and we need
+            -- See if this is an instruction where repeat_t = DRP and we need
             -- to read RS|1 followed by RS, i.e. stq or stqcx. in LE mode
             -- (note we don't have access to the decode for the current instruction)
             if (icode = INSN_stq or icode = INSN_stqcx) and f_in.big_endian = '0' then
@@ -717,7 +717,7 @@ begin
             -- For pstq, and for stq and stqcx in BE mode,
             -- we need to read register RS|1 in the cycle after we read RS;
             -- stq and stqcx in LE mode read RS.
-            if decode.repeat = DRSP then
+            if decode.repeat = DRP then
                 vr.reg_3_addr(0) := r.prefixed or f_in.big_endian;
             end if;
         end if;

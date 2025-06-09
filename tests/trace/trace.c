@@ -313,8 +313,14 @@ int trace_test_11(void)
 	ret = callit(0, (unsigned long) &x, test11, mfmsr(), regs);
 	if (ret != 0x300)
 		return ret + 5;
-	if (mfspr(SRR0) != (unsigned long) &test11 + 24 || mfspr(DSISR) != 0x00400000)
+	if (mfspr(SRR0) != (unsigned long) &test11 + 24 || mfspr(DSISR) != 0x00400000) {
+		print_string("SRR0=");
+		print_hex(mfspr(SRR0), 16);
+		print_string(" DSISR=");
+		print_hex(mfspr(DSISR), 8);
+		print_string(" ");
 		return 6;
+	}
 
 	mtspr(DAWR0, (unsigned long)&x[1]);
 	ret = callit(0, (unsigned long) &x, test11, mfmsr(), regs);

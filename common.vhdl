@@ -467,7 +467,7 @@ package common is
 	is_32bit: std_ulogic;
 	is_signed: std_ulogic;
 	insn: std_ulogic_vector(31 downto 0);
-	data_len: std_ulogic_vector(3 downto 0);
+	data_len: std_ulogic_vector(4 downto 0);
 	byte_reverse : std_ulogic;
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
@@ -635,7 +635,7 @@ package common is
 	addr2 : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);		-- data to write, unused for read
 	write_reg : gspr_index_t;
-	length : std_ulogic_vector(3 downto 0);
+	length : std_ulogic_vector(4 downto 0);
 	byte_reverse : std_ulogic;
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?

@@ -511,7 +511,7 @@ begin
 	    invert_out => e_in.invert_out,
             is_signed => e_in.is_signed,
 	    result => logical_result,
-            datalen => e_in.data_len
+            datalen => e_in.data_len(3 downto 0)
 	    );
 
     countbits_0: entity work.bit_counter
@@ -522,7 +522,7 @@ begin
 	    count_right => e_in.insn(10),
 	    is_32bit => e_in.is_32bit,
             do_popcnt => e_in.do_popcnt,
-            datalen => e_in.data_len,
+            datalen => e_in.data_len(3 downto 0),
 	    result => countbits_result
 	    );
 

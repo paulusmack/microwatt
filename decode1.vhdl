@@ -246,6 +246,11 @@ architecture behaviour of decode1 is
         INSN_lhzx        =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_lq          =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, IMM, CONST_DQ,    NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DRP),
         INSN_lqarx       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '1', '0', '0', NONE, '0', '0', '0', DRP),
+        INSN_lvebx       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, VRT,  ADD, "100", '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVRE),
+        INSN_lvehx       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, VRT,  ADD, "100", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVRE),
+        INSN_lvewx       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, VRT,  ADD, "100", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVRE),
+        INSN_lvx         =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, VRT,  ADD, "100", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVRE),
+        INSN_lvxl        =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, VRT,  ADD, "100", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVRE),
         INSN_lwa         =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, IMM, CONST_DS,    NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_lwarx       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '1', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_lwaux       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '1', '0', '0', '0', NONE, '0', '0', '0', DUPD),
@@ -374,6 +379,11 @@ architecture behaviour of decode1 is
         INSN_sthx        =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_stq         =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, IMM, CONST_DS,    RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DRP),
         INSN_stqcx       =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '1', '0', '0', ONE,  '0', '0', '0', DRP),
+        INSN_stvebx      =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        VRS,  NONE, ADD, "100", '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVRE),
+        INSN_stvehx      =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        VRS,  NONE, ADD, "100", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVRE),
+        INSN_stvewx      =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        VRS,  NONE, ADD, "100", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVRE),
+        INSN_stvx        =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        VRS,  NONE, ADD, "100", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVRE),
+        INSN_stvxl       =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        VRS,  NONE, ADD, "100", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVRE),
         INSN_stw         =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, IMM, CONST_SI,    RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_stwbrx      =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '1', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_stwcix      =>  (LDST, NONE, OP_STORE,     RA_OR_ZERO, RB,  NONE,        RS,   NONE, ADD, "001", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '1', '0', NONE),
@@ -680,23 +690,26 @@ begin
             vr.reg_3_addr := "00" & insn_rs(f_in.insn);
             if icode >= INSN_first_rb then
                 maybe_rb := '1';
-                if icode < INSN_first_frs then
-                    if icode >= INSN_first_rc then
-                        vr.reg_3_addr := "00" & insn_rcreg(f_in.insn);
-                    end if;
-                else
-                    -- access FRS operand
-                    vr.reg_3_addr(5) := '1';
-                    if icode >= INSN_first_frab then
-                        -- access FRA and/or FRB operands
-                        vr.reg_1_addr(5) := '1';
-                        vr.reg_2_addr(5) := '1';
-                    end if;
-                    if icode >= INSN_first_frabc then
-                        -- access FRC operand
-                        vr.reg_3_addr := "01" & insn_rcreg(f_in.insn);
-                    end if;
+            end if;
+            if icode >= INSN_first_vrs then
+                -- access VRS operand
+                vr.reg_3_addr(6) := '1';
+                -- big-endian accesses high half then low; LE the reverse
+                vr.reg_3_addr(5) := not f_in.big_endian;
+            elsif icode >= INSN_first_frs then
+                -- access FRS operand
+                vr.reg_3_addr(5) := '1';
+                if icode >= INSN_first_frab then
+                    -- access FRA and/or FRB operands
+                    vr.reg_1_addr(5) := '1';
+                    vr.reg_2_addr(5) := '1';
                 end if;
+                if icode >= INSN_first_frabc then
+                    -- access FRC operand
+                    vr.reg_3_addr := "01" & insn_rcreg(f_in.insn);
+                end if;
+            elsif icode >= INSN_first_rc then
+                vr.reg_3_addr := "00" & insn_rcreg(f_in.insn);
             end if;
             -- See if this is an instruction where repeat_t = DRP and we need
             -- to read RS|1 followed by RS, i.e. stq or stqcx. in LE mode
@@ -720,6 +733,9 @@ begin
             -- stq and stqcx in LE mode read RS.
             if decode.repeat = DRP then
                 vr.reg_3_addr(0) := r.prefixed or f_in.big_endian;
+            end if;
+            if decode.repeat = DVRE then
+                vr.reg_3_addr(5) := f_in.big_endian;
             end if;
         end if;
 

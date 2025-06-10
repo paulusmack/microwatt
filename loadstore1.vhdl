@@ -86,10 +86,12 @@ architecture behave of loadstore1 is
 	write_reg    : gspr_index_t;
 	length       : std_ulogic_vector(3 downto 0);
         elt_length   : std_ulogic_vector(3 downto 0);
+        elt_addr     : std_ulogic_vector(3 downto 0);
 	byte_reverse : std_ulogic;
         brev_mask    : unsigned(2 downto 0);
 	sign_extend  : std_ulogic;
 	update       : std_ulogic;
+        is_vector    : std_ulogic;
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
         atomic_qw    : std_ulogic;
@@ -115,7 +117,7 @@ architecture behave of loadstore1 is
                                           byte_sel => x"00", second_bytes => x"00",
                                           store_data => (others => '0'), instr_tag => instr_tag_init,
                                           write_reg => (others => '0'), length => x"0",
-                                          elt_length => x"0", brev_mask => "000",
+                                          elt_length => x"0", elt_addr => x"0", brev_mask => "000",
                                           xerc => xerc_init,
                                           sprsel => "0000", ric => "00",
                                           hash_addr => 64x"0",
@@ -564,6 +566,7 @@ begin
         variable lsu_sum : std_ulogic_vector(63 downto 0);
         variable brev_lenm1 : unsigned(2 downto 0);
         variable long_sel : std_ulogic_vector(15 downto 0);
+        variable byte_off : std_ulogic_vector(2 downto 0);
         variable addr : std_ulogic_vector(63 downto 0);
         variable sprn : std_ulogic_vector(9 downto 0);
         variable misaligned : std_ulogic;
@@ -615,6 +618,8 @@ begin
                 hash_nop := not l_in.hash_enable;
             when "011" =>
                 v.dcbz := '1';
+            when "100" =>
+                v.is_vector := '1';
             when others =>
         end case;
 
@@ -626,6 +631,8 @@ begin
             v.store_data := l_in.data;
         end if;
 
+        addr_mask := std_ulogic_vector(unsigned(l_in.length(3 downto 0)) - 1);
+
         addr := lsu_sum;
         if l_in.second = '1' then
             -- for an update-form load, use the previous address
@@ -635,6 +642,19 @@ begin
             addr := std_ulogic_vector(unsigned(r1.addr0(63 downto 3)) + not l_in.update) &
                     r1.addr0(2 downto 0);
         end if;
+        byte_off := addr(2 downto 0);
+        if HAS_VEC and v.is_vector = '1' then
+            -- truncate EA to a multiple of the size, and
+            -- arrange to do the even doubleword first, then odd
+            if l_in.second = '0' then
+                v.elt_addr := lsu_sum(3 downto 0) and not addr_mask;
+                addr(3 downto 0) := "0000";
+            else
+                v.elt_addr := r1.req.elt_addr;
+            end if;
+            byte_off := v.elt_addr(2 downto 0);
+        end if;
+
         -- Hash instructions have a short immediate displacement field,
         -- interpreted as a negative multiple of 8
         disp := 55x"7FFFFFFFFFFFFF" & l_in.insn(0) & l_in.insn(25 downto 21) & "000";
@@ -652,14 +672,18 @@ begin
             v.nc := '1';
         end if;
 
-        addr_mask := std_ulogic_vector(unsigned(l_in.length(3 downto 0)) - 1);
-
         -- Do length_to_sel and work out if we are doing 2 dwords
-        long_sel := xfer_data_sel(v.length, addr(2 downto 0));
+        long_sel := xfer_data_sel(v.length, byte_off);
         v.byte_sel := long_sel(7 downto 0);
         v.second_bytes := long_sel(15 downto 8);
         if long_sel(15 downto 8) /= "00000000" then
             v.two_dwords := '1';
+        end if;
+        -- Vector load/store ops get repeated; for byte/half/word
+        -- element ops, one of the two has byte_sel = 0x00.
+        if HAS_VEC and v.is_vector = '1' and l_in.length(4) = '0' and
+            v.elt_addr(3) /= l_in.second then
+            v.byte_sel := x"00";
         end if;
 
         -- check alignment for larx/stcx
@@ -735,7 +759,11 @@ begin
         -- Work out controls for load and store formatting
         brev_lenm1 := "000";
         if v.byte_reverse = '1' then
-            brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
+            if v.is_vector = '0' then
+                brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
+            else
+                brev_lenm1 := "111";
+            end if;
         end if;
         v.brev_mask := brev_lenm1;
 
@@ -963,7 +991,9 @@ begin
                     kk := ('0' & idx) + ('0' & byte_offset);
                     v.byte_index(i) := kk(2 downto 0);
                     v.trim_ctl(i) := "00";
-                    if not is_X(r1.req.length) and i < to_integer(unsigned(r1.req.length)) then
+                    if r1.req.is_vector = '1' then
+                        v.trim_ctl(i)(1) := r1.req.byte_sel(i);
+                    elsif not is_X(r1.req.length) and i < to_integer(unsigned(r1.req.length)) then
                         v.trim_ctl(i)(0) := r1.req.dword_index and not kk(3);
                         v.trim_ctl(i)(1) := '1';
                     end if;

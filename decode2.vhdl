@@ -361,6 +361,9 @@ begin
                 if d_in.second = (d_in.big_endian or d_in.prefixed) then
                     dec_o.reg(0) := '1';
                 end if;
+            when DVRE =>
+                -- high, low in BE mode, or low, high in LE mode
+                dec_o.reg(5) := d_in.big_endian xnor d_in.second;
             when others =>
         end case;
         -- For the second instance of a doubled instruction, we ignore the RA

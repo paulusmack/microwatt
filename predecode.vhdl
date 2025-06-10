@@ -333,6 +333,11 @@ architecture behaviour of predecoder is
         2#0_01001_10111#  =>  INSN_lhzux,
         2#0_01000_10111#  =>  INSN_lhzx,
         2#0_01000_10100#  =>  INSN_lqarx,
+        2#0_00000_00111#  =>  INSN_lvebx,
+        2#0_00001_00111#  =>  INSN_lvehx,
+        2#0_00010_00111#  =>  INSN_lvewx,
+        2#0_00011_00111#  =>  INSN_lvx,
+        2#0_01011_00111#  =>  INSN_lvxl,
         2#0_00000_10100#  =>  INSN_lwarx,
         2#0_01011_10101#  =>  INSN_lwaux,
         2#0_01010_10101#  =>  INSN_lwax,
@@ -425,6 +430,11 @@ architecture behaviour of predecoder is
         2#0_01101_10111#  =>  INSN_sthux,
         2#0_01100_10111#  =>  INSN_sthx,
         2#0_00101_10110#  =>  INSN_stqcx,
+        2#0_00100_00111#  =>  INSN_stvebx,
+        2#0_00101_00111#  =>  INSN_stvehx,
+        2#0_00110_00111#  =>  INSN_stvewx,
+        2#0_00111_00111#  =>  INSN_stvx,
+        2#0_01111_00111#  =>  INSN_stvxl,
         2#0_10100_10110#  =>  INSN_stwbrx,
         2#0_11100_10101#  =>  INSN_stwcix,
         2#0_00100_10110#  =>  INSN_stwcx,
@@ -753,6 +763,11 @@ begin
             -- Mark FP instructions as illegal if we don't have an FPU
             if not HAS_FPU and not is_X(icode) and
                 to_integer(icode) >= insn_code'pos(INSN_first_frs) then
+                illegal := '1';
+            end if;
+            -- Mark vector instructions as illegal if we don't have a vector unit
+            if not HAS_VEC and not is_X(icode) and
+                to_integer(icode) >= insn_code'pos(INSN_first_vrs) then
                 illegal := '1';
             end if;
 

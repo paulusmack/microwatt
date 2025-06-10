@@ -685,33 +685,48 @@ begin
             v.e.read_data1 := andor(gpr_a_bypass(1), execute_bypass.data,
                                     gpr_a_bypass(2), execute2_bypass.data,
                                     gpr_a_bypass(3), writeback_bypass.data);
+            v.e.lo_read_data1 := andor(gpr_a_bypass(1), execute_bypass.lo_data,
+                                       gpr_a_bypass(2), execute2_bypass.lo_data,
+                                       gpr_a_bypass(3), writeback_bypass.lo_data);
         elsif dc2.busy = '0' then
             if decoded_reg_a.reg_valid = '1' then
                 v.e.read_data1 := r_in.read1_data;
+                v.e.lo_read_data1 := r_in.lovr1_data;
             else
                 v.e.read_data1 := decode_a_const(d_in.decode.input_reg_a, d_in.prefix, d_in.nia);
+                v.e.lo_read_data1 := (others => '0');
             end if;
         end if;
         if gpr_b_bypass(0) = '1' then
             v.e.read_data2 := andor(gpr_b_bypass(1), execute_bypass.data,
                                     gpr_b_bypass(2), execute2_bypass.data,
                                     gpr_b_bypass(3), writeback_bypass.data);
+            v.e.lo_read_data2 := andor(gpr_b_bypass(1), execute_bypass.lo_data,
+                                       gpr_b_bypass(2), execute2_bypass.lo_data,
+                                       gpr_b_bypass(3), writeback_bypass.lo_data);
         elsif dc2.busy = '0' then
             if decoded_reg_b.reg_valid = '1' then
                 v.e.read_data2 := r_in.read2_data;
+                v.e.lo_read_data2 := r_in.lovr2_data;
             else
                 v.e.read_data2 := decode_b_const(d_in.decode.const_sel, d_in.insn, d_in.prefix);
+                v.e.lo_read_data2 := (others => '0');
             end if;
         end if;
         if gpr_c_bypass(0) = '1' then
             v.e.read_data3 := andor(gpr_c_bypass(1), execute_bypass.data,
                                     gpr_c_bypass(2), execute2_bypass.data,
                                     gpr_c_bypass(3), writeback_bypass.data);
+            v.e.lo_read_data3 := andor(gpr_c_bypass(1), execute_bypass.lo_data,
+                                       gpr_c_bypass(2), execute2_bypass.lo_data,
+                                       gpr_c_bypass(3), writeback_bypass.lo_data);
         elsif dc2.busy = '0' then
             if decoded_reg_c.reg_valid = '1' then
                 v.e.read_data3 := r_in.read3_data;
+                v.e.lo_read_data3 := r_in.lovr3_data;
             else
                 v.e.read_data3 := (others => '0');
+                v.e.lo_read_data3 := (others => '0');
             end if;
         end if;
 

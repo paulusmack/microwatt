@@ -433,12 +433,14 @@ package common is
     end record;
 
     type bypass_data_t is record
-        tag  : instr_tag_t;
-        reg  : gspr_index_t;
-        data : std_ulogic_vector(63 downto 0);
+        tag     : instr_tag_t;
+        reg     : gspr_index_t;
+        data    : std_ulogic_vector(63 downto 0);
+        lo_data : std_ulogic_vector(63 downto 0);
     end record;
     constant bypass_data_init : bypass_data_t :=
-        (tag => instr_tag_init, reg => (others => '0'), data => (others => '0'));
+        (tag => instr_tag_init, reg => (others => '0'),
+         data => (others => '0'), lo_data => (others => '0'));
 
     type cr_bypass_data_t is record
         tag  : instr_tag_t;
@@ -461,6 +463,9 @@ package common is
 	read_data1: std_ulogic_vector(63 downto 0);
 	read_data2: std_ulogic_vector(63 downto 0);
 	read_data3: std_ulogic_vector(63 downto 0);
+        lo_read_data1: std_ulogic_vector(63 downto 0);
+        lo_read_data2: std_ulogic_vector(63 downto 0);
+        lo_read_data3: std_ulogic_vector(63 downto 0);
         reg_valid1: std_ulogic;
         reg_valid2: std_ulogic;
         reg_valid3: std_ulogic;
@@ -523,6 +528,7 @@ package common is
 	 is_32bit => '0', is_signed => '0', xerc => xerc_init, reserve => '0', br_pred => '0',
          byte_reverse => '0', sign_extend => '0', update => '0', nia => (others => '0'),
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
+         lo_read_data1 => (others => '0'), lo_read_data2 => (others => '0'), lo_read_data3 => (others => '0'),
          reg_valid1 => '0', reg_valid2 => '0', reg_valid3 => '0',
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
          result_sel => ADD, sub_select => "000",
@@ -650,6 +656,7 @@ package common is
 	addr1 : std_ulogic_vector(63 downto 0);
 	addr2 : std_ulogic_vector(63 downto 0);
 	data : std_ulogic_vector(63 downto 0);		-- data to write, unused for read
+        data_lo : std_ulogic_vector(63 downto 0);       -- low 64 bits of vector/VSX write data
 	write_reg : gspr_index_t;
 	length : std_ulogic_vector(4 downto 0);
 	byte_reverse : std_ulogic;
@@ -678,7 +685,8 @@ package common is
          reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
          insn => (others => '0'),
          instr_tag => instr_tag_init,
-         addr1 => (others => '0'), addr2 => (others => '0'), data => (others => '0'),
+         addr1 => (others => '0'), addr2 => (others => '0'),
+         data => (others => '0'), data_lo => (others => '0'),
          write_reg => (others => '0'),
          length => (others => '0'),
          mode_32bit => '0', is_32bit => '0', prefixed => '0',
@@ -790,6 +798,7 @@ package common is
 	write_enable: std_ulogic;
 	write_reg : gspr_index_t;
 	write_data : std_ulogic_vector(63 downto 0);
+	write_data_lo : std_ulogic_vector(63 downto 0);
 	xerc : xer_common_t;
         rc : std_ulogic;
         store_done : std_ulogic;
@@ -799,7 +808,8 @@ package common is
     end record;
     constant Loadstore1ToWritebackInit : Loadstore1ToWritebackType :=
         (valid => '0', instr_tag => instr_tag_init, write_enable => '0',
-         write_reg => (others => '0'), write_data => (others => '0'),
+         write_reg => (others => '0'),
+         write_data => (others => '0'), write_data_lo => (others => '0'),
          xerc => xerc_init, rc => '0', store_done => '0',
          interrupt => '0', intr_vec => 0,
          srr1 => (others => '0'));

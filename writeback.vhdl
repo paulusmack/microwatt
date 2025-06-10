@@ -128,6 +128,7 @@ begin
         interrupt_out.scv_int <= scv;
         interrupt_out.alt_int <= e_in.alt_intr;
 
+        w_out.lovrw_data <= (others => '0');
         if intr = '0' then
             if e_in.write_enable = '1' then
                 w_out.write_reg <= e_in.write_reg;
@@ -166,6 +167,7 @@ begin
             if l_in.write_enable = '1' then
                 w_out.write_reg <= l_in.write_reg;
                 w_out.write_data <= l_in.write_data;
+                w_out.lovrw_data <= l_in.write_data_lo;
                 w_out.write_enable <= '1';
             end if;
 
@@ -205,6 +207,7 @@ begin
         wb_bypass.tag.valid <= complete_out.valid and w_out.write_enable;
         wb_bypass.reg <= w_out.write_reg;
         wb_bypass.data <= w_out.write_data;
+        wb_bypass.lo_data <= w_out.lovrw_data;
 
     end process;
 end;

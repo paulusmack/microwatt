@@ -82,14 +82,16 @@ architecture behave of loadstore1 is
         byte_sel     : std_ulogic_vector(7 downto 0);
         second_bytes : std_ulogic_vector(7 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
+	store_data2  : std_ulogic_vector(63 downto 0);
         instr_tag    : instr_tag_t;
 	write_reg    : gspr_index_t;
-	length       : std_ulogic_vector(3 downto 0);
+	length       : std_ulogic_vector(4 downto 0);
         elt_length   : std_ulogic_vector(3 downto 0);
 	byte_reverse : std_ulogic;
         brev_mask    : unsigned(2 downto 0);
 	sign_extend  : std_ulogic;
 	update       : std_ulogic;
+        is_vector    : std_ulogic;
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
         atomic_qw    : std_ulogic;
@@ -113,8 +115,9 @@ architecture behave of loadstore1 is
     end record;
     constant request_init : request_t := (addr => (others => '0'),
                                           byte_sel => x"00", second_bytes => x"00",
-                                          store_data => (others => '0'), instr_tag => instr_tag_init,
-                                          write_reg => (others => '0'), length => x"0",
+                                          store_data => (others => '0'), store_data2 => (others => '0'),
+                                          instr_tag => instr_tag_init,
+                                          write_reg => (others => '0'), length => 5x"0",
                                           elt_length => x"0", brev_mask => "000",
                                           xerc => xerc_init,
                                           sprsel => "0000", ric => "00",
@@ -140,6 +143,7 @@ architecture behave of loadstore1 is
         wait_mmu   : std_ulogic;
         one_cycle  : std_ulogic;
         wr_sel     : std_ulogic_vector(1 downto 0);
+        lo_wr_sel  : std_ulogic_vector(1 downto 0);
         addr0      : std_ulogic_vector(63 downto 0);
         sprsel     : std_ulogic_vector(3 downto 0);
         dbg_spr    : std_ulogic_vector(63 downto 0);
@@ -218,27 +222,23 @@ architecture behave of loadstore1 is
     signal hash_result : std_ulogic_vector(63 downto 0);
 
     -- Generate byte enables from sizes
-    function length_to_sel(length : in std_logic_vector(3 downto 0)) return std_ulogic_vector is
+    function length_to_sel(length : in std_logic_vector(4 downto 0)) return std_ulogic_vector is
+        variable sel : std_ulogic_vector(15 downto 0);
     begin
-        case length is
-            when "0001" =>
-                return "00000001";
-            when "0010" =>
-                return "00000011";
-            when "0100" =>
-                return "00001111";
-            when "1000" =>
-                return "11111111";
-            when others =>
-                return "00000000";
-        end case;
+        sel := 16x"0";
+        for i in 0 to 15 loop
+            if i < to_integer(unsigned(length)) then
+                sel(i) := '1';
+            end if;
+        end loop;
+        return sel;
     end function length_to_sel;
 
     -- Calculate byte enables
     -- This returns 16 bits, giving the select signals for two transfers,
     -- to account for unaligned loads or stores
-    function xfer_data_sel(size : in std_logic_vector(3 downto 0);
-                           address : in std_logic_vector(2 downto 0))
+    function xfer_data_sel(size : in std_logic_vector(4 downto 0);
+                           address : in std_logic_vector(3 downto 0))
 	return std_ulogic_vector is
         variable longsel : std_ulogic_vector(15 downto 0);
     begin
@@ -246,7 +246,7 @@ architecture behave of loadstore1 is
             longsel := (others => 'X');
             return longsel;
         else
-            longsel := "00000000" & length_to_sel(size);
+            longsel := length_to_sel(size);
             return std_ulogic_vector(shift_left(unsigned(longsel),
                                                 to_integer(unsigned(address))));
         end if;
@@ -564,6 +564,7 @@ begin
         variable lsu_sum : std_ulogic_vector(63 downto 0);
         variable brev_lenm1 : unsigned(2 downto 0);
         variable long_sel : std_ulogic_vector(15 downto 0);
+        variable byte_off : std_ulogic_vector(3 downto 0);
         variable addr : std_ulogic_vector(63 downto 0);
         variable sprn : std_ulogic_vector(9 downto 0);
         variable misaligned : std_ulogic;
@@ -579,8 +580,12 @@ begin
         v.mode_32bit := l_in.mode_32bit;
         v.prefixed := l_in.prefixed;
         v.write_reg := l_in.write_reg;
-        -- map l_in.length = 16 to v.length = 8
-        v.length := (l_in.length(4) or l_in.length(3)) & l_in.length(2 downto 0);
+        v.length := l_in.length;
+        -- For non-vector load/store, map l_in.length = 16 to v.length = 8
+        if v.length(4) = '1' and l_in.mode(2) = '0' then
+            v.length(4) := '0';
+            v.length(3) := '1';
+        end if;
         v.elt_length := l_in.length(3 downto 0);
         v.byte_reverse := l_in.byte_reverse;
         v.sign_extend := l_in.sign_extend;
@@ -615,16 +620,25 @@ begin
                 hash_nop := not l_in.hash_enable;
             when "011" =>
                 v.dcbz := '1';
+            when "100" =>
+                v.is_vector := '1';
             when others =>
         end case;
 
         lsu_sum := std_ulogic_vector(unsigned(l_in.addr1) + unsigned(l_in.addr2));
 
-        if HAS_FPU and l_in.is_32bit = '1' then
-            v.store_data := x"00000000" & store_sp_data;
+        if v.is_vector = '1' and l_in.byte_reverse = '0' then
+            v.store_data := l_in.data_lo;
+            v.store_data2 := l_in.data;
         else
             v.store_data := l_in.data;
+            v.store_data2 := l_in.data_lo;
         end if;
+        if HAS_FPU and l_in.is_32bit = '1' then
+            v.store_data(31 downto 0) := store_sp_data;
+        end if;
+
+        addr_mask := std_ulogic_vector(unsigned(l_in.length(3 downto 0)) - 1);
 
         addr := lsu_sum;
         if l_in.second = '1' then
@@ -635,6 +649,14 @@ begin
             addr := std_ulogic_vector(unsigned(r1.addr0(63 downto 3)) + not l_in.update) &
                     r1.addr0(2 downto 0);
         end if;
+        byte_off := '0' & addr(2 downto 0);
+        if HAS_VECVSX and v.is_vector = '1' then
+            -- truncate EA to a multiple of the size, and
+            -- arrange to do the even doubleword first, then odd
+            byte_off := lsu_sum(3 downto 0) and not addr_mask;
+            addr(3 downto 0) := "0000";
+        end if;
+
         -- Hash instructions have a short immediate displacement field,
         -- interpreted as a negative multiple of 8
         disp := 55x"7FFFFFFFFFFFFF" & l_in.insn(0) & l_in.insn(25 downto 21) & "000";
@@ -652,13 +674,11 @@ begin
             v.nc := '1';
         end if;
 
-        addr_mask := std_ulogic_vector(unsigned(l_in.length(3 downto 0)) - 1);
-
         -- Do length_to_sel and work out if we are doing 2 dwords
-        long_sel := xfer_data_sel(v.length, addr(2 downto 0));
+        long_sel := xfer_data_sel(v.length, byte_off);
         v.byte_sel := long_sel(7 downto 0);
         v.second_bytes := long_sel(15 downto 8);
-        if long_sel(15 downto 8) /= "00000000" then
+        if long_sel(15 downto 8) /= "00000000" or v.is_vector = '1' then
             v.two_dwords := '1';
         end if;
 
@@ -735,7 +755,11 @@ begin
         -- Work out controls for load and store formatting
         brev_lenm1 := "000";
         if v.byte_reverse = '1' then
-            brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
+            if v.is_vector = '0' then
+                brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
+            else
+                brev_lenm1 := "111";
+            end if;
         end if;
         v.brev_mask := brev_lenm1;
 
@@ -786,6 +810,9 @@ begin
                     req.addr(32) := '0';
                 end if;
                 req.byte_sel := r1.req.second_bytes;
+                if r1.req.is_vector = '1' then
+                    req.store_data := r1.req.store_data2;
+                end if;
                 issue := '1';
             else
                 -- For the lfs conversion cycle, leave the request valid
@@ -950,9 +977,14 @@ begin
                     v.wr_sel := "00";
                 elsif r1.req.load_sp = '1' then
                     v.wr_sel := "01";
+                elsif r1.req.is_vector = '1' and r1.req.byte_reverse = '1' then
+                    -- BE vector load
+                    v.wr_sel := "11";
                 else
                     v.wr_sel := "10";
                 end if;
+                v.lo_wr_sel(1) := r1.req.is_vector;
+                v.lo_wr_sel(0) := r1.req.byte_reverse;
                 if r1.req.read_spr = '1' then
                     v.addr0 := sprval;
                 end if;
@@ -970,7 +1002,9 @@ begin
                     kk := ('0' & idx) + ('0' & byte_offset);
                     v.byte_index(i) := kk(2 downto 0);
                     v.trim_ctl(i) := "00";
-                    if not is_X(r1.req.length) and i < to_integer(unsigned(r1.req.length)) then
+                    if r1.req.is_vector = '1' then
+                        v.trim_ctl(i)(1) := '1';
+                    elsif not is_X(r1.req.length) and i < to_integer(unsigned(r1.req.length)) then
                         v.trim_ctl(i)(0) := r1.req.dword_index and not kk(3);
                         v.trim_ctl(i)(1) := '1';
                     end if;
@@ -1027,6 +1061,7 @@ begin
         variable mmu_mtspr     : std_ulogic;
         variable write_enable  : std_ulogic;
         variable write_data    : std_ulogic_vector(63 downto 0);
+        variable write_data_lo : std_ulogic_vector(63 downto 0);
         variable do_update     : std_ulogic;
         variable done          : std_ulogic;
         variable exception     : std_ulogic;
@@ -1036,7 +1071,6 @@ begin
         variable negative      : std_ulogic;
         variable dsisr         : std_ulogic_vector(31 downto 0);
         variable itlb_fault    : std_ulogic;
-        variable trim_ctl      : trim_ctl_t;
         variable hashchk_trap  : std_ulogic;
     begin
         v := r3;
@@ -1263,9 +1297,23 @@ begin
         when "01" =>
             -- lfs result
             write_data := load_dp_data;
+        when "11" =>
+            -- first load data for BE vector load
+            write_data := r3.load_data;
         when others =>
             -- load data
             write_data := data_trimmed;
+        end case;
+
+        case r2.lo_wr_sel is
+        when "10" =>
+            -- LE vector load does low then high
+            write_data_lo := r3.load_data;
+        when "11" =>
+            -- BE vector load does high then low
+            write_data_lo := data_trimmed;
+        when others =>
+            write_data_lo := (others => '0');
         end case;
 
         -- Update outputs to dcache
@@ -1333,6 +1381,7 @@ begin
         l_out.write_enable <= write_enable or do_update;
         l_out.write_reg <= r2.req.write_reg;
         l_out.write_data <= write_data;
+        l_out.write_data_lo <= write_data_lo;
         l_out.xerc <= r2.req.xerc;
         l_out.rc <= r2.req.rc and complete;
         l_out.store_done <= d_in.store_done;

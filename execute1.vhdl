@@ -1956,6 +1956,7 @@ begin
         bypass_data.tag.tag <= v.e.instr_tag.tag;
         bypass_data.reg <= v.e.write_reg;
         bypass_data.data <= alu_result;
+        bypass_data.lo_data <= (others => '0');
 
         bypass_cr_data.tag.valid <= e_in.output_cr and bypass_valid;
         bypass_cr_data.tag.tag <= e_in.instr_tag.tag;
@@ -1967,6 +1968,7 @@ begin
         lv.addr1 := a_in;
         lv.addr2 := b_in;
         lv.data := c_in;
+        lv.data_lo := e_in.lo_read_data3;
         lv.write_reg := e_in.write_reg;
         lv.length := e_in.data_len;
         lv.byte_reverse := e_in.byte_reverse xnor ex1.msr(MSR_LE);
@@ -2271,6 +2273,7 @@ begin
         bypass2_data.tag.tag <= ex1.e.instr_tag.tag;
         bypass2_data.reg <= ex1.e.write_reg;
         bypass2_data.data <= ex_result;
+        bypass2_data.lo_data <= (others => '0');
 
         bypass2_cr_data.tag.valid <= (ex1.e.write_cr_enable or (ex1.e.rc and ex1.e.write_enable))
                                      and bypass_valid;

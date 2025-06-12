@@ -12,7 +12,7 @@ entity decode2 is
     generic (
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
-        HAS_VEC : boolean := true;
+        HAS_VECVSX : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -187,7 +187,7 @@ architecture behaviour of decode2 is
                     return ('0', no_reg);
                 end if;
             when VRT =>
-                if HAS_VEC then
+                if HAS_VECVSX then
                     return ('1', vr_hi_to_gspr(insn_vrt(insn_in)));
                 else
                     return ('0', no_reg);

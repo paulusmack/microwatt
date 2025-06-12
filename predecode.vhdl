@@ -13,7 +13,7 @@ use work.insn_helpers.all;
 entity predecoder is
     generic (
         HAS_FPU   : boolean := true;
-        HAS_VEC   : boolean := true;
+        HAS_VECVSX   : boolean := true;
         WIDTH     : natural := 2;
         ICODE_LEN : natural := 10;
         IMAGE_LEN : natural := 26;
@@ -766,7 +766,7 @@ begin
                 illegal := '1';
             end if;
             -- Mark vector instructions as illegal if we don't have a vector unit
-            if not HAS_VEC and not is_X(icode) and
+            if not HAS_VECVSX and not is_X(icode) and
                 to_integer(icode) >= insn_code'pos(INSN_first_vrs) then
                 illegal := '1';
             end if;

@@ -9,7 +9,7 @@ entity register_file is
     generic (
         SIM : boolean := false;
         HAS_FPU : boolean := true;
-        HAS_VEC : boolean := true;
+        HAS_VECVSX : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -32,7 +32,7 @@ entity register_file is
         sim_dump      : in std_ulogic;
         sim_dump_done : out std_ulogic;
 
-        log_out       : out std_ulogic_vector(71 downto 0)
+        log_out       : out std_ulogic_vector(72 downto 0)
         );
 end entity register_file;
 
@@ -40,13 +40,27 @@ architecture behaviour of register_file is
 
     function regfilesize return integer is
     begin
-        if HAS_VEC then
-            return 128;
+        if HAS_VECVSX then
+            return 192;
         elsif HAS_FPU then
             return 64;
         else
             return 32;
         end if;
+    end;
+
+    function regfileaddr(r: gspr_index_t) return integer is
+        variable i : std_ulogic_vector(7 downto 0);
+    begin
+        if HAS_VECVSX then
+            i := r;
+        elsif HAS_FPU then
+            -- pack FPRs and GPRs contiguously
+            i := "00" & r(6) & r(4 downto 0);
+        else
+            i := "000" & r(4 downto 0);
+        end if;
+        return to_integer(unsigned(i));
     end;
 
     type regfile is array(0 to regfilesize - 1) of std_ulogic_vector(63 downto 0);
@@ -76,18 +90,22 @@ begin
         if rising_edge(clk) then
             if w_in.write_enable = '1' then
                 w_addr := w_in.write_reg;
-                if HAS_VEC and w_addr(6) = '1' then
+                if HAS_VECVSX and w_addr(7) = '1' then
                     report "Writing VR " & to_hstring(w_addr(4 downto 0)) & "." &
                         std_ulogic'image(w_addr(5)) & " " & to_hstring(w_in.write_data);
-                elsif HAS_FPU and w_addr(5) = '1' then
-                    w_addr(6) := '0';
-                    report "Writing FPR " & to_hstring(w_addr(4 downto 0)) & " " & to_hstring(w_in.write_data);
+                elsif HAS_FPU and w_addr(6) = '1' then
+                    if w_addr(5) = '0' then
+                        report "Writing FPR " & to_hstring(w_addr(4 downto 0)) & " " & to_hstring(w_in.write_data);
+                    else
+                        report "Writing VSR.lo " & to_hstring(w_addr(4 downto 0)) & " " & to_hstring(w_in.write_data);
+                    end if;
+                elsif w_addr(5) = '1' then
+                    report "Writing unused GSPR " & to_hstring(w_addr) & " " & to_hstring(w_in.write_data);
                 else
-                    w_addr(6 downto 5) := "00";
                     report "Writing GPR " & to_hstring(w_addr) & " " & to_hstring(w_in.write_data);
                 end if;
                 assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
-                registers(to_integer(unsigned(w_addr))) <= w_in.write_data;
+                registers(regfileaddr(w_addr)) <= w_in.write_data;
             end if;
 
             a_addr := d1_in.reg_1_addr;
@@ -131,32 +149,20 @@ begin
                 dbg_gpr_done <= '0';
             end if;
 
-            if not HAS_VEC then
-                -- Make it obvious that we only want 64 GSPRs for a no-vector implementation
-                a_addr(6) := '0';
-                b_addr(6) := '0';
-                c_addr(6) := '0';
-            end if;
-            if not HAS_FPU and not HAS_VEC then
-                -- Make it obvious that we only want 32 GSPRs for a no-FPU implementation
-                a_addr(5) := '0';
-                b_addr(5) := '0';
-                c_addr(5) := '0';
-            end if;
 	    if is_X(a_addr) then
 		data_1 <= (others => 'X');
 	    else
-		data_1 <= registers(to_integer(unsigned(a_addr)));
+		data_1 <= registers(regfileaddr(a_addr));
 	    end if;
 	    if is_X(b_addr) then
 		data_2 <= (others => 'X');
 	    else
-		data_2 <= registers(to_integer(unsigned(b_addr)));
+		data_2 <= registers(regfileaddr(b_addr));
 	    end if;
 	    if is_X(c_addr) then
 		data_3 <= (others => 'X');
 	    else
-		data_3 <= registers(to_integer(unsigned(c_addr)));
+		data_3 <= registers(regfileaddr(c_addr));
 	    end if;
 
             prev_write_data <= w_in.write_data;
@@ -236,7 +242,7 @@ begin
     end generate;
 
     rf_log: if LOG_LENGTH > 0 generate
-        signal log_data : std_ulogic_vector(71 downto 0);
+        signal log_data : std_ulogic_vector(72 downto 0);
     begin
         reg_log: process(clk)
         begin

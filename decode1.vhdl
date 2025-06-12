@@ -10,7 +10,7 @@ use work.insn_helpers.all;
 entity decode1 is
     generic (
         HAS_FPU : boolean := true;
-        HAS_VEC : boolean := true;
+        HAS_VECVSX : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -685,31 +685,31 @@ begin
         -- Work out GPR/FPR read addresses
         if double = '0' then
             maybe_rb := '0';
-            vr.reg_1_addr := "00" & insn_ra(f_in.insn);
-            vr.reg_2_addr := "00" & insn_rb(f_in.insn);
-            vr.reg_3_addr := "00" & insn_rs(f_in.insn);
+            vr.reg_1_addr := gpr_to_gspr(insn_ra(f_in.insn));
+            vr.reg_2_addr := gpr_to_gspr(insn_rb(f_in.insn));
+            vr.reg_3_addr := gpr_to_gspr(insn_rs(f_in.insn));
             if icode >= INSN_first_rb then
                 maybe_rb := '1';
             end if;
             if icode >= INSN_first_vrs then
                 -- access VRS operand
-                vr.reg_3_addr(6) := '1';
+                vr.reg_3_addr(7) := '1';
                 -- big-endian accesses high half then low; LE the reverse
                 vr.reg_3_addr(5) := not f_in.big_endian;
             elsif icode >= INSN_first_frs then
                 -- access FRS operand
-                vr.reg_3_addr(5) := '1';
+                vr.reg_3_addr(6) := '1';
                 if icode >= INSN_first_frab then
                     -- access FRA and/or FRB operands
-                    vr.reg_1_addr(5) := '1';
-                    vr.reg_2_addr(5) := '1';
+                    vr.reg_1_addr(6) := '1';
+                    vr.reg_2_addr(6) := '1';
                 end if;
                 if icode >= INSN_first_frabc then
                     -- access FRC operand
-                    vr.reg_3_addr := "01" & insn_rcreg(f_in.insn);
+                    vr.reg_3_addr(4 downto 0) := insn_rcreg(f_in.insn);
                 end if;
             elsif icode >= INSN_first_rc then
-                vr.reg_3_addr := "00" & insn_rcreg(f_in.insn);
+                vr.reg_3_addr(4 downto 0) := insn_rcreg(f_in.insn);
             end if;
             -- See if this is an instruction where repeat_t = DRP and we need
             -- to read RS|1 followed by RS, i.e. stq or stqcx. in LE mode

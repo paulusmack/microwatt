@@ -124,19 +124,25 @@ package common is
     -- GPR indices in the register file (GPR only)
     subtype gpr_index_t is std_ulogic_vector(4 downto 0);
 
-    -- Extended GPR index (can hold a GPR, FPR or VR)
-    subtype gspr_index_t is std_ulogic_vector(6 downto 0);
+    -- Extended GPR index (can hold a GPR, FPR, VR or VSR)
+    subtype gspr_index_t is std_ulogic_vector(7 downto 0);
 
     -- FPR indices
     -- FPRs are stored in the register file, using GSPR
-    -- numbers from 32 to 63.
+    -- numbers from 64 to 95.
     subtype fpr_index_t is std_ulogic_vector(4 downto 0);
 
     -- VR indices
     -- VRs are stored in the register file, using GSPR numbers from
-    -- 64 to 127.  The high-order half of each VR are 64 to 95 and
-    -- the low-order half is 96 to 127.
+    -- 128 to 159 for the high-order half of each VR, and 160 to 191
+    -- for the low-order half.
     subtype vr_index_t is std_ulogic_vector(4 downto 0);
+
+    -- VSR indices
+    -- The VSX register file contains the FPRs and VRs and an
+    -- additional 32x64 bits of storage in indices 96 to 127,
+    -- effectively making a total of 64 registers of 128 bits.
+    subtype vsr_index_t is std_ulogic_vector(5 downto 0);
 
     -- Indices conversion functions
     function gspr_to_gpr(i: gspr_index_t) return gpr_index_t;
@@ -144,6 +150,8 @@ package common is
     function fpr_to_gspr(f: fpr_index_t) return gspr_index_t;
     function vr_hi_to_gspr(v: vr_index_t) return gspr_index_t;
     function vr_lo_to_gspr(v: vr_index_t) return gspr_index_t;
+    function vsr_hi_to_gspr(v: vsr_index_t) return gspr_index_t;
+    function vsr_lo_to_gspr(v: vsr_index_t) return gspr_index_t;
 
     -- The XER is split: the common bits (CA, OV, SO, OV32 and CA32) are
     -- in the CR file as a kind of CR extension (with a separate write
@@ -979,22 +987,32 @@ package body common is
 
     function gpr_to_gspr(i: gpr_index_t) return gspr_index_t is
     begin
-	return "00" & i;
+	return "000" & i;
     end;
 
     function fpr_to_gspr(f: fpr_index_t) return gspr_index_t is
     begin
-        return "01" & f;
+        return "010" & f;
     end;
 
     function vr_hi_to_gspr(v: vr_index_t) return gspr_index_t is
     begin
-        return "10" & v;
+        return "100" & v;
     end;
 
     function vr_lo_to_gspr(v: vr_index_t) return gspr_index_t is
     begin
-        return "11" & v;
+        return "101" & v;
+    end;
+
+    function vsr_hi_to_gspr(v: vsr_index_t) return gspr_index_t is
+    begin
+        return v(5) & not v(5) & '0' & v(4 downto 0);
+    end;
+
+    function vsr_lo_to_gspr(v: vsr_index_t) return gspr_index_t is
+    begin
+        return v(5) & not v(5) & '1' & v(4 downto 0);
     end;
 
     function tag_match(tag1 : instr_tag_t; tag2 : instr_tag_t) return boolean is

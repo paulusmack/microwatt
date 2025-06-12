@@ -29,7 +29,7 @@ entity icache is
     generic (
         SIM : boolean := false;
         HAS_FPU : boolean := true;
-        HAS_VEC : boolean := true;
+        HAS_VECVSX : boolean := true;
         -- Line size in bytes
         LINE_SIZE : positive := 64;
         -- BRAM organisation: We never access more than wishbone_data_bits at
@@ -314,7 +314,7 @@ begin
     predecoder_0: entity work.predecoder
         generic map (
             HAS_FPU => HAS_FPU,
-            HAS_VEC => HAS_VEC,
+            HAS_VECVSX => HAS_VECVSX,
             WIDTH => INSN_PER_ROW,
             ICODE_LEN => PREDECODE_BITS,
             IMAGE_LEN => INSN_IMAGE_BITS,

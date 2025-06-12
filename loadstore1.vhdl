@@ -14,7 +14,7 @@ use work.helpers.all;
 entity loadstore1 is
     generic (
         HAS_FPU : boolean := true;
-        HAS_VEC : boolean := true;
+        HAS_VECVSX : boolean := true;
         -- Non-zero to enable log data collection
         LOG_LENGTH : natural := 0
         );
@@ -643,7 +643,7 @@ begin
                     r1.addr0(2 downto 0);
         end if;
         byte_off := addr(2 downto 0);
-        if HAS_VEC and v.is_vector = '1' then
+        if HAS_VECVSX and v.is_vector = '1' then
             -- truncate EA to a multiple of the size, and
             -- arrange to do the even doubleword first, then odd
             if l_in.second = '0' then
@@ -681,7 +681,7 @@ begin
         end if;
         -- Vector load/store ops get repeated; for byte/half/word
         -- element ops, one of the two has byte_sel = 0x00.
-        if HAS_VEC and v.is_vector = '1' and l_in.length(4) = '0' and
+        if HAS_VECVSX and v.is_vector = '1' and l_in.length(4) = '0' and
             v.elt_addr(3) /= l_in.second then
             v.byte_sel := x"00";
         end if;

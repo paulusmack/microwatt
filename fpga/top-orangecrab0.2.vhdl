@@ -13,7 +13,7 @@ entity toplevel is
         CLK_INPUT          : positive := 100000000;
         CLK_FREQUENCY      : positive := 100000000;
         HAS_FPU            : boolean  := true;
-        HAS_VEC            : boolean  := true;
+        HAS_VECVSX            : boolean  := true;
         HAS_BTC            : boolean  := false;
         USE_LITEDRAM       : boolean  := true;
         NO_BRAM            : boolean  := true;
@@ -172,7 +172,7 @@ begin
             SIM                => false,
             CLK_FREQ           => CLK_FREQUENCY,
             HAS_FPU            => HAS_FPU,
-            HAS_VEC            => HAS_VEC,
+            HAS_VECVSX            => HAS_VECVSX,
             HAS_BTC            => HAS_BTC,
             HAS_DRAM           => USE_LITEDRAM,
             DRAM_SIZE          => 256 * 1024 * 1024,

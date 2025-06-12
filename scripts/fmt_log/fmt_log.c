@@ -57,7 +57,6 @@ struct log_entry {
 	u64	ls_lo_valid: 1;
 	u64	ls_eo_except: 1;
 	u64	ls_stall_out: 1;
-	u64	pad2: 1;
 	u64	dc_state: 3;
 	u64	dc_ra_valid: 1;
 	u64	dc_tlb_way: 3;
@@ -73,7 +72,7 @@ struct log_entry {
 	u64	cr_wr_mask: 8;
 	u64	cr_wr_data: 4;
 	u64	cr_wr_enable: 1;
-	u64	reg_wr_reg: 7;
+	u64	reg_wr_reg: 8;
 	u64	reg_wr_enable: 1;
 
 	u64	reg_wr_data;

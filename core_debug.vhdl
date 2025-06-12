@@ -290,10 +290,9 @@ begin
 
             -- Map 0 - 0x1f to GPRs, 0x20 - 0x3f to SPRs, 0x40 - 0x5f to FPRs
             -- and 0x80 - 0xbf to VRs (high-order half 0x80 - 0x9f, low-order
-            -- 0xa0 - 0xbf).
-            dbg_gpr_addr(4 downto 0) <= gspr_index(4 downto 0);
-            dbg_gpr_addr(5) <= gspr_index(5) or gspr_index(6);
-            dbg_gpr_addr(6) <= gspr_index(7);
+            -- 0xa0 - 0xbf).  This is the same as the GSPR layout except that
+            -- SPRs are not stored there.
+            dbg_gpr_addr <= gspr_index;
             dbg_ls_spr_addr <= gspr_index(1 downto 0);
 
             -- For SPRs, use the same mapping as when the fast SPRs were in the GPR file

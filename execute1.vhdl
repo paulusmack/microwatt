@@ -15,7 +15,7 @@ entity execute1 is
         SIM : boolean := false;
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
-        HAS_VEC : boolean := true;
+        HAS_VECVSX : boolean := true;
         CPU_INDEX : natural;
         NCPUS : positive := 1;
         -- Non-zero to enable log data collection
@@ -1692,7 +1692,7 @@ begin
                 report "FP unavailable interrupt";
             end if;
 
-        elsif HAS_VEC and ex1.msr(MSR_VEC) = '0' and e_in.fac = VEC then
+        elsif HAS_VECVSX and ex1.msr(MSR_VEC) = '0' and e_in.fac = VEC then
             -- generate a vector unavailable interrupt
             v.exception := '1';
             v.e.srr1(47 - 34) := e_in.prefixed;

@@ -81,7 +81,6 @@ architecture behaviour of register_file is
     signal addr_1_reg : gspr_index_t;
     signal addr_2_reg : gspr_index_t;
     signal addr_3_reg : gspr_index_t;
-    signal rd_2 : std_ulogic;
     signal fwd_1 : std_ulogic;
     signal fwd_2 : std_ulogic;
     signal fwd_3 : std_ulogic;
@@ -93,66 +92,63 @@ architecture behaviour of register_file is
     signal lo_data_2 : std_ulogic_vector(63 downto 0);
     signal lo_data_3 : std_ulogic_vector(63 downto 0);
     signal lo_prev_write_data : std_ulogic_vector(63 downto 0);
+    signal alt_data_1 : std_ulogic_vector(63 downto 0);
+    signal alt_data_2 : std_ulogic_vector(63 downto 0);
+    signal alt_data_3 : std_ulogic_vector(63 downto 0);
+    signal lo_alt_data_1 : std_ulogic_vector(63 downto 0);
+    signal lo_alt_data_2 : std_ulogic_vector(63 downto 0);
+    signal lo_alt_data_3 : std_ulogic_vector(63 downto 0);
+    signal stall_r : std_ulogic;
 
 begin
     -- synchronous reads and writes
     register_write_0: process(clk)
         variable a_addr, b_addr, c_addr : gspr_index_t;
         variable w_addr : gspr_index_t;
-        variable b_enable : std_ulogic;
     begin
         if rising_edge(clk) then
-            if w_in.write_enable = '1' then
-                w_addr := regfileaddr(w_in.write_reg);
-                if HAS_VECVSX and w_addr(6) = '1' then
-                    report "Writing VSR " & to_hstring(w_addr(5 downto 0)) & " " &
-                        to_hstring(w_in.write_data) & "_" & to_hstring(w_in.lovrw_data);
-                elsif not HAS_VECVSX and HAS_FPU and w_addr(5) = '1' then
-                    report "Writing FPR " & to_hstring(w_addr(4 downto 0)) & " " & to_hstring(w_in.write_data);
-                else
-                    report "Writing GPR " & to_hstring(w_addr) & " " & to_hstring(w_in.write_data);
-                end if;
-                assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
-                registers(to_integer(unsigned(w_addr))) <= w_in.write_data;
-                if HAS_VECVSX and w_addr(6) = '1' then
-                    lo_registers(to_integer(unsigned(w_addr(5 downto 0)))) <= w_in.lovrw_data;
-                end if;
-            end if;
-
+            w_addr := regfileaddr(w_in.write_reg);
             a_addr := regfileaddr(d1_in.reg_1_addr);
             b_addr := regfileaddr(d1_in.reg_2_addr);
             c_addr := regfileaddr(d1_in.reg_3_addr);
-            b_enable := d1_in.read_2_enable;
-            if stall = '1' then
-                a_addr := addr_1_reg;
-                b_addr := addr_2_reg;
-                c_addr := addr_3_reg;
-                b_enable := rd_2;
-            else
-                addr_1_reg <= a_addr;
-                addr_2_reg <= b_addr;
-                addr_3_reg <= c_addr;
-                rd_2 <= b_enable;
-            end if;
+
+            -- record current read data in case of stall
+            alt_data_1 <= d_out.read1_data;
+            alt_data_2 <= d_out.read2_data;
+            alt_data_3 <= d_out.read3_data;
+            lo_alt_data_1 <= d_out.lovr1_data;
+            lo_alt_data_2 <= d_out.lovr2_data;
+            lo_alt_data_3 <= d_out.lovr3_data;
+
+            stall_r <= stall;
+
+            prev_write_data <= w_in.write_data;
+            lo_prev_write_data <= w_in.lovrw_data;
 
             fwd_1 <= '0';
             fwd_2 <= '0';
             fwd_3 <= '0';
             if w_in.write_enable = '1' then
-                if w_addr = a_addr then
+                if (stall = '0' and w_addr = a_addr) or (stall = '1' and w_addr = addr_1_reg) then
                     fwd_1 <= '1';
                 end if;
-                if w_addr = b_addr then
+                if (stall = '0' and w_addr = b_addr) or (stall = '1' and w_addr = addr_2_reg) then
                     fwd_2 <= '1';
                 end if;
-                if w_addr = c_addr then
+                if (stall = '0' and w_addr = c_addr) or (stall = '1' and w_addr = addr_3_reg) then
                     fwd_3 <= '1';
                 end if;
             end if;
 
+            if stall = '0' then
+                addr_1_reg <= a_addr;
+                addr_2_reg <= b_addr;
+                addr_3_reg <= c_addr;
+            end if;
+
             -- Do debug reads to GPRs and FPRs using the B port when it is not in use
             if dbg_gpr_req = '1' then
-                if b_enable = '0' then
+                if stall = '1' or d1_in.read_2_enable = '0' then
                     b_addr := regfileaddr(dbg_gpr_addr);
                     dbg_gpr_done <= '1';
                 end if;
@@ -182,8 +178,22 @@ begin
 		lo_data_3 <= lo_registers(to_integer(unsigned(c_addr(5 downto 0))));
 	    end if;
 
-            prev_write_data <= w_in.write_data;
-            lo_prev_write_data <= w_in.lovrw_data;
+            if w_in.write_enable = '1' then
+                if HAS_VECVSX and w_addr(6) = '1' then
+                    report "Writing VSR " & to_hstring(w_addr(5 downto 0)) & " " &
+                        to_hstring(w_in.write_data) & "_" & to_hstring(w_in.lovrw_data);
+                elsif not HAS_VECVSX and HAS_FPU and w_addr(5) = '1' then
+                    report "Writing FPR " & to_hstring(w_addr(4 downto 0)) & " " & to_hstring(w_in.write_data);
+                else
+                    report "Writing GPR " & to_hstring(w_addr) & " " & to_hstring(w_in.write_data);
+                end if;
+                assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
+                registers(to_integer(unsigned(w_addr))) <= w_in.write_data;
+                if HAS_VECVSX and w_addr(6) = '1' then
+                    lo_registers(to_integer(unsigned(w_addr(5 downto 0)))) <= w_in.lovrw_data;
+                end if;
+            end if;
+
         end if;
     end process register_write_0;
 
@@ -205,14 +215,23 @@ begin
         if fwd_1 = '1' then
             out_data_1 := prev_write_data;
             lo_out_data_1 := lo_prev_write_data;
+        elsif stall_r = '1' then
+            out_data_1 := alt_data_1;
+            lo_out_data_1 := lo_alt_data_1;
         end if;
         if fwd_2 = '1' then
             out_data_2 := prev_write_data;
             lo_out_data_2 := lo_prev_write_data;
+        elsif stall_r = '1' then
+            out_data_2 := alt_data_2;
+            lo_out_data_2 := lo_alt_data_2;
         end if;
         if fwd_3 = '1' then
             out_data_3 := prev_write_data;
             lo_out_data_3 := lo_prev_write_data;
+        elsif stall_r = '1' then
+            out_data_3 := alt_data_3;
+            lo_out_data_3 := lo_alt_data_3;
         end if;
 
         if d_in.read1_enable = '1' then

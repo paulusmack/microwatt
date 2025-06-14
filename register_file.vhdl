@@ -71,21 +71,21 @@ architecture behaviour of register_file is
     signal addr_1_reg : gspr_index_t;
     signal addr_2_reg : gspr_index_t;
     signal addr_3_reg : gspr_index_t;
-    signal rd_2 : std_ulogic;
     signal fwd_1 : std_ulogic;
     signal fwd_2 : std_ulogic;
     signal fwd_3 : std_ulogic;
     signal data_1 : std_ulogic_vector(63 downto 0);
     signal data_2 : std_ulogic_vector(63 downto 0);
     signal data_3 : std_ulogic_vector(63 downto 0);
-    signal prev_write_data : std_ulogic_vector(63 downto 0);
+    signal alt_data_1 : std_ulogic_vector(63 downto 0);
+    signal alt_data_2 : std_ulogic_vector(63 downto 0);
+    signal alt_data_3 : std_ulogic_vector(63 downto 0);
 
 begin
     -- synchronous reads and writes
     register_write_0: process(clk)
         variable a_addr, b_addr, c_addr : gspr_index_t;
         variable w_addr : gspr_index_t;
-        variable b_enable : std_ulogic;
     begin
         if rising_edge(clk) then
             if w_in.write_enable = '1' then
@@ -111,37 +111,49 @@ begin
             a_addr := d1_in.reg_1_addr;
             b_addr := d1_in.reg_2_addr;
             c_addr := d1_in.reg_3_addr;
-            b_enable := d1_in.read_2_enable;
             if stall = '1' then
                 a_addr := addr_1_reg;
                 b_addr := addr_2_reg;
                 c_addr := addr_3_reg;
-                b_enable := rd_2;
             else
                 addr_1_reg <= a_addr;
                 addr_2_reg <= b_addr;
                 addr_3_reg <= c_addr;
-                rd_2 <= b_enable;
             end if;
 
-            fwd_1 <= '0';
-            fwd_2 <= '0';
-            fwd_3 <= '0';
+            -- record current read data in case of stall
+            alt_data_1 <= d_out.read1_data;
+            alt_data_2 <= d_out.read2_data;
+            alt_data_3 <= d_out.read3_data;
+
+            fwd_1 <= stall;
+            fwd_2 <= stall;
+            fwd_3 <= stall;
             if w_in.write_enable = '1' then
                 if w_addr = a_addr then
                     fwd_1 <= '1';
+                    alt_data_1 <= w_in.write_data;
                 end if;
                 if w_addr = b_addr then
                     fwd_2 <= '1';
+                    alt_data_2 <= w_in.write_data;
                 end if;
                 if w_addr = c_addr then
                     fwd_3 <= '1';
+                    alt_data_3 <= w_in.write_data;
                 end if;
             end if;
 
+            if stall = '0' then
+                addr_1_reg <= d1_in.reg_1_addr;
+                addr_2_reg <= d1_in.reg_2_addr;
+                addr_3_reg <= d1_in.reg_3_addr;
+            end if;
+
             -- Do debug reads to GPRs and FPRs using the B port when it is not in use
+            b_addr := d1_in.reg_2_addr;
             if dbg_gpr_req = '1' then
-                if b_enable = '0' then
+                if stall = '1' or d1_in.read_2_enable = '0' then
                     b_addr := dbg_gpr_addr;
                     dbg_gpr_done <= '1';
                 end if;
@@ -149,23 +161,22 @@ begin
                 dbg_gpr_done <= '0';
             end if;
 
-	    if is_X(a_addr) then
+	    if is_X(d1_in.reg_1_addr) then
 		data_1 <= (others => 'X');
 	    else
-		data_1 <= registers(regfileaddr(a_addr));
+		data_1 <= registers(regfileaddr(d1_in.reg_1_addr));
 	    end if;
 	    if is_X(b_addr) then
 		data_2 <= (others => 'X');
 	    else
 		data_2 <= registers(regfileaddr(b_addr));
 	    end if;
-	    if is_X(c_addr) then
+	    if is_X(d1_in.reg_3_addr) then
 		data_3 <= (others => 'X');
 	    else
-		data_3 <= registers(regfileaddr(c_addr));
+		data_3 <= registers(regfileaddr(d1_in.reg_3_addr));
 	    end if;
 
-            prev_write_data <= w_in.write_data;
         end if;
     end process register_write_0;
 
@@ -179,13 +190,13 @@ begin
         out_data_2 := data_2;
         out_data_3 := data_3;
         if fwd_1 = '1' then
-            out_data_1 := prev_write_data;
+            out_data_1 := alt_data_1;
         end if;
         if fwd_2 = '1' then
-            out_data_2 := prev_write_data;
+            out_data_2 := alt_data_2;
         end if;
         if fwd_3 = '1' then
-            out_data_3 := prev_write_data;
+            out_data_3 := alt_data_3;
         end if;
 
         if d_in.read1_enable = '1' then

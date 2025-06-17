@@ -48,6 +48,9 @@ entity execute1 is
         bypass2_data : out bypass_data_t;
         bypass2_cr_data : out cr_bypass_data_t;
 
+        r_out : out Execute1ToRegisterFileType;
+        r_in  : in  RegisterFileToExecute1Type;
+
         dbg_ctrl_out : out ctrl_t;
 
         msg_in       : in std_ulogic;
@@ -127,6 +130,7 @@ architecture behaviour of execute1 is
         start_div : std_ulogic;
         start_bsort : std_ulogic;
         start_bperm : std_ulogic;
+        start_rin_access : std_ulogic;
         do_trace : std_ulogic;
         ciabr_trace : std_ulogic;
         fp_intr : std_ulogic;
@@ -162,6 +166,8 @@ architecture behaviour of execute1 is
         div_in_progress : std_ulogic;
         bsort_in_progress : std_ulogic;
         bperm_in_progress : std_ulogic;
+        rin_access_in_progress : std_ulogic;
+        rin_address : gspr_index_t;
         no_instr_avail : std_ulogic;
         instr_dispatch : std_ulogic;
         ext_interrupt : std_ulogic;
@@ -187,6 +193,7 @@ architecture behaviour of execute1 is
          redir_to_next => '0', advance_nia => '0', lr_from_next => '0',
          mul_in_progress => '0', mul_finish => '0', div_in_progress => '0',
          bsort_in_progress => '0', bperm_in_progress => '0',
+         rin_access_in_progress => '0', rin_address => (others => '0'),
          no_instr_avail => '0', instr_dispatch => '0', ext_interrupt => '0',
          taken_branch_event => '0', br_mispredict => '0',
          msr => 64x"0",
@@ -985,6 +992,8 @@ begin
                 when others =>
                     multicyc_result <= multiply_to_x.result(127 downto 64);
             end case;
+        elsif ex1.mul_select(1) = '1' then
+            multicyc_result <= r_in.read_data;
         elsif ex1.mul_select(0) = '1' and not HAS_FPU then
             multicyc_result <= divider_to_x.write_reg_data;
         else
@@ -1223,7 +1232,6 @@ begin
                 write_cr_data(i*4 + 3 downto i*4) <= newcrf;
             end if;
         end loop;
-
     end process;
 
     execute1_actions: process(all)
@@ -1440,6 +1448,7 @@ begin
             when OP_MCRXRX =>
             when OP_DARN =>
 	    when OP_MFMSR =>
+
 	    when OP_MFSPR =>
                 sprnum := decode_spr_num(e_in.insn);
 		if e_in.spr_is_ram = '1' then
@@ -1522,6 +1531,12 @@ begin
                                      (c_in(MSR_FE0) or c_in(MSR_FE1));
                     end if;
                 end if;
+
+            when OP_MTFRIN =>
+                v.start_rin_access := '1';
+                slow_op := '1';
+                owait := '1';
+
 	    when OP_MTSPR =>
                 sprnum := decode_spr_num(e_in.insn);
                 if e_in.valid = '1' and not is_X(e_in.insn) then
@@ -1767,6 +1782,7 @@ begin
             v.prefixed := e_in.prefixed;
             v.insn := e_in.insn;
             v.prefix := e_in.prefix;
+            v.rin_address := e_in.read_data1(gspr_index_t'left downto 0);
         end if;
 
         lv := Execute1ToLoadstore1Init;
@@ -1867,6 +1883,7 @@ begin
             v.div_in_progress := actions.start_div;
             v.bsort_in_progress := actions.start_bsort;
             v.bperm_in_progress := actions.start_bperm;
+            v.rin_access_in_progress := actions.start_rin_access;
             v.br_mispredict := v.e.redirect and actions.direct_branch;
             v.advance_nia := actions.advance_nia;
             v.redir_to_next := actions.redir_to_next;
@@ -1878,7 +1895,7 @@ begin
             -- instructions from using the wrong XER value
             -- (and for simplicity in the OE=0 case).
             v.busy := actions.start_div or actions.start_mul or
-                      actions.start_bsort or actions.start_bperm;
+                      actions.start_bsort or actions.start_bperm or actions.start_rin_access;
 
             -- instruction for other units, i.e. LDST
             if e_in.unit = LDST then
@@ -1945,6 +1962,17 @@ begin
             v.e.write_data := alu_result;
             bypass_valid := bperm_done;
         end if;
+        if ex1.rin_access_in_progress = '1' then
+            v.rin_access_in_progress := not r_in.ack;
+            v.e.valid := r_in.ack;
+            v.busy := not r_in.ack;
+            v.e.write_data := alu_result;
+            bypass_valid := r_in.ack;
+        end if;
+        r_out.read_req <= v.rin_access_in_progress and not v.insn(0);
+        r_out.write_req <= v.rin_access_in_progress and v.insn(0);
+        r_out.reg_addr <= v.rin_address;
+        r_out.write_data <= v.spr_write_data;
 
         if v.e.write_xerc_enable = '1' and v.e.valid = '1' then
             v.xerc := v.e.xerc;

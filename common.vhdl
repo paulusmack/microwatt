@@ -632,6 +632,18 @@ package common is
         read3_data : std_ulogic_vector(63 downto 0);
     end record;
 
+    type Execute1ToRegisterFileType is record
+        reg_addr : gspr_index_t;
+        read_req : std_ulogic;
+        write_req : std_ulogic;
+        write_data : std_ulogic_vector(63 downto 0);
+    end record;
+
+    type RegisterFileToExecute1Type is record
+        ack : std_ulogic;
+        read_data : std_ulogic_vector(63 downto 0);
+    end record;
+
     type Decode2ToCrFileType is record
 	read : std_ulogic;
     end record;

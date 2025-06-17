@@ -79,6 +79,8 @@ architecture behave of core is
     signal register_file_to_decode2: RegisterFileToDecode2Type;
     signal decode2_to_register_file: Decode2ToRegisterFileType;
     signal writeback_to_register_file: WritebackToRegisterFileType;
+    signal execute1_to_register_file: Execute1ToRegisterFileType;
+    signal register_file_to_execute1: RegisterFileToExecute1Type;
 
     -- CR file signals
     signal decode2_to_cr_file: Decode2ToCrFileType;
@@ -351,6 +353,8 @@ begin
             d_in => decode2_to_register_file,
             d_out => register_file_to_decode2,
             w_in => writeback_to_register_file,
+            e_in => execute1_to_register_file,
+            e_out => register_file_to_execute1,
             dbg_gpr_req => dbg_gpr_req,
             dbg_gpr_ack => dbg_gpr_ack,
             dbg_gpr_addr => dbg_gpr_addr,
@@ -399,6 +403,8 @@ begin
             l_out => execute1_to_loadstore1,
             fp_out => execute1_to_fpu,
             e_out => execute1_to_writeback,
+            r_out => execute1_to_register_file,
+            r_in => register_file_to_execute1,
             bypass_data => execute1_bypass,
             bypass_cr_data => execute1_cr_bypass,
             bypass2_data => execute2_bypass,

@@ -90,8 +90,8 @@ const char *ops[64] =
 	"bsort  ", "cmp    ", "compute", "countb ", "darn   ", "dcbf   ", "dcbst  ", "icbi   ",
 	"icbt   ", "fpcmp  ", "fparith", "fpmove ", "fpmisc ", "div    ", "dive   ", "mod    ",
 	"isync  ", "ld     ", "st     ", "mcrxrx ", "mfmsr  ", "mfspr  ", "msg    ", "mtcrf  ",
-	"mtmsr  ", "mtspr  ", "mull64 ", "mulh64 ", "mulh32 ", "rfid   ", "sc     ", "sync   ",
-	"tlbie  ", "trap   ", "wait   ", "ffail  ", "?44    ", "?45    ", "?46    ", "?47    ",
+	"mtfrin ", "mtmsr  ", "mtspr  ", "mull64 ", "mulh64 ", "mulh32 ", "rfid   ", "sc     ",
+	"sync   ", "tlbie  ", "trap   ", "wait   ", "ffail  ", "?45    ", "?46    ", "?47    ",
 	"?48    ", "?49    ", "?50    ", "?51    ", "?52    ", "?53    ", "?54    ", "?55    ",
 	"?56    ", "?57    ", "?58    ", "?59    ", "?60    ", "?61    ", "?62    ", "?63    "
 };
@@ -220,13 +220,8 @@ int main(int ac, char **av)
 			printf("%x>%.2x ", log.cr_wr_data, log.cr_wr_mask);
 		else
 			printf("     ");
-		if (log.reg_wr_enable) {
-			if (log.reg_wr_reg < 32 || log.reg_wr_reg > 44)
-				printf("r%02d", log.reg_wr_reg);
-			else
-				printf("%s", spr_names[log.reg_wr_reg - 32]);
-			printf("=%.16llx", log.reg_wr_data);
-		}
+		if (log.reg_wr_enable)
+			printf("r%02d=%.16llx", log.reg_wr_reg, log.reg_wr_data);
 		printf("\n");
 		++lineno;
 		if (log.ls_lo_valid || log.e1_valid)

@@ -149,6 +149,9 @@ architecture behaviour of predecoder is
         2#000110_00001#                    => (RA, NR, XSP, INSN_stxvp),
         2#000110_10000#                    => (RA, NR, NR,  INSN_lxvp),
         2#000110_10001#                    => (RA, NR, XSP, INSN_stxvp),
+        -- major opcode 22 (sandbox)
+        2#010110_00000#                    => (RA, NR, NR,  INSN_mfrin),
+        2#010110_00001#                    => (RA, NR, RS,  INSN_mtrin),
         -- major opcode 30
         2#011110_01000# to 2#011110_01001# => (NR, NR, RS,  INSN_rldic),
         2#011110_01010# to 2#011110_01011# => (NR, NR, RS,  INSN_rldic),

@@ -23,6 +23,9 @@ entity register_file is
 
         w_in          : in WritebackToRegisterFileType;
 
+        e_in          : in Execute1ToRegisterFileType;
+        e_out         : out RegisterFileToExecute1Type;
+
         dbg_gpr_req   : in std_ulogic;
         dbg_gpr_ack   : out std_ulogic;
         dbg_gpr_addr  : in gspr_index_t;
@@ -99,14 +102,23 @@ architecture behaviour of register_file is
     signal lo_alt_data_2 : std_ulogic_vector(63 downto 0);
     signal lo_alt_data_3 : std_ulogic_vector(63 downto 0);
     signal stall_r : std_ulogic;
+    signal indirect_ack : std_ulogic;
+    signal ind_lo : std_ulogic;
 
 begin
     -- synchronous reads and writes
     register_write_0: process(clk)
         variable a_addr, b_addr, c_addr : gspr_index_t;
         variable w_addr : gspr_index_t;
+        variable w_data, w_dlow : std_ulogic_vector(63 downto 0);
+        variable we, wel : std_ulogic;
     begin
         if rising_edge(clk) then
+            indirect_ack <= '0';
+            ind_lo <= e_in.reg_addr(7);
+            dbg_gpr_done <= '0';
+            we := '0';
+            wel := '0';
             w_addr := regfileaddr(w_in.write_reg);
             a_addr := regfileaddr(d1_in.reg_1_addr);
             b_addr := regfileaddr(d1_in.reg_2_addr);
@@ -146,13 +158,17 @@ begin
                 addr_3_reg <= c_addr;
             end if;
 
-            -- Do debug reads to GPRs and FPRs using the B port when it is not in use
-            if dbg_gpr_req = '1' then
-                if stall = '1' or d1_in.read_2_enable = '0' then
+            -- Handle indirect register reads and debug reads using the B port
+            if stall = '1' or d1_in.read_2_enable = '0' then
+                if e_in.read_req = '1' and indirect_ack = '0' then
+                    b_addr := regfileaddr(e_in.reg_addr);
+                    indirect_ack <= '1';
+                elsif dbg_gpr_req = '1' then
                     b_addr := regfileaddr(dbg_gpr_addr);
                     dbg_gpr_done <= '1';
                 end if;
-            else
+            end if;
+            if dbg_gpr_req = '0' then
                 dbg_gpr_done <= '0';
             end if;
 
@@ -178,6 +194,8 @@ begin
 		lo_data_3 <= lo_registers(to_integer(unsigned(c_addr(5 downto 0))));
 	    end if;
 
+            w_data := w_in.write_data;
+            w_dlow := w_in.lovrw_data;
             if w_in.write_enable = '1' then
                 if HAS_VECVSX and w_addr(6) = '1' then
                     report "Writing VSR " & to_hstring(w_addr(5 downto 0)) & " " &
@@ -188,10 +206,22 @@ begin
                     report "Writing GPR " & to_hstring(w_addr) & " " & to_hstring(w_in.write_data);
                 end if;
                 assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
-                registers(to_integer(unsigned(w_addr))) <= w_in.write_data;
-                if HAS_VECVSX and w_addr(6) = '1' then
-                    lo_registers(to_integer(unsigned(w_addr(5 downto 0)))) <= w_in.lovrw_data;
-                end if;
+                we := '1';
+                wel := w_addr(6);
+            elsif e_in.write_req = '1' then
+                w_addr := regfileaddr(e_in.reg_addr);
+                w_data := e_in.write_data;
+                w_dlow := e_in.write_data;
+                report "Indirect write GSPR " & to_hstring(w_addr) & " to " & to_hstring(w_data);
+                we := not e_in.reg_addr(7);
+                wel := e_in.reg_addr(7);
+                indirect_ack <= '1';
+            end if;
+            if we = '1' then
+                registers(to_integer(unsigned(w_addr))) <= w_data;
+            end if;
+            if HAS_VECVSX and wel = '1' then
+                lo_registers(to_integer(unsigned(w_addr(5 downto 0)))) <= w_dlow;
             end if;
 
         end if;
@@ -256,6 +286,13 @@ begin
             d_out.lovr2_data <= (others => '0');
             d_out.lovr3_data <= (others => '0');
         end if;
+
+        if ind_lo = '0' or not HAS_VECVSX then
+            e_out.read_data <= data_2;
+        else
+            e_out.read_data <= lo_data_2;
+        end if;
+        e_out.ack <= indirect_ack;
     end process register_read_0;
 
     -- Latch read data and ack if dbg read requested and B port not busy

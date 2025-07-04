@@ -171,12 +171,12 @@ architecture rtl of icache is
 	store_way        : way_sig_t;
         store_index      : index_sig_t;
         recv_row         : row_t;
-        recv_valid       : std_ulogic;
 	store_row        : row_t;
         store_tag        : cache_tag_t;
         store_valid      : std_ulogic;
         end_row_ix       : row_in_line_t;
         rows_valid       : row_per_line_valid_t;
+        first_row        : std_ulogic;
 
         stalled_hit      : std_ulogic;  -- remembers hit while stalled
         stalled_way      : way_sig_t;
@@ -204,6 +204,7 @@ architecture rtl of icache is
     type cache_ram_out_t is array(way_t) of cache_row_t;
     signal cache_out     : cache_ram_out_t;
     signal cache_wr_data : std_ulogic_vector(ROW_WIDTH - 1 downto 0);
+    signal cache_wr_enb  : std_ulogic;
     signal wb_rd_data    : std_ulogic_vector(ROW_SIZE_BITS - 1 downto 0);
 
     -- PLRU output interface
@@ -314,12 +315,17 @@ begin
             HAS_FPU => HAS_FPU,
             WIDTH => INSN_PER_ROW,
             ICODE_LEN => PREDECODE_BITS,
-            IMAGE_LEN => INSN_IMAGE_BITS
+            IMAGE_LEN => INSN_IMAGE_BITS,
+            ROWBITS => ROW_LINEBITS
             )
         port map (
             clk => clk,
+            rst => rst,
             valid_in => wishbone_in.ack,
             insns_in => wb_rd_data,
+            first_row => r.first_row,
+            insn_index => get_row_of_line(r.recv_row),
+            valid_out => cache_wr_enb,
             icodes_out => cache_wr_data
             );
 
@@ -386,7 +392,7 @@ begin
 	begin
 	    do_read <= not stall_in;
 	    do_write <= '0';
-	    if r.recv_valid = '1' and r.store_way = to_unsigned(i, WAY_BITS) then
+	    if cache_wr_enb = '1' and r.store_way = to_unsigned(i, WAY_BITS) then
 		do_write <= '1';
 	    end if;
 	    cache_out(i) <= dout;
@@ -636,6 +642,10 @@ begin
             if i_out.valid = '1' then
                 assert not is_X(i_out.insn) severity failure;
             end if;
+            if cache_wr_enb = '1' then
+                report "wr cache addr " & to_hstring(r.store_row) & " way " & to_hstring(r.store_way) &
+                    " data " & to_hstring(cache_wr_data);
+            end if;
 	end if;
     end process;
 
@@ -650,7 +660,6 @@ begin
         if rising_edge(clk) then
             ev.icache_miss <= '0';
             ev.itlb_miss_resolved <= '0';
-            r.recv_valid <= '0';
 	    -- On reset, clear all valid bits to force misses
             if rst = '1' then
 		for i in index_t loop
@@ -736,6 +745,7 @@ begin
                         r.store_tag <= req_tag;
                         r.store_valid <= '1';
                         r.end_row_ix <= get_row_of_line(get_row(req_raddr)) - 1;
+                        r.first_row <= '1';
 
 			-- Prep for first wishbone read. We calculate the address of
 			-- the start of the cache line and start the WB cycle.
@@ -768,7 +778,7 @@ begin
                     end if;
 
                     -- If we are writing in this cycle, mark row valid and see if we are done
-                    if r.recv_valid = '1' then
+                    if cache_wr_enb = '1' then
                         r.rows_valid(to_integer(r.store_row(ROW_LINEBITS-1 downto 0))) <= not inval_in;
 			if is_last_row(r.store_row, r.end_row_ix) then
 			    -- Cache line is now valid
@@ -778,7 +788,7 @@ begin
 			    r.state <= IDLE;
 			end if;
 			-- Increment store row counter
-			r.store_row <= r.recv_row;
+			r.store_row <= next_row(r.store_row);
                     end if;
 
 		    -- If we are still sending requests, was one accepted ?
@@ -806,10 +816,10 @@ begin
 			    -- Complete wishbone cycle
 			    r.wb.cyc <= '0';
 			end if;
-                        r.recv_valid <= '1';
 
 			-- Increment receive row counter
 			r.recv_row <= next_row(r.recv_row);
+                        r.first_row <= '0';
 		    end if;
 
                 when STOP_RELOAD =>

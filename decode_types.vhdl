@@ -81,7 +81,9 @@ package decode_types is
         INSN_ld,
         INSN_ldu,
         INSN_lhau,
-        INSN_lwa, -- 50
+        INSN_lhzu, -- 50
+        INSN_lq,
+        INSN_lwa,
         INSN_lwzu,
         INSN_mcrf,
         INSN_mcrxrx,
@@ -89,9 +91,9 @@ package decode_types is
         INSN_mfmsr,
         INSN_mfspr,
         INSN_msgsync,
-        INSN_mtcrf,
+        INSN_mtcrf, -- 60
         INSN_mtmsr,
-        INSN_mtmsrd, -- 60
+        INSN_mtmsrd,
         INSN_mtspr,
         INSN_mulli,
         INSN_neg,
@@ -99,9 +101,9 @@ package decode_types is
         INSN_ori,
         INSN_oris,
         INSN_popcntb,
-        INSN_popcntw,
+        INSN_popcntw, -- 70
         INSN_popcntd,
-        INSN_prtyw, -- 70
+        INSN_prtyw,
         INSN_prtyd,
         INSN_rfid,
         INSN_rfscv,
@@ -109,9 +111,9 @@ package decode_types is
         INSN_rldicl,
         INSN_rldicr,
         INSN_rldimi,
-        INSN_rlwimi,
+        INSN_rlwimi, -- 80
         INSN_rlwinm,
-        INSN_rnop, -- 80
+        INSN_rnop,
         INSN_sc,
         INSN_setb,
         INSN_slbia,
@@ -119,9 +121,9 @@ package decode_types is
         INSN_srawi,
         INSN_stbu,
         INSN_std,
-        INSN_stdu,
+        INSN_stdu, -- 90
         INSN_sthu,
-        INSN_stq, -- 90
+        INSN_stq,
         INSN_stwu,
         INSN_subfic,
         INSN_subfme,
@@ -129,24 +131,22 @@ package decode_types is
         INSN_sync,
         INSN_tdi,
         INSN_tlbsync,
-        INSN_twi,
+        INSN_twi, -- 100
         INSN_wait,
-        INSN_xori, -- 100
+        INSN_xori,
         INSN_xoris,
 
         -- Non-prefixed instructions that have a MLS:D prefixed form and
         -- their corresponding prefixed instructions.
-        -- The non-prefixed versions have even indexes so that we can
-        -- convert them to the prefixed version by setting bit 0
-        INSN_addi, -- 102
+        INSN_addi, -- 104
         INSN_paddi,
         INSN_lbz,
         INSN_plbz,
         INSN_lha,
         INSN_plha,
-        INSN_lhz,
+        INSN_lhz, -- 110
         INSN_plhz,
-        INSN_lwz, -- 110
+        INSN_lwz,
         INSN_plwz,
         INSN_stb,
         INSN_pstb,
@@ -155,19 +155,15 @@ package decode_types is
         INSN_stw,
         INSN_pstw,
 
-        -- Slots for non-prefixed opcodes that are 8LS:D when prefixed
-        INSN_lhzu,
-        INSN_plwa,
-        INSN_lq, -- 120
+        -- 8LS:D prefixed opcodes
+        INSN_plwa, -- 120
         INSN_plq,
-        INSN_op57,
         INSN_pld,
-        INSN_op60,
         INSN_pstq,
-        INSN_op61,
         INSN_pstd,
 
         -- pad to 128 to simplify comparison logic
+        INSN_125, INSN_126, INSN_127,
 
         -- The following instructions have an RB operand but don't access FPRs
         INSN_add,
@@ -406,10 +402,6 @@ package decode_types is
     constant INSN_first_frs : insn_code := INSN_stfd;
     constant INSN_first_frab : insn_code := INSN_fabs;
     constant INSN_first_frabc : insn_code := INSN_fmul;
-    constant INSN_first_mls : insn_code := INSN_addi;
-    constant INSN_first_8ls : insn_code := INSN_lhzu;
-    constant INSN_first_fp_mls : insn_code := INSN_stfd;
-    constant INSN_first_fp_nonmls : insn_code := INSN_stfdu;
 
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, RA0_OR_CIA, CIA, FRA);
     type input_reg_b_t is (IMM, RB, FRB);
@@ -505,6 +497,8 @@ package decode_types is
     -- With this, we don't have to store the primary opcode of each instruction
     -- in the icache if we are storing its insn_code.
     function recode_primary_opcode(icode: insn_code) return std_ulogic_vector;
+
+    function is_prefixed_icode(icode: insn_code) return boolean;
 
 end decode_types;
 
@@ -605,9 +599,6 @@ package body decode_types is
             when INSN_fnmsub    => return "111111";
             when INSN_fnmadd    => return "111111";
             when INSN_prefix    => return "000001";
-            when INSN_op57      => return "111001";
-            when INSN_op60      => return "111100";
-            when INSN_op61      => return "111101";
             when INSN_add       => return "011111";
             when INSN_addc      => return "011111";
             when INSN_adde      => return "011111";
@@ -813,8 +804,52 @@ package body decode_types is
             when INSN_fctiwuz   => return "111111";
             when INSN_fctidz    => return "111111";
             when INSN_fctiduz   => return "111111";
+            when INSN_paddi     => return "000001";
+            when INSN_plwz      => return "000001";
+            when INSN_plbz      => return "000001";
+            when INSN_pstw      => return "000001";
+            when INSN_pstb      => return "000001";
+            when INSN_plhz      => return "000001";
+            when INSN_plha      => return "000001";
+            when INSN_psth      => return "000001";
+            when INSN_plfs      => return "000001";
+            when INSN_plfd      => return "000001";
+            when INSN_pstfs     => return "000001";
+            when INSN_pstfd     => return "000001";
+            when INSN_plwa      => return "000001";
+            when INSN_plq       => return "000001";
+            when INSN_pld       => return "000001";
+            when INSN_pstq      => return "000001";
+            when INSN_pstd      => return "000001";
             when others         => return "XXXXXX";
         end case;
+    end;
+
+    function is_prefixed_icode(icode: insn_code) return boolean is
+    begin
+        case icode is
+            when INSN_paddi  =>
+            when INSN_plwz   =>
+            when INSN_plbz   =>
+            when INSN_pstw   =>
+            when INSN_pstb   =>
+            when INSN_plhz   =>
+            when INSN_plha   =>
+            when INSN_psth   =>
+            when INSN_plfs   =>
+            when INSN_plfd   =>
+            when INSN_pstfs  =>
+            when INSN_pstfd  =>
+            when INSN_plwa   =>
+            when INSN_plq    =>
+            when INSN_pld    =>
+            when INSN_pstq   =>
+            when INSN_pstd   =>
+
+            when others =>
+                return false;
+        end case;
+        return true;
     end;
 
 end decode_types;

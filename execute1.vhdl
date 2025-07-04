@@ -1211,7 +1211,6 @@ begin
 	variable bo, bi : std_ulogic_vector(4 downto 0);
         variable illegal : std_ulogic;
         variable privileged : std_ulogic;
-        variable misaligned : std_ulogic;
         variable slow_op : std_ulogic;
         variable owait : std_ulogic;
         variable srr1 : std_ulogic_vector(63 downto 0);
@@ -1256,15 +1255,12 @@ begin
         -- an interrupt.  It is OK for v.trap to depend on operand data.
 
         illegal := '0';
-        privileged := '0';
-        misaligned := e_in.misaligned_prefix;
+        privileged := ex1.msr(MSR_PR) and e_in.privileged;
         slow_op := '0';
         owait := '0';
 
-        if e_in.illegal_suffix = '1' or e_in.illegal_form = '1' then
+        if e_in.illegal_form = '1' then
             illegal := '1';
-        elsif ex1.msr(MSR_PR) = '1' then
-            privileged := e_in.privileged;
         end if;
 
         v.do_trace := ex1.msr(MSR_SE);
@@ -1617,7 +1613,7 @@ begin
                 end if;
         end case;
 
-        if ex1.msr(MSR_PR) = '1' and e_in.prefixed = '1' and
+        if ex1.msr(MSR_PR) = '1' and (e_in.prefixed = '1' or e_in.misaligned_prefix = '1') and
             ctrl.fscr_pref = '0' then
             -- Facility unavailable for prefixed instructions,
             -- which has higher priority than the alignment interrupt for
@@ -1628,7 +1624,7 @@ begin
             v.e.intr_vec := 16#f60#;
             v.se.write_ic := '1';
 
-        elsif misaligned = '1' then
+        elsif e_in.misaligned_prefix = '1' then
             -- generate an alignment interrupt
             -- This is higher priority than illegal because a misaligned
             -- prefix will come down as an OP_ILLEGAL instruction.

@@ -48,10 +48,12 @@ architecture behaviour of decode1 is
 
     type prefix_state_t is record
         prefixed : std_ulogic;
+        icode    : insn_code;
         prefix   : std_ulogic_vector(25 downto 0);
         pref_ia  : std_ulogic_vector(3 downto 0);
     end record;
-    constant prefix_state_init : prefix_state_t := (prefixed => '0', prefix => (others => '0'),
+    constant prefix_state_init : prefix_state_t := (prefixed => '0', icode => INSN_illegal,
+                                                    prefix => (others => '0'),
                                                     pref_ia => (others => '0'));
 
     signal pr, pr_in : prefix_state_t;
@@ -617,49 +619,23 @@ begin
             pv := prefix_state_init;
 
         elsif pr.prefixed = '1' then
-            -- Check suffix value and convert to the prefixed instruction code
-            if pr.prefix(24) = '1' then
-                -- either pnop or illegal
-                icode_bits := std_ulogic_vector(to_unsigned(insn_code'pos(INSN_pnop), 10));
-            else
-                -- various load/store instructions
-                icode_bits(0) := '1';
-            end if;
-            valid_suffix := '0';
-            case pr.prefix(25 downto 23) is
-                when "000" =>    -- 8LS
-                    if icode >= INSN_first_8ls and icode < INSN_first_rb then
-                        valid_suffix := '1';
-                    end if;
-                when "100" =>   -- MLS
-                    if icode >= INSN_first_mls and icode < INSN_first_8ls then
-                        valid_suffix := '1';
-                    elsif icode >= INSN_first_fp_mls and icode < INSN_first_fp_nonmls then
-                        valid_suffix := '1';
-                    end if;
-                when "110" =>   -- MRR, i.e. pnop
-                    if pr.prefix(22 downto 20) = "000" then
-                        valid_suffix := '1';
-                    end if;
-                when others =>
-            end case;
+            -- Use the icode from the prefix
+            icode_bits := std_ulogic_vector(to_unsigned(insn_code'pos(pr.icode), 10));
             v.nia(5 downto 2) := pr.pref_ia;
             v.prefixed := '1';
             v.prefix := pr.prefix;
-            v.illegal_suffix := not valid_suffix;
             pv := prefix_state_init;
 
-        elsif icode = INSN_prefix then
+        elsif is_prefixed_icode(icode) then
             pv.prefixed := '1';
+            pv.icode := icode;
             pv.pref_ia := f_in.nia(5 downto 2);
             pv.prefix := f_in.insn(25 downto 0);
-            -- Check if the address of the prefix mod 64 is 60;
-            -- if so we need to arrange to generate an alignment interrupt
-            if f_in.nia(5 downto 2) = "1111" then
-                v.misaligned_prefix := '1';
-            else
-                v.valid := '0';
-            end if;
+            v.valid := '0';
+
+        elsif icode = INSN_prefix then
+            -- used to indicate a prefix at address equal to 60 mod 64
+            v.misaligned_prefix := '1';
 
         end if;
         decode_rom_addr <= insn_code'val(to_integer(unsigned(icode_bits)));
@@ -696,8 +672,6 @@ begin
         bv.predict := v.br_pred and f_in.valid and not flush_in and not busy_out and not f_in.next_predicted;
 
         -- Work out GPR/FPR read addresses
-        -- Note that for prefixed instructions we are working this out based
-        -- only on the suffix.
         if double = '0' then
             maybe_rb := '0';
             vr.reg_1_addr := '0' & insn_ra(f_in.insn);

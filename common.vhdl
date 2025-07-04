@@ -386,7 +386,6 @@ package common is
 	nia: std_ulogic_vector(63 downto 0);
         prefixed: std_ulogic;
         prefix: std_ulogic_vector(25 downto 0);
-        illegal_suffix: std_ulogic;
         misaligned_prefix: std_ulogic;
 	insn: std_ulogic_vector(31 downto 0);
 	decode: decode_rom_t;
@@ -401,7 +400,7 @@ package common is
     constant Decode1ToDecode2Init : Decode1ToDecode2Type :=
         (valid => '0', stop_mark => '0', second => '0', nia => (others => '0'),
          prefixed => '0', prefix => (others => '0'), insn => (others => '0'),
-         illegal_suffix => '0', misaligned_prefix => '0',
+         misaligned_prefix => '0',
          decode => decode_rom_init, br_pred => '0', big_endian => '0',
          spr_info => spr_id_init, ram_spr => ram_spr_info_init,
          reg_a => (others => '0'), reg_b => (others => '0'), reg_c => (others => '0'));
@@ -492,7 +491,6 @@ package common is
         privileged : std_ulogic;
         prefixed : std_ulogic;
         prefix : std_ulogic_vector(25 downto 0);
-        illegal_suffix : std_ulogic;
         misaligned_prefix : std_ulogic;
         illegal_form : std_ulogic;
         uses_tar : std_ulogic;
@@ -522,7 +520,7 @@ package common is
          ramspr_32bit => '0',
          dbg_spr_access => '0',
          dec_ctr => '0',
-         privileged => '0', prefixed => '0', prefix => (others => '0'), illegal_suffix => '0',
+         privileged => '0', prefixed => '0', prefix => (others => '0'),
          misaligned_prefix => '0', illegal_form => '0', uses_tar => '0', uses_dscr => '0',
          right_shift => '0', rot_clear_left => '0', rot_clear_right => '0', rot_sign_ext => '0',
          do_popcnt => '0',

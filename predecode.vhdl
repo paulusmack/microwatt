@@ -15,12 +15,17 @@ entity predecoder is
         HAS_FPU   : boolean := true;
         WIDTH     : natural := 2;
         ICODE_LEN : natural := 10;
-        IMAGE_LEN : natural := 26
+        IMAGE_LEN : natural := 26;
+        ROWBITS   : natural := 3
         );
     port (
         clk        : in  std_ulogic;
+        rst        : in  std_ulogic;
         valid_in   : in  std_ulogic;
         insns_in   : in  std_ulogic_vector(WIDTH * 32 - 1 downto 0);
+        first_row  : in  std_ulogic;
+        insn_index : in  unsigned(ROWBITS-1 downto 0);
+        valid_out  : out std_ulogic;
         icodes_out : out std_ulogic_vector(WIDTH * (ICODE_LEN + IMAGE_LEN) - 1 downto 0)
         );
 end entity predecoder;
@@ -77,8 +82,8 @@ architecture behaviour of predecoder is
         2#100011_00000# to 2#100011_11111# =>  INSN_lbzu,       -- 35
         2#110010_00000# to 2#110010_11111# =>  INSN_lfd,        -- 50
         2#110011_00000# to 2#110011_11111# =>  INSN_lfdu,       -- 51
-        2#110000_00000# to 2#110000_11111# =>  INSN_lfs,        -- 56
-        2#110001_00000# to 2#110001_11111# =>  INSN_lfsu,       -- 57
+        2#110000_00000# to 2#110000_11111# =>  INSN_lfs,        -- 48
+        2#110001_00000# to 2#110001_11111# =>  INSN_lfsu,       -- 49
         2#101010_00000# to 2#101010_11111# =>  INSN_lha,        -- 42
         2#101011_00000# to 2#101011_11111# =>  INSN_lhau,       -- 43
         2#101000_00000# to 2#101000_11111# =>  INSN_lhz,        -- 40
@@ -201,10 +206,6 @@ architecture behaviour of predecoder is
         2#111111_11110# to 2#111111_11111# =>  INSN_fnmadd,
         -- prefix word, PO1
         2#000001_00000# to 2#000001_11111# =>  INSN_prefix,
-        -- Major opcodes 57, 60 and 61 are SFFS load/store instructions when prefixed
-        2#111001_00000# to 2#111001_11111# =>  INSN_op57,
-        2#111100_00000# to 2#111100_11111# =>  INSN_op60,
-        2#111101_00000# to 2#111101_11111# =>  INSN_op61,
         others                             =>  INSN_illegal
         );
 
@@ -519,6 +520,41 @@ architecture behaviour of predecoder is
         others            =>  INSN_illegal
         );
 
+    type suffix_decode_rom_t is array(0 to 63) of insn_code;
+
+    constant mls_suffix_rom : suffix_decode_rom_t := (
+        14     => INSN_paddi,
+        32     => INSN_plwz,
+        34     => INSN_plbz,
+        36     => INSN_pstw,
+        38     => INSN_pstb,
+        40     => INSN_plhz,
+        42     => INSN_plha,
+        44     => INSN_psth,
+        48     => INSN_plfs,
+        50     => INSN_plfd,
+        52     => INSN_pstfs,
+        54     => INSN_pstfd,
+        others => INSN_prefixed_illegal
+        );
+
+    constant eightls_suffix_rom : suffix_decode_rom_t := (
+        41     => INSN_plwa,
+        --42     => INSN_plxsd,
+        --43     => INSN_plxssp,
+        --46     => INSN_pstxsd,
+        --47     => INSN_pstxssp,
+        --50     => INSN_plxv_fp,
+        --51     => INSN_plxv_vec,
+        --54     => INSN_pstxv_fp,
+        --55     => INSN_pstxv_vec,
+        56     => INSN_plq,
+        57     => INSN_pld,
+        60     => INSN_pstq,
+        61     => INSN_pstd,
+        others => INSN_prefixed_illegal
+        );
+
     constant IOUT_LEN : natural := ICODE_LEN + IMAGE_LEN;
 
     type predec_t is record
@@ -532,6 +568,12 @@ architecture behaviour of predecoder is
 
     signal pred : predec_array;
     signal valid : std_ulogic;
+    signal valid_1 : std_ulogic;
+    signal index : unsigned(ROWBITS-1 downto 0);
+    signal icodes : std_ulogic_vector(WIDTH * (ICODE_LEN + IMAGE_LEN) - 1 downto 0);
+
+    signal rowcounter : unsigned(ROWBITS-1 downto 0);
+    signal first_insn : std_ulogic_vector(31 downto 0);
 
 begin
     predecode_0: process(clk)
@@ -542,36 +584,59 @@ begin
         variable rowcode  : insn_code;
     begin
         if rising_edge(clk) then
-            valid <= valid_in;
-            for i in index_t loop
-                iword := insns_in(i * 32 + 31 downto i * 32);
-                pred(i).image <= iword;
+            if rst = '1' then
+                valid <= '0';
+                rowcounter <= to_unsigned(0, ROWBITS);
+                index <= to_unsigned(0, ROWBITS);
+                for i in index_t loop
+                    pred(i).image <= (others => '0');
+                    pred(i).maj_predecode <= (others => '0');
+                    pred(i).row_predecode <= (others => '0');
+                end loop;
+                first_insn <= (others => '0');
 
-                if is_X(iword) then
-                    pred(i).maj_predecode <= (others => 'X');
-                    pred(i).row_predecode <= (others => 'X');
+            elsif valid_in = '1' then
+                valid <= '1';
+                index <= insn_index;
+                if first_row = '1' then
+                    rowcounter <= to_unsigned(0, ROWBITS);
+                    first_insn <= insns_in(31 downto 0);
                 else
-                    majaddr := iword(31 downto 26) & iword(4 downto 0);
-
-                    -- row_predecode_rom is used for op 19, 31, 59, 63
-                    -- addr bit 10 is 0 for op 31, 1 for 19, 59, 63
-                    rowaddr(10) := iword(31) or not iword(29);
-                    rowaddr(9 downto 5) := iword(10 downto 6);
-                    if iword(28) = '0' then
-                        -- op 19 and op 59
-                        rowaddr(4 downto 3) := '1' & iword(5);
-                    else
-                        -- op 31 and 63; for 63 we only use this when iword(5) = '0'
-                        rowaddr(4 downto 3) := iword(5 downto 4);
-                    end if;
-                    rowaddr(2 downto 0) := iword(3 downto 1);
-
-                    majcode := major_predecode_rom(to_integer(unsigned(majaddr)));
-                    pred(i).maj_predecode <= to_unsigned(insn_code'pos(majcode), ICODE_LEN);
-                    rowcode := row_predecode_rom(to_integer(unsigned(rowaddr)));
-                    pred(i).row_predecode <= to_unsigned(insn_code'pos(rowcode), ICODE_LEN);
+                    rowcounter <= rowcounter + 1;
                 end if;
-            end loop;
+                for i in index_t loop
+                    iword := insns_in(i * 32 + 31 downto i * 32);
+                    pred(i).image <= iword;
+
+                    if is_X(iword) then
+                        pred(i).maj_predecode <= (others => 'X');
+                        pred(i).row_predecode <= (others => 'X');
+                    else
+                        majaddr := iword(31 downto 26) & iword(4 downto 0);
+
+                        -- row_predecode_rom is used for op 19, 31, 59, 63
+                        -- addr bit 10 is 0 for op 31, 1 for 19, 59, 63
+                        rowaddr(10) := iword(31) or not iword(29);
+                        rowaddr(9 downto 5) := iword(10 downto 6);
+                        if iword(28) = '0' then
+                            -- op 19 and op 59
+                            rowaddr(4 downto 3) := '1' & iword(5);
+                        else
+                            -- op 31 and 63; for 63 we only use this when iword(5) = '0'
+                            rowaddr(4 downto 3) := iword(5 downto 4);
+                        end if;
+                        rowaddr(2 downto 0) := iword(3 downto 1);
+
+                        majcode := major_predecode_rom(to_integer(unsigned(majaddr)));
+                        pred(i).maj_predecode <= to_unsigned(insn_code'pos(majcode), ICODE_LEN);
+                        rowcode := row_predecode_rom(to_integer(unsigned(rowaddr)));
+                        pred(i).row_predecode <= to_unsigned(insn_code'pos(rowcode), ICODE_LEN);
+                    end if;
+                end loop;
+
+            elsif valid_1 = '1' then
+                valid <= '0';
+            end if;
         end if;
     end process;
 
@@ -579,16 +644,66 @@ begin
         variable iword    : std_ulogic_vector(31 downto 0);
         variable use_row  : std_ulogic;
         variable illegal  : std_ulogic;
+        variable use_pref : std_ulogic;
         variable ici      : std_ulogic_vector(IOUT_LEN - 1 downto 0);
         variable icode    : unsigned(ICODE_LEN - 1 downto 0);
+        variable ic       : insn_code;
+        variable ovalid   : std_ulogic;
+        variable suffix   : std_ulogic_vector(5 downto 0);
     begin
+        ovalid := valid;
         for i in index_t loop
             iword := pred(i).image;
             icode := pred(i).maj_predecode;
             use_row := '0';
             illegal := '0';
+            use_pref := '0';
+            suffix := (others => '0');
 
             case iword(31 downto 26) is
+                when "000001" => -- 1
+                    -- prefix opcode, try to locate the suffix word
+                    use_pref := valid;
+                    if i = WIDTH - 1 then
+                        if index = to_unsigned(2**ROWBITS - 1, ROWBITS) then
+                            -- prefix is at an address equal to 60 mod 64, i.e. misaligned
+                            use_pref := '0';
+                        end if;
+                        if rowcounter = to_unsigned(2**ROWBITS - 1, ROWBITS) then
+                            -- last element in last row to be received,
+                            -- suffix is in first_insn
+                            suffix := first_insn(31 downto 26);
+                        else
+                            -- suffix is in next doubleword from memory
+                            suffix := insns_in(31 downto 26);
+                            if valid_in = '0' then
+                                -- still waiting for the next dword
+                                ovalid := '0';
+                                use_pref := '0';
+                            end if;
+                        end if;
+                    else
+                        -- suffix is in the next word to the left
+                        suffix := pred(i+1).image(31 downto 26);
+                    end if;
+                    -- examine type field of prefix
+                    if use_pref = '1' then
+                        if iword(25 downto 23) = "000" then
+                            -- 8LS format
+                            ic := eightls_suffix_rom(to_integer(unsigned(suffix)));
+                            icode := to_unsigned(insn_code'pos(ic), ICODE_LEN);
+                        elsif iword(25 downto 23) = "100" then
+                            -- MLS format
+                            ic := mls_suffix_rom(to_integer(unsigned(suffix)));
+                            icode := to_unsigned(insn_code'pos(ic), ICODE_LEN);
+                        elsif iword(25 downto 20) = "110000" then
+                            -- pnop
+                            icode := to_unsigned(insn_code'pos(INSN_pnop), ICODE_LEN);
+                        else
+                            icode := to_unsigned(insn_code'pos(INSN_prefixed_illegal), ICODE_LEN);
+                        end if;
+                    end if;
+
                 when "000100" => -- 4
                     -- major opcode 4, mostly VMX/VSX stuff but also some integer ops (madd*)
                     illegal := not iword(5);
@@ -636,7 +751,8 @@ begin
 
             -- Mark FP instructions as illegal if we don't have an FPU
             if not HAS_FPU and not is_X(icode) and
-                to_integer(icode) >= insn_code'pos(INSN_first_frs) then
+                to_integer(icode) >= insn_code'pos(INSN_first_frs) and
+                to_integer(icode) <  insn_code'pos(INSN_prefixed_illegal) then
                 illegal := '1';
             end if;
 
@@ -650,8 +766,17 @@ begin
             else
                 ici(IOUT_LEN - 1 downto IMAGE_LEN) := std_ulogic_vector(icode);
             end if;
-            icodes_out(i * IOUT_LEN + IOUT_LEN - 1 downto i * IOUT_LEN) <= ici;
+            icodes(i * IOUT_LEN + IOUT_LEN - 1 downto i * IOUT_LEN) <= ici;
         end loop;
+        valid_1 <= ovalid and not rst;
+    end process;
+
+    predecode_2: process(clk)
+    begin
+        if rising_edge(clk) then
+            icodes_out <= icodes;
+            valid_out <= valid_1 and not rst;
+        end if;
     end process;
 
 end architecture behaviour;

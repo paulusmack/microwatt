@@ -365,7 +365,7 @@ begin
             dec_a.reg_valid := '0';
             dec_b.reg_valid := '0';
         end if;
-        if d_in.valid = '0' or d_in.illegal_suffix = '1' then
+        if d_in.valid = '0' then
             dec_a.reg_valid := '0';
             dec_b.reg_valid := '0';
             dec_c.reg_valid := '0';
@@ -626,7 +626,6 @@ begin
             end if;
             v.e.prefixed := d_in.prefixed;
             v.e.prefix := d_in.prefix;
-            v.e.illegal_suffix := d_in.illegal_suffix;
             v.e.misaligned_prefix := d_in.misaligned_prefix;
 
             -- rotator control signals

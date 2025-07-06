@@ -1701,6 +1701,15 @@ begin
             if e_in.valid = '1' then
                 report "VEC unavailable interrupt";
             end if;
+
+        elsif HAS_VECVSX and ex1.msr(MSR_VSX) = '0' and e_in.fac = VSX then
+            -- generate a VSX unavailable interrupt
+            v.exception := '1';
+            v.e.srr1(47 - 34) := e_in.prefixed;
+            v.e.intr_vec := 16#f40#;
+            if e_in.valid = '1' then
+                report "VSX unavailable interrupt";
+            end if;
         end if;
 
         if e_in.unit = ALU then

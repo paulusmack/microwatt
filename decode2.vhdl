@@ -165,7 +165,7 @@ architecture behaviour of decode2 is
         return std_ulogic is
     begin
         case t is
-            when RS | RCR | FRS | FRC | VRS =>
+            when RS | RCR | FRS | FRC | VRS | XS =>
                 return '1';
             when NONE =>
                 return '0';
@@ -189,6 +189,24 @@ architecture behaviour of decode2 is
             when VRT =>
                 if HAS_VECVSX then
                     return ('1', vr_to_gspr(insn_vrt(insn_in)));
+                else
+                    return ('0', no_reg);
+                end if;
+            when XT =>
+                if HAS_VECVSX then
+                    return ('1', vsr_to_gspr(insn_xt(insn_in)));
+                else
+                    return ('0', no_reg);
+                end if;
+            when XT3 =>
+                if HAS_VECVSX then
+                    return ('1', vsr_to_gspr(insn_xt3(insn_in)));
+                else
+                    return ('0', no_reg);
+                end if;
+            when XT26 =>
+                if HAS_VECVSX then
+                    return ('1', vsr_to_gspr(insn_xt26(insn_in)));
                 else
                     return ('0', no_reg);
                 end if;
@@ -598,6 +616,15 @@ begin
             v.e.nia := d_in.nia;
             v.e.unit := unit;
             v.e.fac := d_in.decode.facility;
+            if v.e.fac = VEC and ((d_in.decode.output_reg_a = XT and d_in.insn(0) = '0') or
+                                  (d_in.decode.output_reg_a = XT3 and d_in.insn(3) = '0') or
+                                  (d_in.decode.input_reg_c = XS and d_in.insn(0) = '0')) then
+                -- Some VSX instructions test MSR[VEC] if the target is a VR but
+                -- MSR[VSX] if the target is in the FP half of the VSR registers.
+                -- They are marked with VEC in the decode table, but we change
+                -- it to VSX here if necessary.
+                v.e.fac := VSX;
+            end if;
             v.e.read_reg1 := d_in.reg_a;
             v.e.read_reg2 := d_in.reg_b;
             v.e.read_reg3 := d_in.reg_c;

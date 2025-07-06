@@ -661,7 +661,7 @@ package common is
 	byte_reverse : std_ulogic;
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
-        mode : std_ulogic_vector(2 downto 0);           -- normal, CI, hash, dcbz, etc.
+        mode : std_ulogic_vector(2 downto 0);           -- normal, CI, hash, dcbz, vector/VSX etc.
 	xerc : xer_common_t;
         reserve : std_ulogic;                           -- set for larx/stcx.
         rc : std_ulogic;                                -- set for stcx.

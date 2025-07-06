@@ -81,17 +81,23 @@ architecture behave of loadstore1 is
 	addr         : std_ulogic_vector(63 downto 0);
         byte_sel     : std_ulogic_vector(7 downto 0);
         second_bytes : std_ulogic_vector(7 downto 0);
+        third_bytes  : std_ulogic_vector(7 downto 0);
 	store_data   : std_ulogic_vector(63 downto 0);
 	store_data2  : std_ulogic_vector(63 downto 0);
+        data2_valid  : std_ulogic;
         instr_tag    : instr_tag_t;
 	write_reg    : gspr_index_t;
 	length       : std_ulogic_vector(4 downto 0);
         elt_length   : std_ulogic_vector(3 downto 0);
 	byte_reverse : std_ulogic;
-        brev_mask    : unsigned(2 downto 0);
+        brev_mask    : unsigned(3 downto 0);
+        splat_mask   : unsigned(2 downto 0);
 	sign_extend  : std_ulogic;
 	update       : std_ulogic;
         is_vector    : std_ulogic;
+        vsx_vector   : std_ulogic;
+        vsx_splat    : std_ulogic;
+        ldst_right   : std_ulogic;
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
         atomic_qw    : std_ulogic;
@@ -107,20 +113,22 @@ architecture behave of loadstore1 is
         is_slbia     : std_ulogic;
         align_intr   : std_ulogic;
         dawr_intr    : std_ulogic;
-        dword_index  : std_ulogic;
-        two_dwords   : std_ulogic;
+        dword_index  : unsigned(1 downto 0);
         incomplete   : std_ulogic;
+        overlap      : std_ulogic;
         ea_valid     : std_ulogic;
         hash_addr    : std_ulogic_vector(63 downto 0);
     end record;
     constant request_init : request_t := (addr => (others => '0'),
-                                          byte_sel => x"00", second_bytes => x"00",
+                                          byte_sel => x"00", second_bytes => x"00", third_bytes => x"00",
                                           store_data => (others => '0'), store_data2 => (others => '0'),
                                           instr_tag => instr_tag_init,
                                           write_reg => (others => '0'), length => 5x"0",
-                                          elt_length => x"0", brev_mask => "000",
+                                          elt_length => x"0", brev_mask => "0000",
+                                          splat_mask => "000",
                                           xerc => xerc_init,
                                           sprsel => "0000", ric => "00",
+                                          dword_index => "00",
                                           hash_addr => 64x"0",
                                           others => '0');
 
@@ -164,6 +172,7 @@ architecture behave of loadstore1 is
         xerc         : xer_common_t;
         store_done   : std_ulogic;
         load_data    : std_ulogic_vector(63 downto 0);
+        prev_data    : std_ulogic_vector(63 downto 0);
         dar          : std_ulogic_vector(63 downto 0);
         dsisr        : std_ulogic_vector(31 downto 0);
         ld_sp_data   : std_ulogic_vector(31 downto 0);
@@ -240,13 +249,13 @@ architecture behave of loadstore1 is
     function xfer_data_sel(size : in std_logic_vector(4 downto 0);
                            address : in std_logic_vector(3 downto 0))
 	return std_ulogic_vector is
-        variable longsel : std_ulogic_vector(15 downto 0);
+        variable longsel : std_ulogic_vector(23 downto 0);
     begin
         if is_X(address) then
             longsel := (others => 'X');
             return longsel;
         else
-            longsel := length_to_sel(size);
+            longsel := "00000000" & length_to_sel(size);
             return std_ulogic_vector(shift_left(unsigned(longsel),
                                                 to_integer(unsigned(address))));
         end if;
@@ -562,8 +571,9 @@ begin
     loadstore1_in: process(all)
         variable v : request_t;
         variable lsu_sum : std_ulogic_vector(63 downto 0);
-        variable brev_lenm1 : unsigned(2 downto 0);
-        variable long_sel : std_ulogic_vector(15 downto 0);
+        variable brev_lenm1 : unsigned(3 downto 0);
+        variable elt_mask : unsigned(3 downto 0);
+        variable long_sel : std_ulogic_vector(23 downto 0);
         variable byte_off : std_ulogic_vector(3 downto 0);
         variable addr : std_ulogic_vector(63 downto 0);
         variable sprn : std_ulogic_vector(9 downto 0);
@@ -571,6 +581,7 @@ begin
         variable addr_mask : std_ulogic_vector(3 downto 0);
         variable hash_nop : std_ulogic;
         variable disp : std_ulogic_vector(63 downto 0);
+        variable multi_dword : std_ulogic;
     begin
         v := request_init;
         sprn := l_in.insn(15 downto 11) & l_in.insn(20 downto 16);
@@ -607,6 +618,8 @@ begin
             v.sprsel := "100" & sprn(8);
         end if;
 
+        addr_mask := std_ulogic_vector(unsigned(l_in.length(3 downto 0)) - 1);
+
         hash_nop := '0';
         case l_in.mode is
             when "001" =>
@@ -621,30 +634,47 @@ begin
             when "011" =>
                 v.dcbz := '1';
             when "100" =>
-                v.is_vector := '1';
+                if HAS_VECVSX then
+                    v.is_vector := '1';
+                end if;
+            when "101" =>
+                -- For VSX vector loads and stores, l_in.length is the element length,
+                -- and the total length is 16.
+                if HAS_VECVSX then
+                    v.vsx_vector := '1';
+                    v.length := "10000";
+                    addr_mask := "1111";
+                end if;
+            when "110" =>
+                -- VSX load/store rightmost and VSX load with splat
+                -- Load with splat is identified by sign_extend = 1.
+                if HAS_VECVSX then
+                    if l_in.sign_extend = '1' then
+                        -- in general splat_mask = - length, but the splat loads
+                        -- only ever have length = 4 or 8
+                        v.vsx_splat := '1';
+                        v.splat_mask(2) := l_in.length(2);
+                    else
+                        v.ldst_right := '1';
+                    end if;
+                end if;
             when others =>
         end case;
 
         lsu_sum := std_ulogic_vector(unsigned(l_in.addr1) + unsigned(l_in.addr2));
 
-        if v.is_vector = '1' and l_in.byte_reverse = '0' then
-            v.store_data := l_in.data_lo;
-            v.store_data2 := l_in.data;
-        else
-            v.store_data := l_in.data;
-            v.store_data2 := l_in.data_lo;
-        end if;
+        v.store_data := l_in.data;
+        v.store_data2 := l_in.data_lo;
+        v.data2_valid := l_in.mode(2);
         if HAS_FPU and l_in.is_32bit = '1' then
             v.store_data(31 downto 0) := store_sp_data;
         end if;
-
-        addr_mask := std_ulogic_vector(unsigned(l_in.length(3 downto 0)) - 1);
 
         addr := lsu_sum;
         if l_in.second = '1' then
             -- for an update-form load, use the previous address
             -- as the value to write back to RA.
-            -- for a quadword load or store, use with the previous
+            -- for a quadword load or store, use the previous
             -- address + 8.
             addr := std_ulogic_vector(unsigned(r1.addr0(63 downto 3)) + not l_in.update) &
                     r1.addr0(2 downto 0);
@@ -678,9 +708,9 @@ begin
         long_sel := xfer_data_sel(v.length, byte_off);
         v.byte_sel := long_sel(7 downto 0);
         v.second_bytes := long_sel(15 downto 8);
-        if long_sel(15 downto 8) /= "00000000" or v.is_vector = '1' then
-            v.two_dwords := '1';
-        end if;
+        v.third_bytes := long_sel(23 downto 16);
+        multi_dword := or (long_sel(15 downto 8));
+        v.overlap := multi_dword and not long_sel(0);
 
         -- check alignment for larx/stcx
         -- for doubled instructions, only check the first one
@@ -691,7 +721,8 @@ begin
         v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);
 
         -- is this a quadword load or store? i.e. lq plq stq pstq lqarx stqcx.
-        if l_in.repeat = '1' and l_in.update = '0' then
+        -- and not vector/VSX
+        if l_in.length(4) = '1' and l_in.mode = "000" then
             if misaligned = '0' then
                 -- Since the access is aligned we have to do it atomically
                 v.atomic_qw := '1';
@@ -715,7 +746,10 @@ begin
                     v.touch := '1';
                 end if;
             when OP_LOAD =>
-                if l_in.update = '0' or l_in.second = '0' then
+                if l_in.update = '1' and l_in.second = '1' then
+                    -- write back address to RA
+                    v.do_update := '1';
+                else
                     v.load := '1';
                     if HAS_FPU and l_in.is_32bit = '1' then
                         -- Allow an extra cycle for SP->DP precision conversion
@@ -724,9 +758,6 @@ begin
                     if l_in.length = "00000" then
                         v.touch := '1';
                     end if;
-                else
-                    -- write back address to RA
-                    v.do_update := '1';
                 end if;
             when OP_DCBF =>
                 v.load := '1';
@@ -750,18 +781,23 @@ begin
         end case;
         v.dc_req := l_in.valid and (v.load or v.store or v.sync or v.dcbz or v.tlbie) and
                     not v.align_intr and not hash_nop;
-        v.incomplete := v.dc_req and v.two_dwords;
+        v.incomplete := v.dc_req and (multi_dword or v.is_vector);
 
         -- Work out controls for load and store formatting
-        brev_lenm1 := "000";
+        brev_lenm1 := "0000";
         if v.byte_reverse = '1' then
             if v.is_vector = '0' then
-                brev_lenm1 := unsigned(l_in.length(2 downto 0)) - 1;
+                brev_lenm1 := unsigned(l_in.length(3 downto 0)) - 1;
             else
-                brev_lenm1 := "111";
+                brev_lenm1 := "1111";
             end if;
         end if;
-        v.brev_mask := brev_lenm1;
+        elt_mask := "0000";
+        if HAS_VECVSX and v.vsx_vector = '1' then
+            -- VSX vector loads/stores swap element order
+            elt_mask := to_unsigned(0, 4) - unsigned(l_in.length(3 downto 0));
+        end if;
+        v.brev_mask := brev_lenm1 or elt_mask;
 
         req_in <= v;
     end process;
@@ -802,17 +838,17 @@ begin
             if r1.req.dc_req = '1' and r1.issued = '0' then
                 issue := '1';
             elsif r1.req.incomplete = '1' then
-                -- construct the second request for a misaligned access
-                req.dword_index := '1';
-                req.incomplete := '0';
+                -- construct the second request for a misaligned or quadword access,
+                -- or the 3rd request for a misaligned VSX vector access.
+                req.dword_index := r1.req.dword_index + 1;
+                req.incomplete := or (r1.req.third_bytes);
                 req.addr := std_ulogic_vector(unsigned(r1.req.addr(63 downto 3)) + 1) & "000";
                 if r1.req.mode_32bit = '1' then
                     req.addr(32) := '0';
                 end if;
                 req.byte_sel := r1.req.second_bytes;
-                if r1.req.is_vector = '1' then
-                    req.store_data := r1.req.store_data2;
-                end if;
+                req.second_bytes := r1.req.third_bytes;
+                req.third_bytes := x"00";
                 issue := '1';
             else
                 -- For the lfs conversion cycle, leave the request valid
@@ -887,28 +923,36 @@ begin
     loadstore1_2: process(all)
         variable v : reg_stage2_t;
         variable j : integer;
-        variable k : unsigned(2 downto 0);
         variable kk : unsigned(3 downto 0);
         variable idx : unsigned(2 downto 0);
-        variable byte_offset : unsigned(2 downto 0);
+        variable byte_offset : unsigned(3 downto 0);
         variable interrupt : std_ulogic;
         variable dbg_spr_rd : std_ulogic;
         variable sprsel : std_ulogic_vector(3 downto 0);
         variable sprval : std_ulogic_vector(63 downto 0);
         variable dawr_match : std_ulogic;
+        variable data_mixed : std_ulogic_vector(63 downto 0);
     begin
         v := r2;
 
         -- Byte reversing and rotating for stores.
         -- Done in the second cycle (the cycle after l_in.valid = 1).
-        byte_offset := unsigned(r1.addr0(2 downto 0));
+        byte_offset := unsigned('0' & r1.addr0(2 downto 0));
+        for n in 0 to 7 loop
+            kk := (to_unsigned(n, 4) xor r1.req.brev_mask) + byte_offset;
+            if kk(3) = r1.req.dword_index(0) and r1.req.data2_valid = '1' then
+                data_mixed(n * 8 + 7 downto n * 8) := r1.req.store_data2(n * 8 + 7 downto n * 8);
+            else
+                data_mixed(n * 8 + 7 downto n * 8) := r1.req.store_data(n * 8 + 7 downto n * 8);
+            end if;
+        end loop;
         for i in 0 to 7 loop
-            k := (to_unsigned(i, 3) - byte_offset) xor r1.req.brev_mask;
-	    if is_X(k) then
+            kk := ((r1.req.dword_index(0) & to_unsigned(i, 3)) - byte_offset) xor r1.req.brev_mask;
+	    if is_X(kk) then
 		store_data(i * 8 + 7 downto i * 8) <= (others => 'X');
 	    else
-		j := to_integer(k) * 8;
-		store_data(i * 8 + 7 downto i * 8) <= r1.req.store_data(j + 7 downto j);
+		j := to_integer(kk(2 downto 0)) * 8;
+		store_data(i * 8 + 7 downto i * 8) <= data_mixed(j + 7 downto j);
 	    end if;
         end loop;
 
@@ -973,19 +1017,27 @@ begin
                     v.busy := r1.req.valid and r1.req.mmu_op;
                     v.one_cycle := r1.req.valid and not (r1.req.dc_req or r1.req.mmu_op);
                 end if;
-                if r1.req.do_update = '1' or r1.req.store = '1' or r1.req.read_spr = '1' then
+                if r1.req.do_update = '1' or r1.req.store = '1' or r1.req.read_spr = '1' or
+                    r1.req.ldst_right = '1' then
                     v.wr_sel := "00";
                 elsif r1.req.load_sp = '1' then
                     v.wr_sel := "01";
-                elsif r1.req.is_vector = '1' and r1.req.byte_reverse = '1' then
-                    -- BE vector load
+                elsif (r1.req.is_vector = '1' or r1.req.vsx_vector = '1') and r1.req.brev_mask(3) = '1' then
+                    -- high part of result is first dword read
                     v.wr_sel := "11";
                 else
                     v.wr_sel := "10";
                 end if;
-                v.lo_wr_sel(1) := r1.req.is_vector;
-                v.lo_wr_sel(0) := r1.req.byte_reverse;
-                if r1.req.read_spr = '1' then
+                if r1.req.is_vector = '1' or r1.req.vsx_vector = '1' then
+                    v.lo_wr_sel := '1' & r1.req.brev_mask(3);
+                elsif r1.req.ldst_right = '1' or r1.req.vsx_splat = '1' then
+                    v.lo_wr_sel := "11";
+                else
+                    v.lo_wr_sel := "00";
+                end if;
+                if r1.req.ldst_right = '1' then
+                    v.addr0 := (others => '0');
+                elsif r1.req.read_spr = '1' then
                     v.addr0 := sprval;
                 end if;
                 -- tlbie has req.dc_req set in order to send the TLB probe to
@@ -998,14 +1050,15 @@ begin
 
                 -- Work out load formatter controls for next cycle
                 for i in 0 to 7 loop
-                    idx := to_unsigned(i, 3) xor r1.req.brev_mask;
-                    kk := ('0' & idx) + ('0' & byte_offset);
+                    idx := (to_unsigned(i, 3) xor r1.req.brev_mask(2 downto 0)) and not r1.req.splat_mask;
+                    kk := ('0' & idx) + byte_offset;
                     v.byte_index(i) := kk(2 downto 0);
                     v.trim_ctl(i) := "00";
                     if r1.req.is_vector = '1' then
                         v.trim_ctl(i)(1) := '1';
-                    elsif not is_X(r1.req.length) and i < to_integer(unsigned(r1.req.length)) then
-                        v.trim_ctl(i)(0) := r1.req.dword_index and not kk(3);
+                    elsif (not is_X(r1.req.length) and i < to_integer(unsigned(r1.req.length))) or
+                        r1.req.vsx_splat = '1' then
+                        v.trim_ctl(i)(0) := r1.req.overlap and not kk(3);
                         v.trim_ctl(i)(1) := '1';
                     end if;
                 end loop;
@@ -1112,7 +1165,7 @@ begin
         -- For unaligned loads crossing two dwords, the sign bit is in the
         -- first dword for big-endian (byte_reverse = 1), or the second dword
         -- for little-endian.
-        if r2.req.dword_index = '1' and r2.req.byte_reverse = '1' then
+        if r2.req.dword_index(0) = '1' and r2.req.byte_reverse = '1' then
             negative := (r2.req.length(3) and r3.load_data(63)) or
                         (r2.req.length(2) and r3.load_data(31)) or
                         (r2.req.length(1) and r3.load_data(15)) or
@@ -1144,6 +1197,7 @@ begin
 
         if d_in.valid = '1' and r2.req.load = '1' then
             v.load_data := data_permuted;
+            v.prev_data := data_trimmed;
         end if;
 
         hashchk_trap := '0';
@@ -1292,14 +1346,14 @@ begin
 
         case r2.wr_sel is
         when "00" =>
-            -- update reg
+            -- update reg, SPR data, or constant zero
             write_data := r2.addr0;
         when "01" =>
             -- lfs result
             write_data := load_dp_data;
         when "11" =>
             -- first load data for BE vector load
-            write_data := r3.load_data;
+            write_data := r3.prev_data;
         when others =>
             -- load data
             write_data := data_trimmed;
@@ -1308,7 +1362,7 @@ begin
         case r2.lo_wr_sel is
         when "10" =>
             -- LE vector load does low then high
-            write_data_lo := r3.load_data;
+            write_data_lo := r3.prev_data;
         when "11" =>
             -- BE vector load does high then low
             write_data_lo := data_trimmed;
@@ -1417,7 +1471,7 @@ begin
                             m_out.valid &
                             d_out.valid &
                             m_in.done &
-                            r2.req.dword_index &
+                            r2.req.dword_index(0) &
                             r2.req.valid &
                             r2.wait_dc &
                             std_ulogic_vector(to_unsigned(state_t'pos(r3.state), 1));

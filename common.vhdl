@@ -14,6 +14,7 @@ package common is
     constant MSR_SF  : integer := (63 - 0);     -- Sixty-Four bit mode
     constant MSR_HV  : integer := (63 - 3);     -- Hypervisor mode (always 1)
     constant MSR_VEC : integer := (63 - 38);    -- Vector (VMX) available
+    constant MSR_VSX : integer := (63 - 40);    -- VSX available
     constant MSR_EE  : integer := (63 - 48);    -- External interrupt Enable
     constant MSR_PR  : integer := (63 - 49);    -- PRoblem state
     constant MSR_FP  : integer := (63 - 50);    -- Floating Point available
@@ -653,7 +654,7 @@ package common is
 	byte_reverse : std_ulogic;
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
-        mode : std_ulogic_vector(2 downto 0);           -- normal, CI, hash, dcbz, etc.
+        mode : std_ulogic_vector(2 downto 0);           -- normal, CI, hash, dcbz, vector/VSX etc.
 	xerc : xer_common_t;
         reserve : std_ulogic;                           -- set for larx/stcx.
         rc : std_ulogic;                                -- set for stcx.

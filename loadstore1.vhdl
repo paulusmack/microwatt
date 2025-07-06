@@ -89,9 +89,14 @@ architecture behave of loadstore1 is
         elt_addr     : std_ulogic_vector(3 downto 0);
 	byte_reverse : std_ulogic;
         brev_mask    : unsigned(2 downto 0);
+        splat_mask   : unsigned(2 downto 0);
 	sign_extend  : std_ulogic;
 	update       : std_ulogic;
         is_vector    : std_ulogic;
+        vsx_vector   : std_ulogic;
+        vsx_scalar   : std_ulogic;
+        vsx_splat    : std_ulogic;
+        write_splat  : std_ulogic;
 	xerc         : xer_common_t;
         reserve      : std_ulogic;
         atomic_qw    : std_ulogic;
@@ -117,7 +122,8 @@ architecture behave of loadstore1 is
                                           byte_sel => x"00", second_bytes => x"00",
                                           store_data => (others => '0'), instr_tag => instr_tag_init,
                                           write_reg => (others => '0'), length => x"0",
-                                          elt_length => x"0", elt_addr => x"0", brev_mask => "000",
+                                          elt_length => x"0", elt_addr => x"0",
+                                          brev_mask => "000", splat_mask => "000",
                                           xerc => xerc_init,
                                           sprsel => "0000", ric => "00",
                                           hash_addr => 64x"0",
@@ -565,6 +571,7 @@ begin
         variable v : request_t;
         variable lsu_sum : std_ulogic_vector(63 downto 0);
         variable brev_lenm1 : unsigned(2 downto 0);
+        variable elt_mask : unsigned(2 downto 0);
         variable long_sel : std_ulogic_vector(15 downto 0);
         variable byte_off : std_ulogic_vector(2 downto 0);
         variable addr : std_ulogic_vector(63 downto 0);
@@ -605,6 +612,8 @@ begin
             v.sprsel := "100" & sprn(8);
         end if;
 
+        addr_mask := std_ulogic_vector(unsigned(l_in.length(3 downto 0)) - 1);
+
         hash_nop := '0';
         case l_in.mode is
             when "001" =>
@@ -620,6 +629,19 @@ begin
                 v.dcbz := '1';
             when "100" =>
                 v.is_vector := '1';
+            when "101" =>
+                -- For VSX vector loads, l_in.length is the element length,
+                -- and the total length is 16.
+                v.vsx_vector := '1';
+                v.length := "1000";
+                addr_mask := "1111";
+            when "110" =>
+                v.vsx_scalar := '1';
+                if l_in.second = '1' then
+                    v.sign_extend := '0';
+                end if;
+            when "111" =>
+                v.vsx_splat := '1';
             when others =>
         end case;
 
@@ -631,13 +653,11 @@ begin
             v.store_data := l_in.data;
         end if;
 
-        addr_mask := std_ulogic_vector(unsigned(l_in.length(3 downto 0)) - 1);
-
         addr := lsu_sum;
         if l_in.second = '1' then
             -- for an update-form load, use the previous address
             -- as the value to write back to RA.
-            -- for a quadword load or store, use with the previous
+            -- for a quadword or vector load or store, use the previous
             -- address + 8.
             addr := std_ulogic_vector(unsigned(r1.addr0(63 downto 3)) + not l_in.update) &
                     r1.addr0(2 downto 0);
@@ -695,7 +715,8 @@ begin
         v.atomic_last := not misaligned and (l_in.second or not l_in.repeat);
 
         -- is this a quadword load or store? i.e. lq plq stq pstq lqarx stqcx.
-        if l_in.repeat = '1' and l_in.update = '0' then
+        -- and not vector/VSX
+        if l_in.length(4) = '1' and l_in.mode = "000" then
             if misaligned = '0' then
                 -- Since the access is aligned we have to do it atomically
                 v.atomic_qw := '1';
@@ -719,7 +740,13 @@ begin
                     v.touch := '1';
                 end if;
             when OP_LOAD =>
-                if l_in.update = '0' or l_in.second = '0' then
+                if l_in.update = '1' and l_in.second = '1' then
+                    -- write back address to RA
+                    v.do_update := '1';
+                elsif HAS_VECVSX and (v.vsx_scalar or v.vsx_splat) = '1' and l_in.second = '1' then
+                    -- write zeroes or previous load data to low half of destination
+                    v.write_splat := '1';
+                else
                     v.load := '1';
                     if HAS_FPU and l_in.is_32bit = '1' then
                         -- Allow an extra cycle for SP->DP precision conversion
@@ -728,9 +755,6 @@ begin
                     if l_in.length = "00000" then
                         v.touch := '1';
                     end if;
-                else
-                    -- write back address to RA
-                    v.do_update := '1';
                 end if;
             when OP_DCBF =>
                 v.load := '1';
@@ -765,7 +789,17 @@ begin
                 brev_lenm1 := "111";
             end if;
         end if;
-        v.brev_mask := brev_lenm1;
+        elt_mask := "000";
+        if HAS_VECVSX and v.vsx_vector = '1' then
+            -- VSX vector loads/stores swap element order
+            elt_mask := to_unsigned(0, 3) - unsigned(l_in.length(2 downto 0));
+        end if;
+        v.brev_mask := brev_lenm1 or elt_mask;
+        if HAS_VECVSX and v.vsx_splat = '1' then
+            -- in general splat_mask = - length, but the splat loads
+            -- only ever have length = 4 or 8
+            v.splat_mask(2) := l_in.length(2);
+        end if;
 
         req_in <= v;
     end process;
@@ -987,13 +1021,17 @@ begin
 
                 -- Work out load formatter controls for next cycle
                 for i in 0 to 7 loop
-                    idx := to_unsigned(i, 3) xor r1.req.brev_mask;
+                    idx := (to_unsigned(i, 3) xor r1.req.brev_mask) and not r1.req.splat_mask;
                     kk := ('0' & idx) + ('0' & byte_offset);
                     v.byte_index(i) := kk(2 downto 0);
                     v.trim_ctl(i) := "00";
                     if r1.req.is_vector = '1' then
                         v.trim_ctl(i)(1) := r1.req.byte_sel(i);
-                    elsif not is_X(r1.req.length) and i < to_integer(unsigned(r1.req.length)) then
+                    elsif r1.req.vsx_splat = '1' then
+                        v.trim_ctl(i)(0) := (r1.req.dword_index and not kk(3)) or r1.req.write_splat;
+                        v.trim_ctl(i)(1) := '1';
+                    elsif not is_X(r1.req.length) and i < to_integer(unsigned(r1.req.length)) and
+                        r1.req.write_splat = '0' then
                         v.trim_ctl(i)(0) := r1.req.dword_index and not kk(3);
                         v.trim_ctl(i)(1) := '1';
                     end if;
@@ -1059,7 +1097,6 @@ begin
         variable negative      : std_ulogic;
         variable dsisr         : std_ulogic_vector(31 downto 0);
         variable itlb_fault    : std_ulogic;
-        variable trim_ctl      : trim_ctl_t;
         variable hashchk_trap  : std_ulogic;
     begin
         v := r3;
@@ -1132,7 +1169,12 @@ begin
         end if;
 
         if d_in.valid = '1' and r2.req.load = '1' then
-            v.load_data := data_permuted;
+            for i in 0 to 7 loop
+                if r2.trim_ctl(i)(0) = '0' then
+                    j := i * 8;
+                    v.load_data(j + 7 downto j) := data_permuted(j + 7 downto j);
+                end if;
+            end loop;
         end if;
 
         hashchk_trap := '0';
@@ -1146,7 +1188,7 @@ begin
         end if;
 
         if r2.req.valid = '1' then
-            if r2.req.read_spr = '1' then
+            if r2.req.read_spr = '1' or r2.req.write_splat = '1' then
                 write_enable := '1';
             end if;
             if r2.req.align_intr = '1' then
@@ -1286,9 +1328,11 @@ begin
         when "01" =>
             -- lfs result
             write_data := load_dp_data;
-        when others =>
+        when "10" =>
             -- load data
             write_data := data_trimmed;
+        when others =>
+            write_data := (others => '0');
         end case;
 
         -- Update outputs to dcache

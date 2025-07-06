@@ -398,20 +398,71 @@ package decode_types is
         INSN_368, INSN_369, INSN_370, INSN_371, INSN_372, INSN_373, INSN_374, INSN_375,
         INSN_376, INSN_377, INSN_378, INSN_379, INSN_380, INSN_381, INSN_382, INSN_383,
 
-        -- The following instructions access vector registers
-        -- The have a VRS or VRT operand but RA/RB are GPRs
-        -- The vector loads are here so that all vector instructions
+        -- The following instructions access vector/VSX registers
+        -- The vector/VSX loads are here so that all vector/VSX instructions
         -- are >= INST_first_vrs.
-        INSN_stvx,
+        INSN_stvx, -- 384
         INSN_stvxl,
         INSN_stvebx,
         INSN_stvehx,
         INSN_stvewx,
+
         INSN_lvx,
-        INSN_lvxl,
+        INSN_lvxl, -- 390
         INSN_lvebx,
         INSN_lvehx,
-        INSN_lvewx
+        INSN_lvewx,
+
+        INSN_stxsd,
+        INSN_pstxsd,
+        INSN_stxssp,
+        INSN_pstxssp,
+        INSN_stxv_fp,
+        INSN_pstxv_fp,
+        INSN_stxv_vec, -- 400
+        INSN_pstxv_vec,
+        INSN_stxsdx,
+        INSN_stxsibx,
+        INSN_stxsihx,
+        INSN_stxsiwx,
+        INSN_stxsspx,
+        INSN_stxvb16x,
+        INSN_stxvd2x,
+        INSN_stxvh8x,
+        INSN_stxvw4x, -- 410
+        INSN_stxvx,
+        INSN_stxvl,
+        INSN_stxvll,
+        INSN_stxvrbx,
+        INSN_stxvrdx,
+        INSN_stxvrhx,
+        INSN_stxvrwx,
+
+        INSN_lxsd,
+        INSN_plxsd,
+        INSN_lxssp, -- 420
+        INSN_plxssp,
+        INSN_lxv,
+        INSN_plxv,
+        INSN_lxvl,
+        INSN_lxvll,
+        INSN_lxsdx,
+        INSN_lxsibzx,
+        INSN_lxsihzx,
+        INSN_lxsiwax,
+        INSN_lxsiwzx, -- 430
+        INSN_lxsspx,
+        INSN_lxvb16x,
+        INSN_lxvd2x,
+        INSN_lxvh8x,
+        INSN_lxvw4x,
+        INSN_lxvx,
+        INSN_lxvdsx,
+        INSN_lxvwsx,
+        INSN_lxvrbx,
+        INSN_lxvrdx, -- 440
+        INSN_lxvrhx,
+        INSN_lxvrwx
         );
 
     constant INSN_first_frs : insn_code := INSN_stfd;
@@ -451,8 +502,8 @@ package decode_types is
     type input_reg_b_t is (IMM, RB, FRB);
     type const_sel_t is   (NONE, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
                            CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI);
-    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRS);
-    type output_reg_a_t is (NONE, RT, RA, FRT, VRT);
+    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRS, XS);
+    type output_reg_a_t is (NONE, RT, RA, FRT, VRT, XT, XT3, XT26);
     type rc_t is (NONE, ONE, RC, RCOE);
     type carry_in_t is (ZERO, CA, OV, ONE);
 
@@ -475,7 +526,7 @@ package decode_types is
     constant TOO_OFFSET : integer := 0;
 
     type unit_t is (ALU, LDST, FPU);
-    type facility_t is (NONE, FPU, VEC);
+    type facility_t is (NONE, FPU, VEC, VSX);
     type length_t is (NONE, is1B, is2B, is4B, is8B, i16B);
 
     type result_sel_t is (ADD, LOG, ROT, UN3, MCYC, SPR, UN6, MSC);
@@ -484,7 +535,9 @@ package decode_types is
     type repeat_t is (NONE,      -- instruction is not repeated
                       DUPD,      -- update-form load
                       DRP,       -- double RS or RT (R, R+1, or R+1, R)
-                      DVRE);     -- double VRS/VRT endian-dep (hi,lo or lo,hi)
+                      DVR,       -- double XS/XT or VRS/VRT hi, lo
+                      DVRE,      -- double XS/XT or VRS/VRT endian-dep (hi,lo or lo,hi)
+                      DVRR);     -- double XT or VRT lo, hi
 
     type decode_rom_t is record
 	unit         : unit_t;
@@ -614,6 +667,8 @@ package body decode_types is
             when INSN_rldimi    => return "011110";
             when INSN_rldcl     => return "011110";
             when INSN_rldcr     => return "011110";
+            when INSN_lxsd      => return "111001";
+            when INSN_lxssp     => return "111001";
             when INSN_ld        => return "111010";
             when INSN_ldu       => return "111010";
             when INSN_lwa       => return "111010";
@@ -628,6 +683,11 @@ package body decode_types is
             when INSN_fmadds    => return "111011";
             when INSN_fnmsubs   => return "111011";
             when INSN_fnmadds   => return "111011";
+            when INSN_lxv       => return "111101";
+            when INSN_stxv_fp   => return "111101";
+            when INSN_stxv_vec  => return "111101";
+            when INSN_stxsd     => return "111101";
+            when INSN_stxssp    => return "111101";
             when INSN_std       => return "111110";
             when INSN_stdu      => return "111110";
             when INSN_fdiv      => return "111111";
@@ -726,6 +786,25 @@ package body decode_types is
             when INSN_lwzcix    => return "011111";
             when INSN_lwzux     => return "011111";
             when INSN_lwzx      => return "011111";
+            when INSN_lxsdx     => return "011111";
+            when INSN_lxsibzx   => return "011111";
+            when INSN_lxsihzx   => return "011111";
+            when INSN_lxsiwax   => return "011111";
+            when INSN_lxsiwzx   => return "011111";
+            when INSN_lxsspx    => return "011111";
+            when INSN_lxvb16x   => return "011111";
+            when INSN_lxvd2x    => return "011111";
+            when INSN_lxvh8x    => return "011111";
+            when INSN_lxvw4x    => return "011111";
+            when INSN_lxvx      => return "011111";
+            when INSN_lxvdsx    => return "011111";
+            when INSN_lxvwsx    => return "011111";
+            when INSN_lxvrbx    => return "011111";
+            when INSN_lxvrdx    => return "011111";
+            when INSN_lxvrhx    => return "011111";
+            when INSN_lxvrwx    => return "011111";
+            when INSN_lxvl      => return "011111";
+            when INSN_lxvll     => return "011111";
             when INSN_mcrxrx    => return "011111";
             when INSN_mfcr      => return "011111";
             when INSN_mfmsr     => return "011111";
@@ -798,6 +877,22 @@ package body decode_types is
             when INSN_stwcx     => return "011111";
             when INSN_stwux     => return "011111";
             when INSN_stwx      => return "011111";
+            when INSN_stxsdx    => return "011111";
+            when INSN_stxsibx   => return "011111";
+            when INSN_stxsihx   => return "011111";
+            when INSN_stxsiwx   => return "011111";
+            when INSN_stxsspx   => return "011111";
+            when INSN_stxvb16x  => return "011111";
+            when INSN_stxvd2x   => return "011111";
+            when INSN_stxvh8x   => return "011111";
+            when INSN_stxvw4x   => return "011111";
+            when INSN_stxvx     => return "011111";
+            when INSN_stxvrbx   => return "011111";
+            when INSN_stxvrdx   => return "011111";
+            when INSN_stxvrhx   => return "011111";
+            when INSN_stxvrwx   => return "011111";
+            when INSN_stxvl     => return "011111";
+            when INSN_stxvll    => return "011111";
             when INSN_subf      => return "011111";
             when INSN_subfc     => return "011111";
             when INSN_subfe     => return "011111";
@@ -871,6 +966,13 @@ package body decode_types is
             when INSN_pstfs     => return "000001";
             when INSN_pstfd     => return "000001";
             when INSN_plwa      => return "000001";
+            when INSN_plxsd     => return "000001";
+            when INSN_plxssp    => return "000001";
+            when INSN_pstxsd    => return "000001";
+            when INSN_pstxssp   => return "000001";
+            when INSN_plxv      => return "000001";
+            when INSN_pstxv_fp  => return "000001";
+            when INSN_pstxv_vec => return "000001";
             when INSN_plq       => return "000001";
             when INSN_pld       => return "000001";
             when INSN_pstq      => return "000001";

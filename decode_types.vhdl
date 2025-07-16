@@ -438,31 +438,41 @@ package decode_types is
         INSN_stxvrhx,
         INSN_stxvrwx,
 
+        INSN_mfvsrd,
+        INSN_mfvsrwz,
+        INSN_mfvsrld, -- 420
+
         INSN_lxsd,
         INSN_plxsd,
-        INSN_lxssp, -- 420
+        INSN_lxssp,
         INSN_plxssp,
         INSN_lxv,
         INSN_plxv,
         INSN_lxvl,
         INSN_lxvll,
         INSN_lxsdx,
-        INSN_lxsibzx,
+        INSN_lxsibzx, -- 430
         INSN_lxsihzx,
         INSN_lxsiwax,
-        INSN_lxsiwzx, -- 430
+        INSN_lxsiwzx,
         INSN_lxsspx,
         INSN_lxvb16x,
         INSN_lxvd2x,
         INSN_lxvh8x,
         INSN_lxvw4x,
         INSN_lxvx,
-        INSN_lxvdsx,
+        INSN_lxvdsx, -- 440
         INSN_lxvwsx,
         INSN_lxvrbx,
-        INSN_lxvrdx, -- 440
+        INSN_lxvrdx,
         INSN_lxvrhx,
-        INSN_lxvrwx
+        INSN_lxvrwx,
+
+        INSN_mtvsrd,
+        INSN_mtvsrwa,
+        INSN_mtvsrwz,
+        INSN_mtvsrws,
+        INSN_mtvsrdd -- 450
         );
 
     constant INSN_first_frs : insn_code := INSN_stfd;

@@ -865,6 +865,7 @@ begin
 	variable darn : std_ulogic_vector(63 downto 0);
 	variable setb_result : std_ulogic_vector(63 downto 0);
 	variable mfcr_result : std_ulogic_vector(63 downto 0);
+	variable mtvsr_result : std_ulogic_vector(63 downto 0);
 	variable lo, hi : integer;
 	variable l : std_ulogic;
         variable zerohi, zerolo : std_ulogic;
@@ -882,6 +883,7 @@ begin
         variable btnum : integer range 0 to 3;
 	variable banum, bbnum : integer range 0 to 31;
         variable j : integer;
+        variable negative : std_ulogic;
     begin
         -- Main adder
         if e_in.invert_a = '0' then
@@ -1009,7 +1011,7 @@ begin
                 misc_result <= addg6s;
             when "010" =>
                 -- isel
-		crbit := to_integer(unsigned(insn_bc(e_in.insn)));
+                crbit := to_integer(unsigned(insn_bc(e_in.insn)));
 		if cr_in(31-crbit) = '1' then
 		    isel_result := a_in;
 		else
@@ -1074,6 +1076,23 @@ begin
                     end if;
                 end if;
                 misc_result <= setb_result;
+            when "111" =>
+                -- mtvsr{wa,wz,ws,dd} - select the A input, truncated
+                -- to 32 bits and possibly sign-extended or splatted
+                -- abuse invert_out field of decode table to indicate splat.
+                mtvsr_result := a_in;
+                if e_in.is_32bit = '1' then
+                    if e_in.invert_out = '1' then
+                        mtvsr_result(63 downto 32) := a_in(31 downto 0);
+                    else
+                        negative := e_in.is_signed and a_in(31);
+                        mtvsr_result(63 downto 32) := (others => negative);
+                    end if;
+                elsif e_in.second = '1' then
+                    -- For mtvsrdd, select B input on second iteration
+                    mtvsr_result := b_in;
+                end if;
+                misc_result <= mtvsr_result;
             when others =>
                 misc_result <= (others => '0');
         end case;

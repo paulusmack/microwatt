@@ -462,7 +462,17 @@ package decode_types is
         INSN_lxvrbx,
         INSN_lxvrdx, -- 440
         INSN_lxvrhx,
-        INSN_lxvrwx
+        INSN_lxvrwx,
+
+        INSN_mfvsrd,
+        INSN_mfvsrwz,
+        INSN_mfvsrld,
+
+        INSN_mtvsrd,
+        INSN_mtvsrwa,
+        INSN_mtvsrwz,
+        INSN_mtvsrws,
+        INSN_mtvsrdd -- 450
         );
 
     constant INSN_first_frs : insn_code := INSN_stfd;
@@ -529,7 +539,7 @@ package decode_types is
     type facility_t is (NONE, FPU, VEC, VSX);
     type length_t is (NONE, is1B, is2B, is4B, is8B, i16B);
 
-    type result_sel_t is (ADD, LOG, ROT, UN3, MCYC, SPR, UN6, MSC);
+    type result_sel_t is (ADD, LOG, ROT, VEC, MCYC, SPR, UN6, MSC);
     subtype subresult_sel_t is std_ulogic_vector(2 downto 0);
 
     type repeat_t is (NONE,      -- instruction is not repeated

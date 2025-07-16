@@ -828,6 +828,7 @@ package common is
 	write_enable : std_ulogic;
 	write_reg: gspr_index_t;
 	write_data: std_ulogic_vector(63 downto 0);
+	write_data_lo: std_ulogic_vector(63 downto 0);
 	write_cr_enable : std_ulogic;
 	write_cr_mask : std_ulogic_vector(7 downto 0);
 	write_cr_data : std_ulogic_vector(31 downto 0);
@@ -850,8 +851,9 @@ package common is
         (valid => '0', instr_tag => instr_tag_init, rc => '0', mode_32bit => '0',
          write_enable => '0', write_cr_enable => '0',
          write_xerc_enable => '0', xerc => xerc_init,
-         write_data => (others => '0'), write_cr_mask => (others => '0'),
-         write_cr_data => (others => '0'), write_reg => (others => '0'),
+         write_data => (others => '0'), write_data_lo => (others => '0'),
+         write_cr_mask => (others => '0'), write_cr_data => (others => '0'),
+         write_reg => (others => '0'),
          interrupt => '0', alt_intr => '0', hv_intr => '0', is_scv => '0', intr_vec => 0,
          redirect => '0', redir_mode => "0000",
          last_nia => (others => '0'),

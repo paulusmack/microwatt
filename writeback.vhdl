@@ -133,6 +133,7 @@ begin
             if e_in.write_enable = '1' then
                 w_out.write_reg <= e_in.write_reg;
                 w_out.write_data <= e_in.write_data;
+                w_out.lovrw_data <= e_in.write_data_lo;
                 w_out.write_enable <= '1';
             end if;
 

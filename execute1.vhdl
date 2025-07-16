@@ -221,9 +221,12 @@ architecture behaviour of execute1 is
     signal dec_sign: std_ulogic;
     signal rotator_result: std_ulogic_vector(63 downto 0);
     signal rotator_carry: std_ulogic;
+    signal vector_result: std_ulogic_vector(63 downto 0);
+    signal vector_res_lo: std_ulogic_vector(63 downto 0);
     signal logical_result: std_ulogic_vector(63 downto 0);
     signal countbits_result: std_ulogic_vector(63 downto 0);
     signal alu_result: std_ulogic_vector(63 downto 0);
+    signal alu_res_lo: std_ulogic_vector(63 downto 0);
     signal adder_result: std_ulogic_vector(63 downto 0);
     signal misc_result: std_ulogic_vector(63 downto 0);
     signal multicyc_result: std_ulogic_vector(63 downto 0);
@@ -789,9 +792,13 @@ begin
         adder_result       when ADD,
         logical_result     when LOG,
         rotator_result     when ROT,
+        vector_result      when VEC,
         multicyc_result    when MCYC,
         ramspr_result      when SPR,
         misc_result        when MSC,
+        64x"0"             when others;
+    with e_in.result_sel select alu_res_lo <=
+        vector_res_lo      when VEC,
         64x"0"             when others;
 
     execute1_0: process(clk)
@@ -865,6 +872,7 @@ begin
 	variable darn : std_ulogic_vector(63 downto 0);
 	variable setb_result : std_ulogic_vector(63 downto 0);
 	variable mfcr_result : std_ulogic_vector(63 downto 0);
+	variable mtvsr_result : std_ulogic_vector(63 downto 0);
 	variable lo, hi : integer;
 	variable l : std_ulogic;
         variable zerohi, zerolo : std_ulogic;
@@ -882,6 +890,7 @@ begin
         variable btnum : integer range 0 to 3;
 	variable banum, bbnum : integer range 0 to 31;
         variable j : integer;
+        variable negative : std_ulogic;
     begin
         -- Main adder
         if e_in.invert_a = '0' then
@@ -1078,6 +1087,35 @@ begin
                 misc_result <= (others => '0');
         end case;
 
+        -- Compute vector result
+        case e_in.sub_select is
+            when "000" =>
+                -- mtvsr*
+                vector_result <= a_in;
+                vector_res_lo <= b_in;
+                if e_in.is_32bit = '1' then
+                    -- mtvsr{wa,wz,ws} - select the A input, truncated
+                    -- to 32 bits and possibly sign-extended or splatted
+                    -- abuse invert_out field of decode table to indicate splat.
+                    mtvsr_result(31 downto 0) := a_in(31 downto 0);
+                    if e_in.invert_out = '1' then
+                        mtvsr_result(63 downto 32) := a_in(31 downto 0);
+                        vector_res_lo <= mtvsr_result;
+                    else
+                        negative := e_in.is_signed and a_in(31);
+                        mtvsr_result(63 downto 32) := (others => negative);
+                    end if;
+                    vector_result <= mtvsr_result;
+                end if;
+            when "001" =>
+                -- mfvsrld
+                vector_result <= e_in.lo_read_data3;
+                vector_res_lo <= (others => '0');
+            when others =>
+                vector_result <= (others => '0');
+                vector_res_lo <= (others => '0');
+        end case;
+
         -- compute comparison results
         -- Note, we have done RB - RA, not RA - RB
         if e_in.insn_type = OP_CMP then
@@ -1220,6 +1258,7 @@ begin
     begin
         v := actions_type_init;
         v.e.write_data := alu_result;
+        v.e.write_data_lo := alu_res_lo;
         v.e.write_reg := e_in.write_reg;
         v.e.write_enable := e_in.write_reg_enable;
         v.e.rc := e_in.rc;
@@ -1895,6 +1934,7 @@ begin
             end if;
             v.e.valid := divider_to_x.valid;
             v.e.write_data := alu_result;
+            v.e.write_data_lo := 64x"0";
             bypass_valid := v.e.valid;
         end if;
         if ex1.mul_in_progress = '1' then
@@ -1903,6 +1943,7 @@ begin
             v.e.valid := multiply_to_x.valid and not ex1.oe;
             v.busy := not v.e.valid;
             v.e.write_data := alu_result;
+            v.e.write_data_lo := 64x"0";
             bypass_valid := v.e.valid;
         end if;
         if ex1.mul_finish = '1' then
@@ -1919,6 +1960,7 @@ begin
             v.e.valid := bsort_done;
             v.busy := not bsort_done;
             v.e.write_data := alu_result;
+            v.e.write_data_lo := 64x"0";
             bypass_valid := bsort_done;
         end if;
         if ex1.bperm_in_progress = '1' then
@@ -1926,6 +1968,7 @@ begin
             v.e.valid := bperm_done;
             v.busy := not bperm_done;
             v.e.write_data := alu_result;
+            v.e.write_data_lo := 64x"0";
             bypass_valid := bperm_done;
         end if;
 
@@ -1965,7 +2008,7 @@ begin
         bypass_data.tag.tag <= v.e.instr_tag.tag;
         bypass_data.reg <= v.e.write_reg;
         bypass_data.data <= alu_result;
-        bypass_data.lo_data <= (others => '0');
+        bypass_data.lo_data <= alu_res_lo;
 
         bypass_cr_data.tag.valid <= e_in.output_cr and bypass_valid;
         bypass_cr_data.tag.tag <= e_in.instr_tag.tag;
@@ -2179,6 +2222,7 @@ begin
         end if;
 
         v.e.write_data := ex_result;
+        v.e.write_data_lo := ex1.e.write_data_lo;
         v.e.write_cr_data := cr_res;
         v.e.write_cr_mask := cr_mask;
 
@@ -2283,7 +2327,7 @@ begin
         bypass2_data.tag.tag <= ex1.e.instr_tag.tag;
         bypass2_data.reg <= ex1.e.write_reg;
         bypass2_data.data <= ex_result;
-        bypass2_data.lo_data <= (others => '0');
+        bypass2_data.lo_data <= ex1.e.write_data_lo;
 
         bypass2_cr_data.tag.valid <= (ex1.e.write_cr_enable or (ex1.e.rc and ex1.e.write_enable))
                                      and bypass_valid;

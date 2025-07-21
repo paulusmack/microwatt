@@ -24,11 +24,6 @@ package decode_types is
                          OP_FETCH_FAILED
 			 );
 
-    -- The following list is ordered in such a way that we can know some
-    -- things about which registers are accessed by an instruction by its place
-    -- in the list.  In other words we can decide whether an instruction
-    -- accesses FPRs and whether it has an RB operand by doing simple
-    -- comparisons of the insn_code for the instruction with a few constants.
     type insn_code is (
         -- The following instructions don't have an RB operand or access FPRs
         INSN_illegal, -- 0
@@ -419,13 +414,39 @@ package decode_types is
         INSN_lvewx
         );
 
-    constant INSN_first_rb : insn_code := INSN_add;
-    constant INSN_first_rc : insn_code := INSN_maddld;
     constant INSN_first_frs : insn_code := INSN_stfd;
-    constant INSN_first_frab : insn_code := INSN_fabs;
-    constant INSN_first_frabc : insn_code := INSN_fmul;
     constant INSN_first_vrs : insn_code := INSN_stvx;
 
+    -- Predecode information is represented as a bit array for ease of
+    -- representation and packing in the icache data RAM.
+    -- We have 22 bits of predecode, which with 26 bits of the instruction word
+    -- gives 48 bits in the icache data RAM.  These 22 bits are divided into
+    -- fields as follows.
+    constant PREDECODE_BITS : natural := 22;
+    constant INSN_IMAGE_BITS : natural := 26;
+
+    -- Instruction class field (3 bits)
+    constant iclass_illegal           : std_ulogic_vector(2 downto 0) := "000";
+    constant iclass_misaligned_prefix : std_ulogic_vector(2 downto 0) := "001";
+    constant iclass_normal            : std_ulogic_vector(2 downto 0) := "010";
+    constant iclass_prefixed          : std_ulogic_vector(2 downto 0) := "011";
+    constant iclass_direct_br_cond    : std_ulogic_vector(2 downto 0) := "100";
+    constant iclass_direct_br_uncond  : std_ulogic_vector(2 downto 0) := "101";
+
+    -- Register A port high address bits selector (2 bits)
+    -- Register B port high address bits selector (2 bits)
+    -- both encoded as 00 = no register operand, 01 = GPR, 10 = FPR, 11 = VR
+
+    -- Register C port high address bits (3 bits), 1-1 with addr bits 7:5
+    -- Register C port address source selection (2 bits)
+    constant raddrc_rs     : std_ulogic_vector(1 downto 0) := "00";
+    constant raddrc_rs_or1 : std_ulogic_vector(1 downto 0) := "01";
+    constant raddrc_rc     : std_ulogic_vector(1 downto 0) := "10";
+    constant raddrc_ra     : std_ulogic_vector(1 downto 0) := "11";
+
+    -- Instruction code (insn_code above), 10 bits (though only 9 used at present)
+
+    -- Fields in the main decode table
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, RA0_OR_CIA, CIA, FRA);
     type input_reg_b_t is (IMM, RB, FRB);
     type const_sel_t is   (NONE, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,

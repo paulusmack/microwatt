@@ -52,10 +52,12 @@ architecture behaviour of decode1 is
         icode    : insn_code;
         prefix   : std_ulogic_vector(25 downto 0);
         pref_ia  : std_ulogic_vector(3 downto 0);
+        regsel   : std_ulogic_vector(8 downto 0);
     end record;
     constant prefix_state_init : prefix_state_t := (prefixed => '0', icode => INSN_illegal,
                                                     prefix => (others => '0'),
-                                                    pref_ia => (others => '0'));
+                                                    pref_ia => (others => '0'),
+                                                    regsel => (others => '0'));
 
     signal pr, pr_in : prefix_state_t;
 
@@ -597,79 +599,95 @@ begin
         variable sprn : spr_num_t;
         variable maybe_rb : std_ulogic;
         variable pv : prefix_state_t;
-        variable icode_bits : std_ulogic_vector(9 downto 0);
         variable valid_suffix : std_ulogic;
+        variable insn : std_ulogic_vector(31 downto 0);
+        variable predec : std_ulogic_vector(PREDECODE_BITS-1 downto 0);
+        variable iclass : std_ulogic_vector(2 downto 0);
+        variable iregsel : std_ulogic_vector(8 downto 0);
     begin
         v := Decode1ToDecode2Init;
-        pv := pr;
+        pv := prefix_state_init;
 
         v.valid := f_in.valid;
         v.nia  := f_in.nia;
-        v.insn := f_in.insn;
         v.prefix := pr.prefix;
         v.prefixed := pr.prefixed;
         v.stop_mark := f_in.stop_mark;
         v.big_endian := f_in.big_endian;
 
+        insn := f_in.insn(31 downto 0);
 	if is_X(f_in.insn) then
 	    v.spr_info := (sel => "XXXX", others => 'X');
 	    v.ram_spr := (index => (others => 'X'), others => 'X');
 	else
-            sprn := decode_spr_num(f_in.insn);
+            sprn := decode_spr_num(insn);
             v.spr_info := map_spr(sprn);
             v.ram_spr := decode_ram_spr(sprn);
         end if;
 
-        icode := f_in.icode;
-        icode_bits := std_ulogic_vector(to_unsigned(insn_code'pos(icode), 10));
+        -- Unpack predecoded instruction from predecode logic
+        predec := f_in.insn(47 downto 26);
+        iclass := predec(21 downto 19);
+        iregsel := predec(18 downto 10);
+
+        -- recover primary opcode for this instruction word
+        icode := INSN_illegal;
+        if iclass /= iclass_illegal and not is_X(f_in.insn) then
+            icode := insn_code'val(to_integer(unsigned(predec(8 downto 0))));
+            insn(31 downto 26) := recode_primary_opcode(icode);
+        end if;
 
         if f_in.fetch_failed = '1' then
-            icode_bits := std_ulogic_vector(to_unsigned(insn_code'pos(INSN_fetch_fail), 10));
+            icode := INSN_fetch_fail;
             -- Only send down a single OP_FETCH_FAILED
             v.valid := not fetch_failed;
-            pv := prefix_state_init;
+            iclass := iclass_illegal;
+            iregsel := 9x"0";
 
         elsif pr.prefixed = '1' then
             -- Use the icode from the prefix
-            icode_bits := std_ulogic_vector(to_unsigned(insn_code'pos(pr.icode), 10));
+            icode := pr.icode;
             v.nia(5 downto 2) := pr.pref_ia;
             v.prefixed := '1';
             v.prefix := pr.prefix;
-            pv := prefix_state_init;
+            iclass := iclass_prefixed;
+            iregsel := pr.regsel;
 
-        elsif is_prefixed_icode(icode) then
-            pv.prefixed := '1';
-            pv.icode := icode;
-            pv.pref_ia := f_in.nia(5 downto 2);
-            pv.prefix := f_in.insn(25 downto 0);
-            v.valid := '0';
+        else
+            if iclass = iclass_misaligned_prefix then
+                -- prefix at address equal to 60 mod 64
+                v.misaligned_prefix := '1';
+            end if;
 
-        elsif icode = INSN_prefix then
-            -- used to indicate a prefix at address equal to 60 mod 64
-            v.misaligned_prefix := '1';
-
+            if iclass = iclass_prefixed then
+                pv.prefixed := '1';
+                pv.icode := icode;
+                pv.pref_ia := f_in.nia(5 downto 2);
+                pv.prefix := f_in.insn(25 downto 0);
+                pv.regsel := iregsel;
+                v.valid := '0';
+            end if;
         end if;
-        decode_rom_addr <= insn_code'val(to_integer(unsigned(icode_bits)));
+        v.insn := insn;
+        decode_rom_addr <= icode;
 
         if f_in.valid = '1' then
-            report "Decode " & insn_code'image(insn_code'val(to_integer(unsigned(icode_bits)))) & " " &
-                to_hstring(f_in.insn) & " at " & to_hstring(f_in.nia);
+            report "Decode " & insn_code'image(icode) & " " &
+                to_hstring(insn) & " at " & to_hstring(f_in.nia);
         end if;
 
         -- Branch predictor
         -- Note bclr, bcctr and bctar not predicted as we have no
         -- count cache or link stack.
         br_offset := f_in.insn(25 downto 2);
-        case icode is
-            when INSN_brel | INSN_babs =>
-                -- Unconditional branches are always taken
-                v.br_pred := '1';
-            when INSN_bcrel =>
-                -- Predict backward relative branches as taken, others as untaken
-                v.br_pred := f_in.insn(15);
-                br_offset(23 downto 14) := (others => '1');
-            when others =>
-        end case;
+        if iclass = iclass_direct_br_uncond then
+            -- Unconditional branches are always taken
+            v.br_pred := '1';
+        elsif iclass = iclass_direct_br_cond then
+            -- Predict backward relative branches as taken, others as untaken
+            v.br_pred := f_in.insn(15);
+            br_offset(23 downto 14) := (others => '1');
+        end if;
         br_nia := f_in.nia(63 downto 2);
         if f_in.insn(1) = '1' then
             br_nia := (others => '0');
@@ -684,37 +702,38 @@ begin
 
         -- Work out GPR/FPR read addresses
         if double = '0' then
-            maybe_rb := '0';
-            vr.reg_1_addr := "00" & insn_ra(f_in.insn);
-            vr.reg_2_addr := "00" & insn_rb(f_in.insn);
-            vr.reg_3_addr := "00" & insn_rs(f_in.insn);
-            if icode >= INSN_first_rb then
-                maybe_rb := '1';
-            end if;
-            if icode >= INSN_first_vrs then
-                -- access VRS operand
-                vr.reg_3_addr(6 downto 5) := "11";
-            elsif icode >= INSN_first_frs then
-                -- access FRS operand
-                vr.reg_3_addr(6) := '1';
-                if icode >= INSN_first_frab then
-                    -- access FRA and/or FRB operands
+            maybe_rb := '1';
+            vr.reg_1_addr := gpr_to_gspr(insn_ra(f_in.insn));
+            case iregsel(8 downto 7) is
+                when "01" =>            -- GPR
+                when "10" =>            -- FPR
                     vr.reg_1_addr(6) := '1';
+                when "11" =>            -- VR
+                    vr.reg_1_addr(6 downto 5) := "11";
+                when others =>
+                    -- RA isn't used
+            end case;
+
+            vr.reg_2_addr := gpr_to_gspr(insn_rb(f_in.insn));
+            case iregsel(6 downto 5) is
+                when "01" =>            -- GPR
+                when "10" =>            -- FPR
                     vr.reg_2_addr(6) := '1';
-                end if;
-                if icode >= INSN_first_frabc then
-                    -- access FRC operand
-                    vr.reg_3_addr := "10" & insn_rcreg(f_in.insn);
-                end if;
-            elsif icode >= INSN_first_rc then
-                vr.reg_3_addr := "00" & insn_rcreg(f_in.insn);
+                when "11" =>            -- VR
+                    vr.reg_2_addr(6 downto 5) := "11";
+                when others =>
+                    maybe_rb := '0';
+            end case;
+
+            if iregsel(1) = '1' then
+                vr.reg_3_addr := gpr_to_gspr(insn_rcreg(f_in.insn));
+            else
+                vr.reg_3_addr := gpr_to_gspr(insn_rs(f_in.insn));
             end if;
-            -- See if this is an instruction where repeat_t = DRP and we need
-            -- to read RS|1 followed by RS, i.e. stq or stqcx. in LE mode
-            -- (note we don't have access to the decode for the current instruction)
-            if (icode = INSN_stq or icode = INSN_stqcx) and f_in.big_endian = '0' then
+            if iregsel(0) = '1' then
                 vr.reg_3_addr(0) := '1';
             end if;
+            vr.reg_3_addr(6 downto 5) := iregsel(3 downto 2);
             vr.read_1_enable := f_in.valid;
             vr.read_2_enable := f_in.valid and maybe_rb;
             vr.read_3_enable := f_in.valid;

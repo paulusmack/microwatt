@@ -119,15 +119,7 @@ architecture rtl of icache is
     subtype way_sig_t is unsigned(WAY_BITS-1 downto 0);
     subtype row_in_line_t is unsigned(ROW_LINEBITS-1 downto 0);
 
-    -- We store a pre-decoded 10-bit insn_code along with the bottom 26 bits of
-    -- each instruction, giving a total of 36 bits per instruction, which
-    -- fits neatly into the block RAMs available on FPGAs.
-    -- For illegal instructions, the top 4 bits are ones and the bottom 6 bits
-    -- are the instruction's primary opcode, so we have the whole instruction
-    -- word available (e.g. to put in HEIR).  For other instructions, the
-    -- primary opcode is not stored but could be determined from the insn_code.
-    constant PREDECODE_BITS : natural := 10;
-    constant INSN_IMAGE_BITS : natural := 26;
+    -- Total length of data stored per row in the icache data RAM
     constant ICWORDLEN : natural := PREDECODE_BITS + INSN_IMAGE_BITS;
     constant ROW_WIDTH : natural := INSN_PER_ROW * ICWORDLEN;
 
@@ -327,6 +319,7 @@ begin
             insns_in => wb_rd_data,
             first_row => r.first_row,
             insn_index => get_row_of_line(r.recv_row),
+            big_endian => r.store_tag(TAG_BITS - 1),
             valid_out => cache_wr_enb,
             icodes_out => cache_wr_data
             );
@@ -498,7 +491,6 @@ begin
 	variable is_hit  : std_ulogic;
 	variable hit_way : way_sig_t;
         variable insn    : std_ulogic_vector(ICWORDLEN - 1 downto 0);
-        variable icode   : insn_code;
         variable ra      : real_addr_t;
     begin
 	-- Extract line, row and tag from request
@@ -559,25 +551,18 @@ begin
 	--       I prefer not to do just yet as it would force fetch2 to know about
 	--       some of the cache geometry information.
 	--
-        icode := INSN_illegal;
         if is_X(r.hit_way) then
             insn := (others => 'X');
         else
             insn := read_insn_word(r.hit_nia, cache_out(to_integer(r.hit_way)));
         end if;
         assert not (r.hit_valid = '1' and is_X(r.hit_way)) severity failure;
-        -- Currently we use only the top bit for indicating illegal
-        -- instructions because we know that insn_codes fit into 9 bits.
         if is_X(insn) then
             insn := (others => '0');
-        elsif insn(ICWORDLEN - 1) = '0' then
-            icode := insn_code'val(to_integer(unsigned(insn(ICWORDLEN-1 downto INSN_IMAGE_BITS))));
-            insn(31 downto 26) := recode_primary_opcode(icode);
         end if;
 
-        i_out.insn <= insn(31 downto 0);
-        i_out.icode <= icode;
-        log_insn <= insn;
+        i_out.insn <= insn;
+        log_insn <= insn(35 downto 0);
 	i_out.valid <= r.hit_valid;
 	i_out.nia <= r.hit_nia;
 	i_out.stop_mark <= r.hit_smark;

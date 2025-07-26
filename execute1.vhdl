@@ -861,7 +861,8 @@ begin
 
     -- Data path for integer instructions (first execute stage)
     execute1_dp: process(all)
-	variable a_inv : std_ulogic_vector(63 downto 0);
+	variable a_inv, b_inv : std_ulogic_vector(63 downto 0);
+	variable a_inv_lo, b_inv_lo : std_ulogic_vector(63 downto 0);
 	variable sum_with_carry : std_ulogic_vector(64 downto 0);
         variable sign1, sign2 : std_ulogic;
         variable abs1, abs2 : signed(63 downto 0);
@@ -873,6 +874,8 @@ begin
 	variable setb_result : std_ulogic_vector(63 downto 0);
 	variable mfcr_result : std_ulogic_vector(63 downto 0);
 	variable mtvsr_result : std_ulogic_vector(63 downto 0);
+	variable vlog_result : std_ulogic_vector(63 downto 0);
+	variable vlog_res_lo : std_ulogic_vector(63 downto 0);
 	variable lo, hi : integer;
 	variable l : std_ulogic;
         variable zerohi, zerolo : std_ulogic;
@@ -1111,6 +1114,35 @@ begin
                 -- mfvsrld
                 vector_result <= e_in.lo_read_data3;
                 vector_res_lo <= (others => '0');
+            when "010" =>
+                -- vand[c], vor[c], etc.
+                -- use 'is_signed' flag to indicate inversion of B
+                a_inv_lo := e_in.lo_read_data1;
+                if e_in.invert_a = '1' then
+                    a_inv_lo := not e_in.lo_read_data1;
+                end if;
+                b_inv := b_in;
+                b_inv_lo := e_in.lo_read_data2;
+                if e_in.is_signed = '1' then
+                    b_inv := not b_in;
+                    b_inv_lo := not e_in.lo_read_data2;
+                end if;
+                vlog_result := a_inv and b_inv;
+                vlog_res_lo := a_inv_lo and b_inv_lo;
+                if e_in.invert_out = '1' then
+                    vlog_result := not vlog_result;
+                    vlog_res_lo := not vlog_res_lo;
+                end if;
+                vector_result <= vlog_result;
+                vector_res_lo <= vlog_res_lo;
+            when "011" =>
+                -- vxor, veqv
+                a_inv_lo := e_in.lo_read_data1;
+                if e_in.invert_a = '1' then
+                    a_inv_lo := not e_in.lo_read_data1;
+                end if;
+                vector_result <= a_inv xor b_in;
+                vector_res_lo <= a_inv_lo xor e_in.lo_read_data2;
             when others =>
                 vector_result <= (others => '0');
                 vector_res_lo <= (others => '0');

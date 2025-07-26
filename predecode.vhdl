@@ -677,12 +677,29 @@ architecture behaviour of predecoder is
         others => (NR, NR, NR,   INSN_illegal)
         );
 
+    -- Primary opcode 4, columns 0 to 15 (where the column index is
+    -- bits 5:0 of the instruction) contains vector instructions.
+    -- This is indexed by bits 10:6 and 3:0.
+    type vector_predecode_rom_t is array(0 to 511) of predec_insn;
+    constant vector_predecode_rom : vector_predecode_rom_t := (
+        2#10000_0100# => (VA, VB, NR, INSN_vand),
+        2#10001_0100# => (VA, VB, NR, INSN_vandc),
+        2#10010_0100# => (VA, VB, NR, INSN_vor),
+        2#10011_0100# => (VA, VB, NR, INSN_vxor),
+        2#10100_0100# => (VA, VB, NR, INSN_vnor),
+        2#10101_0100# => (VA, VB, NR, INSN_vorc),
+        2#10110_0100# => (VA, VB, NR, INSN_vnand),
+        2#11010_0100# => (VA, VB, NR, INSN_veqv),
+        others        => (NR, NR, NR, INSN_illegal)
+        );
+
     constant IOUT_LEN : natural := ICODE_LEN + IMAGE_LEN;
 
     type predec_t is record
         image         : std_ulogic_vector(31 downto 0);
         maj_predecode : predec_insn;
         row_predecode : predec_insn;
+        vec_predecode : predec_insn;
     end record;
 
     subtype index_t is integer range 0 to WIDTH-1;
@@ -713,6 +730,7 @@ begin
     predecode_0: process(clk)
         variable majaddr  : std_ulogic_vector(10 downto 0);
         variable rowaddr  : std_ulogic_vector(10 downto 0);
+        variable vecaddr  : std_ulogic_vector(8 downto 0);
         variable iword    : std_ulogic_vector(31 downto 0);
     begin
         if rising_edge(clk) then
@@ -761,8 +779,12 @@ begin
                         end if;
                         rowaddr(2 downto 0) := iword(3 downto 1);
 
+                        -- vector_predecode_rom is used for primary opcode 4
+                        vecaddr := iword(10 downto 6) & iword(3 downto 0);
+
                         pred(i).maj_predecode <= major_predecode_rom(to_integer(unsigned(majaddr)));
                         pred(i).row_predecode <= row_predecode_rom(to_integer(unsigned(rowaddr)));
+                        pred(i).vec_predecode <= vector_predecode_rom(to_integer(unsigned(vecaddr)));
                     end if;
                 end loop;
 
@@ -777,6 +799,7 @@ begin
         variable use_row  : std_ulogic;
         variable illegal  : std_ulogic;
         variable use_pref : std_ulogic;
+        variable use_vec  : std_ulogic;
         variable icode    : predec_insn;
         variable ovalid   : std_ulogic;
         variable suffix   : std_ulogic_vector(5 downto 0);
@@ -787,6 +810,7 @@ begin
             iword := pred(i).image;
             icode := pred(i).maj_predecode;
             use_row := '0';
+            use_vec := '0';
             illegal := '0';
             use_pref := '0';
             suffix := (others => '0');
@@ -838,7 +862,12 @@ begin
 
                 when "000100" => -- 4
                     -- major opcode 4, mostly VMX/VSX stuff but also some integer ops (madd*)
-                    illegal := not iword(5);
+                    -- 64 columns indexed by bits 5..0; columns 32..63 are in major table
+                    -- Columns 0..15 are in vector table, 16..31 are not currently decoded
+                    if iword(5) = '0' then
+                        use_vec := not iword(4);
+                        illegal := iword(4);
+                    end if;
 
                 when "010000" => -- 16
                     class := iclass_direct_br_cond;
@@ -885,6 +914,8 @@ begin
             end case;
             if use_row = '1' then
                 icode := pred(i).row_predecode;
+            elsif use_vec = '1' then
+                icode := pred(i).vec_predecode;
             end if;
 
             -- Mark FP instructions as illegal if we don't have an FPU

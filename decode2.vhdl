@@ -94,7 +94,7 @@ architecture behaviour of decode2 is
             return '1';
         elsif t = CIA or (t = RA0_OR_CIA and insn_prefix_r(prefix) = '1') then
             return '0';
-        elsif t = FRA then
+        elsif t >= FRA then
             return '1';
         else
             return '0';
@@ -154,7 +154,7 @@ architecture behaviour of decode2 is
         return std_ulogic is
     begin
         case t is
-            when RB | FRB =>
+            when RB | FRB | VRB =>
                 return '1';
             when IMM =>
                 return '0';

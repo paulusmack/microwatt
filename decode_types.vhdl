@@ -472,7 +472,17 @@ package decode_types is
         INSN_mtvsrwa,
         INSN_mtvsrwz,
         INSN_mtvsrws,
-        INSN_mtvsrdd -- 450
+        INSN_mtvsrdd, -- 450
+
+        -- Vector ops
+        INSN_vand,
+        INSN_vandc,
+        INSN_vnand,
+        INSN_vor,
+        INSN_vorc,
+        INSN_vnor,
+        INSN_vxor,
+        INSN_veqv
         );
 
     constant INSN_first_frs : insn_code := INSN_stfd;
@@ -508,8 +518,8 @@ package decode_types is
     -- Instruction code (insn_code above), 10 bits (though only 9 used at present)
 
     -- Fields in the main decode table
-    type input_reg_a_t is (NONE, RA, RA_OR_ZERO, RA0_OR_CIA, CIA, FRA);
-    type input_reg_b_t is (IMM, RB, FRB);
+    type input_reg_a_t is (NONE, RA, RA_OR_ZERO, RA0_OR_CIA, CIA, FRA, VRA);
+    type input_reg_b_t is (IMM, RB, FRB, VRB);
     type const_sel_t is   (NONE, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
                            CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI);
     type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRS, XS);
@@ -984,6 +994,14 @@ package body decode_types is
             when INSN_pld       => return "000001";
             when INSN_pstq      => return "000001";
             when INSN_pstd      => return "000001";
+            when INSN_vand      => return "000100";
+            when INSN_vandc     => return "000100";
+            when INSN_vnand     => return "000100";
+            when INSN_vor       => return "000100";
+            when INSN_vorc      => return "000100";
+            when INSN_vnor      => return "000100";
+            when INSN_vxor      => return "000100";
+            when INSN_veqv      => return "000100";
             when others         => return "XXXXXX";
         end case;
     end;

@@ -154,7 +154,7 @@ architecture behaviour of decode2 is
         return std_ulogic is
     begin
         case t is
-            when RB | FRB =>
+            when RB | FRB | VRB =>
                 return '1';
             when IMM =>
                 return '0';
@@ -165,7 +165,7 @@ architecture behaviour of decode2 is
         return std_ulogic is
     begin
         case t is
-            when RS | RCR | FRS | FRC | VRS | XS =>
+            when RS | RCR | FRS | FRC | VRS | XS | VRA =>
                 return '1';
             when NONE =>
                 return '0';

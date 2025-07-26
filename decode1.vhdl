@@ -458,6 +458,14 @@ architecture behaviour of decode1 is
         INSN_tlbsync     =>  (ALU,  NONE, OP_NOP,       NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', '0', NONE),
         INSN_tw          =>  (ALU,  NONE, OP_TRAP,      RA,         RB,  NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', '0', NONE),
         INSN_twi         =>  (ALU,  NONE, OP_TRAP,      RA,         IMM, CONST_SI,    NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', '0', NONE),
+        INSN_vand        =>  (ALU,  NONE, OP_COMPUTE,   NONE,       VRB, NONE,        VRA,  VRT,  LOG, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVR),
+        INSN_vandc       =>  (ALU,  NONE, OP_COMPUTE,   NONE,       VRB, NONE,        VRA,  VRT,  LOG, "000", '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVR),
+        INSN_veqv        =>  (ALU,  NONE, OP_COMPUTE,   NONE,       VRB, NONE,        VRA,  VRT,  LOG, "001", '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVR),
+        INSN_vnand       =>  (ALU,  NONE, OP_COMPUTE,   NONE,       VRB, NONE,        VRA,  VRT,  LOG, "000", '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVR),
+        INSN_vnor        =>  (ALU,  NONE, OP_COMPUTE,   NONE,       VRB, NONE,        VRA,  VRT,  LOG, "000", '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', DVR),
+        INSN_vor         =>  (ALU,  NONE, OP_COMPUTE,   NONE,       VRB, NONE,        VRA,  VRT,  LOG, "000", '0', '0', '1', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', DVR),
+        INSN_vorc        =>  (ALU,  NONE, OP_COMPUTE,   NONE,       VRB, NONE,        VRA,  VRT,  LOG, "000", '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', DVR),
+        INSN_vxor        =>  (ALU,  NONE, OP_COMPUTE,   NONE,       VRB, NONE,        VRA,  VRT,  LOG, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVR),
         INSN_wait        =>  (ALU,  NONE, OP_WAIT,      NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '1', NONE),
         INSN_xor         =>  (ALU,  NONE, OP_COMPUTE,   NONE,       RB,  NONE,        RS,   RA,   LOG, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', '0', NONE),
         INSN_xori        =>  (ALU,  NONE, OP_COMPUTE,   NONE,       IMM, CONST_UI,    RS,   RA,   LOG, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
@@ -801,6 +809,9 @@ begin
                     vr.reg_3_addr(0) := not r.reg_c(0);
                 when DVR | DVRE | DVRR =>
                     vr.reg_3_addr(5) := not r.reg_c(5);
+                    if decode.input_reg_b = VRB then
+                        vr.reg_2_addr(5) := not r.reg_b(5);
+                    end if;
                 when others =>
             end case;
         end if;

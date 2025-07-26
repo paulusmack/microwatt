@@ -482,7 +482,17 @@ package decode_types is
         INSN_vorc,
         INSN_vnor,
         INSN_vxor,
-        INSN_veqv
+        INSN_veqv,
+
+        -- VSX ops
+        INSN_xxland,
+        INSN_xxlandc,
+        INSN_xxlor,
+        INSN_xxlxor,
+        INSN_xxlnor,
+        INSN_xxlorc,
+        INSN_xxlnand,
+        INSN_xxleqv
         );
 
     constant INSN_first_frs : insn_code := INSN_stfd;
@@ -519,10 +529,10 @@ package decode_types is
 
     -- Fields in the main decode table
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, RA0_OR_CIA, CIA, FRA);
-    type input_reg_b_t is (IMM, RB, FRB, VRB);
+    type input_reg_b_t is (IMM, RB, FRB, VRB, XB);
     type const_sel_t is   (NONE, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
                            CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI);
-    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRS, XS, VRA);
+    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRS, XS, VRA, XA);
     type output_reg_a_t is (NONE, RT, RA, FRT, VRT, XT, XT3, XT26);
     type rc_t is (NONE, ONE, RC, RCOE);
     type carry_in_t is (ZERO, CA, OV, ONE);
@@ -1005,6 +1015,14 @@ package body decode_types is
             when INSN_vnor      => return "000100";
             when INSN_vxor      => return "000100";
             when INSN_veqv      => return "000100";
+            when INSN_xxland    => return "111100";
+            when INSN_xxlandc   => return "111100";
+            when INSN_xxlnand   => return "111100";
+            when INSN_xxlor     => return "111100";
+            when INSN_xxlorc    => return "111100";
+            when INSN_xxlnor    => return "111100";
+            when INSN_xxlxor    => return "111100";
+            when INSN_xxleqv    => return "111100";
             when others         => return "XXXXXX";
         end case;
     end;

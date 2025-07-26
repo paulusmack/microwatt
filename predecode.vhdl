@@ -693,6 +693,21 @@ architecture behaviour of predecoder is
         others        => (NR, NR, NR, INSN_illegal)
         );
 
+    -- Primary opcode 60, columns 0 to 30 by 2 (column index
+    -- is bits 5:1 of the instruction), indexed by bits 10:2
+    type vsx_predecode_rom_t is array(0 to 511) of predec_insn;
+    constant vsx_predecode_rom : vsx_predecode_rom_t := (
+        2#10000_0100# to 2#10000_0101# => (XA, XB, NR, INSN_xxland),
+        2#10001_0100# to 2#10001_0101# => (XA, XB, NR, INSN_xxlandc),
+        2#10010_0100# to 2#10010_0101# => (XA, XB, NR, INSN_xxlor),
+        2#10011_0100# to 2#10011_0101# => (XA, XB, NR, INSN_xxlxor),
+        2#10100_0100# to 2#10100_0101# => (XA, XB, NR, INSN_xxlnor),
+        2#10101_0100# to 2#10101_0101# => (XA, XB, NR, INSN_xxlorc),
+        2#10110_0100# to 2#10110_0101# => (XA, XB, NR, INSN_xxlnand),
+        2#10111_0100# to 2#10111_0101# => (XA, XB, NR, INSN_xxleqv),
+        others                         => (NR, NR, NR, INSN_illegal)
+        );
+
     constant IOUT_LEN : natural := ICODE_LEN + IMAGE_LEN;
 
     type predec_t is record
@@ -700,6 +715,7 @@ architecture behaviour of predecoder is
         maj_predecode : predec_insn;
         row_predecode : predec_insn;
         vec_predecode : predec_insn;
+        vsx_predecode : predec_insn;
     end record;
 
     subtype index_t is integer range 0 to WIDTH-1;
@@ -731,6 +747,7 @@ begin
         variable majaddr  : std_ulogic_vector(10 downto 0);
         variable rowaddr  : std_ulogic_vector(10 downto 0);
         variable vecaddr  : std_ulogic_vector(8 downto 0);
+        variable vsxaddr  : std_ulogic_vector(8 downto 0);
         variable iword    : std_ulogic_vector(31 downto 0);
     begin
         if rising_edge(clk) then
@@ -782,9 +799,13 @@ begin
                         -- vector_predecode_rom is used for primary opcode 4
                         vecaddr := iword(10 downto 6) & iword(3 downto 0);
 
+                        -- vsx_predecode_rom is used for primary opcode 60
+                        vsxaddr := iword(10 downto 6) & iword(5 downto 2);
+
                         pred(i).maj_predecode <= major_predecode_rom(to_integer(unsigned(majaddr)));
                         pred(i).row_predecode <= row_predecode_rom(to_integer(unsigned(rowaddr)));
                         pred(i).vec_predecode <= vector_predecode_rom(to_integer(unsigned(vecaddr)));
+                        pred(i).vsx_predecode <= vsx_predecode_rom(to_integer(unsigned(vsxaddr)));
                     end if;
                 end loop;
 
@@ -800,6 +821,7 @@ begin
         variable illegal  : std_ulogic;
         variable use_pref : std_ulogic;
         variable use_vec  : std_ulogic;
+        variable use_vsx  : std_ulogic;
         variable icode    : predec_insn;
         variable ovalid   : std_ulogic;
         variable suffix   : std_ulogic_vector(5 downto 0);
@@ -811,6 +833,7 @@ begin
             icode := pred(i).maj_predecode;
             use_row := '0';
             use_vec := '0';
+            use_vsx := '0';
             illegal := '0';
             use_pref := '0';
             suffix := (others => '0');
@@ -865,7 +888,7 @@ begin
                     -- 64 columns indexed by bits 5..0; columns 32..63 are in major table
                     -- Columns 0..15 are in vector table, 16..31 are not currently decoded
                     if iword(5) = '0' then
-                        use_vec := not iword(4);
+                        use_vec := '1';
                         illegal := iword(4);
                     end if;
 
@@ -904,6 +927,11 @@ begin
                     illegal := not iword(5) and (not iword(4) or not iword(3));
                     use_row := not iword(5);
 
+                when "111100" => -- 60
+                    -- VSX instructions
+                    -- The XPND060 tables are not handled as yet.
+                    use_vsx := '1';
+
                 when "111111" => -- 63
                     -- floating point operations, general and double-precision
                     -- Use columns 0-15 of the second half of the row table
@@ -916,6 +944,8 @@ begin
                 icode := pred(i).row_predecode;
             elsif use_vec = '1' then
                 icode := pred(i).vec_predecode;
+            elsif use_vsx = '1' then
+                icode := pred(i).vsx_predecode;
             end if;
 
             -- Mark FP instructions as illegal if we don't have an FPU

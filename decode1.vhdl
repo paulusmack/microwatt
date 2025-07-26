@@ -476,6 +476,14 @@ architecture behaviour of decode1 is
         INSN_xor         =>  (ALU,  NONE, OP_COMPUTE,   NONE,       RB,  NONE,        RS,   RA,   LOG, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', '0', NONE),
         INSN_xori        =>  (ALU,  NONE, OP_COMPUTE,   NONE,       IMM, CONST_UI,    RS,   RA,   LOG, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_xoris       =>  (ALU,  NONE, OP_COMPUTE,   NONE,       IMM, CONST_UI_HI, RS,   RA,   LOG, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_xxland      =>  (ALU,  VSX,  OP_COMPUTE,   XA,         XB,  NONE,        NONE, XT,   VEC, "010", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_xxlandc     =>  (ALU,  VSX,  OP_COMPUTE,   XA,         XB,  NONE,        NONE, XT,   VEC, "010", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', NONE),
+        INSN_xxleqv      =>  (ALU,  VSX,  OP_COMPUTE,   XA,         XB,  NONE,        NONE, XT,   VEC, "011", '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_xxlnand     =>  (ALU,  VSX,  OP_COMPUTE,   XA,         XB,  NONE,        NONE, XT,   VEC, "010", '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_xxlnor      =>  (ALU,  VSX,  OP_COMPUTE,   XA,         XB,  NONE,        NONE, XT,   VEC, "010", '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', NONE),
+        INSN_xxlor       =>  (ALU,  VSX,  OP_COMPUTE,   XA,         XB,  NONE,        NONE, XT,   VEC, "010", '0', '0', '1', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', NONE),
+        INSN_xxlorc      =>  (ALU,  VSX,  OP_COMPUTE,   XA,         XB,  NONE,        NONE, XT,   VEC, "010", '0', '0', '1', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_xxlxor      =>  (ALU,  VSX,  OP_COMPUTE,   XA,         XB,  NONE,        NONE, XT,   VEC, "011", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
 
         others           =>  (ALU,  NONE, OP_ILLEGAL,   NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE)
         );

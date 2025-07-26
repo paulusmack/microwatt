@@ -64,6 +64,8 @@ begin
     vector_dp: process(all)
         variable mtvsr_result : std_ulogic_vector(63 downto 0);
         variable negative : std_ulogic;
+        variable a_inv, b_inv : std_ulogic_vector(127 downto 0);
+        variable vlog_result : std_ulogic_vector(127 downto 0);
     begin
         vec_result <= (others => '0');
         case e_in.sub_select is
@@ -95,6 +97,29 @@ begin
                 if e_in.is_32bit = '1' then
                     vec_result(127 downto 96) <= (others => '0');
                 end if;
+            when "010" =>
+                -- vand[c], vor[c], etc.
+                -- use 'is_signed' flag to indicate inversion of B
+                a_inv := a_in;
+                if e_in.invert_a = '1' then
+                    a_inv := not a_in;
+                end if;
+                b_inv := b_in;
+                if e_in.is_signed = '1' then
+                    b_inv := not b_in;
+                end if;
+                vlog_result := a_inv and b_inv;
+                if e_in.invert_out = '1' then
+                    vlog_result := not vlog_result;
+                end if;
+                vec_result <= vlog_result;
+            when "011" =>
+                -- vxor, veqv
+                a_inv := a_in;
+                if e_in.invert_a = '1' then
+                    a_inv := not a_in;
+                end if;
+                vec_result <= a_inv xor b_in;
             when others =>
         end case;
     end process;

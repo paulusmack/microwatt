@@ -466,6 +466,14 @@ architecture behaviour of decode1 is
         INSN_tlbsync     =>  (ALU,  NONE, OP_NOP,       NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', '0', NONE),
         INSN_tw          =>  (ALU,  NONE, OP_TRAP,      RA,         RB,  NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', '0', NONE),
         INSN_twi         =>  (ALU,  NONE, OP_TRAP,      RA,         IMM, CONST_SI,    NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', '0', NONE),
+        INSN_vand        =>  (VSU,  VEC,  OP_COMPUTE,   VRA,        VRB, NONE,        NONE, VRT,  LOG, "010", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_vandc       =>  (VSU,  VEC,  OP_COMPUTE,   VRA,        VRB, NONE,        NONE, VRT,  LOG, "010", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', NONE),
+        INSN_veqv        =>  (VSU,  VEC,  OP_COMPUTE,   VRA,        VRB, NONE,        NONE, VRT,  LOG, "011", '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_vnand       =>  (VSU,  VEC,  OP_COMPUTE,   VRA,        VRB, NONE,        NONE, VRT,  LOG, "010", '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_vnor        =>  (VSU,  VEC,  OP_COMPUTE,   VRA,        VRB, NONE,        NONE, VRT,  LOG, "010", '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', NONE),
+        INSN_vor         =>  (VSU,  VEC,  OP_COMPUTE,   VRA,        VRB, NONE,        NONE, VRT,  LOG, "010", '0', '0', '1', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', NONE),
+        INSN_vorc        =>  (VSU,  VEC,  OP_COMPUTE,   VRA,        VRB, NONE,        NONE, VRT,  LOG, "010", '0', '0', '1', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_vxor        =>  (VSU,  VEC,  OP_COMPUTE,   VRA,        VRB, NONE,        NONE, VRT,  LOG, "011", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_wait        =>  (ALU,  NONE, OP_WAIT,      NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '1', NONE),
         INSN_xor         =>  (ALU,  NONE, OP_COMPUTE,   NONE,       RB,  NONE,        RS,   RA,   LOG, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', '0', NONE),
         INSN_xori        =>  (ALU,  NONE, OP_COMPUTE,   NONE,       IMM, CONST_UI,    RS,   RA,   LOG, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
@@ -626,6 +634,8 @@ begin
                     end if;
                 else
                     r.second <= '1';
+                    r.reg_a <= rin.reg_a;
+                    r.reg_b <= rin.reg_b;
                     r.reg_c <= rin.reg_c;
                 end if;
             end if;

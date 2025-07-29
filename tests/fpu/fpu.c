@@ -476,8 +476,14 @@ int test6(long arg)
 		    results[2] != (v & ~SIGN) ||
 		    results[3] != (v | SIGN) ||
 		    results[4] != (v & ~SIGN) ||
-		    results[5] != (v | SIGN))
+		    results[5] != (v | SIGN)) {
+			long j;
+			print_string("v=");
+			print_hex(v, 16, " res=");
+			for (j = 0; j < 6; ++j)
+				print_hex(results[j], 16, " ");
 			return i + 1;
+		}
 		if (get_fpscr() != 0)
 			return i + 0x101;
 	}

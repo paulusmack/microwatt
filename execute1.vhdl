@@ -1986,9 +1986,12 @@ begin
         -- Outputs to FPU
         fv.op := e_in.insn_type;
         fv.insn := e_in.insn;
+        fv.subsel := e_in.sub_select;
         fv.itag := e_in.instr_tag;
         fv.single := e_in.is_32bit;
         fv.is_signed := e_in.is_signed;
+        fv.negate_b := e_in.invert_a;
+        fv.negate := e_in.invert_out;
         fv.fe_mode := ex1.msr(MSR_FE0) & ex1.msr(MSR_FE1);
         fv.fra := a_in;
         fv.frb := b_in;

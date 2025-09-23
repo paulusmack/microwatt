@@ -61,7 +61,7 @@ entity core is
         run_out          : out std_ulogic;
 	terminated_out   : out std_logic;
 
-        core_mode       : out std_ulogic_vector(3 downto 0)
+        core_mode       : out std_ulogic_vector(4 downto 0)
         );
 end core;
 
@@ -448,6 +448,7 @@ begin
             log_rd_data => log_rd_data,
             log_wr_addr => log_wr_addr
             );
+    core_mode(2) <= ctrl_debug.emu_mode;
     core_mode(1) <= ctrl_debug.wait_state;
     core_mode(0) <= ctrl_debug.msr(MSR_PR);
 
@@ -517,7 +518,7 @@ begin
             d_out => mmu_to_dcache,
             d_in => dcache_to_mmu,
             i_out => mmu_to_itlb,
-            busy_out => core_mode(2),
+            busy_out => core_mode(3),
             ev => mmu_events
             );
 
@@ -543,7 +544,7 @@ begin
             wishbone_out => wishbone_data_out,
             snoop_in => wb_snoop_in,
             events => dcache_events,
-            busy_out => core_mode(3),
+            busy_out => core_mode(4),
             log_out => log_data(170 downto 151)
             );
 

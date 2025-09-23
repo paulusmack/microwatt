@@ -272,7 +272,7 @@ architecture behaviour of toplevel is
     signal uart1_rxd : std_ulogic;
     signal uart1_txd : std_ulogic;
 
-    signal core_modes : std_ulogic_vector(CPUS * 4 - 1 downto 0);
+    signal core_modes : std_ulogic_vector(CPUS * 5 - 1 downto 0);
 
     -- Fixup various memory sizes based on generics
     function get_bram_size return natural is
@@ -976,11 +976,11 @@ begin
         led_g_pwm(0) <= rgb(1);
         led_b_pwm(0) <= rgb(0);
         if CPUS > 1 then
-            led_r_pwm(1) <= core_modes(2) or core_modes(6);
-            led_b_pwm(1) <= core_modes(3) or core_modes(7);
+            led_r_pwm(1) <= core_modes(3) or core_modes(8);
+            led_b_pwm(1) <= core_modes(4) or core_modes(9);
         else
-            led_r_pwm(1) <= core_modes(2);
-            led_b_pwm(1) <= core_modes(3);
+            led_r_pwm(1) <= core_modes(3);
+            led_b_pwm(1) <= core_modes(4);
         end if;
     end process;
 
@@ -1004,11 +1004,11 @@ begin
     led5 <= disk_activity;
     led6 <= run_outs(1) when CPUS > 1 else '0';
     led7 <= run_outs(0);
-    led_r_pwm(2) <= '0';
-    led_r_pwm(3) <= '0';
-    led_g_pwm(2) <= (core_modes(4) and not core_modes(5)) when CPUS > 1 else '0';
+    led_r_pwm(2) <= (core_modes(7) and not core_modes(6)) when CPUS > 1 else '0';
+    led_r_pwm(3) <= (core_modes(2) and not core_modes(1));
+    led_g_pwm(2) <= (core_modes(5) and not core_modes(6)) when CPUS > 1 else '0';
     led_g_pwm(3) <= (core_modes(0) and not core_modes(1));
-    led_b_pwm(2) <= (not core_modes(4) and not core_modes(5)) when CPUS > 1 else '0';
+    led_b_pwm(2) <= (not core_modes(5) and not core_modes(6)) when CPUS > 1 else '0';
     led_b_pwm(3) <= (not core_modes(0) and not core_modes(1));
 
     -- GPIO

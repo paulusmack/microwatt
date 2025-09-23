@@ -222,7 +222,7 @@ architecture behaviour of toplevel is
     signal init_done     : std_ulogic;
     signal init_err      : std_ulogic;
     signal run_out       : std_ulogic;
-    signal core_mode     : std_ulogic_vector(3 downto 0);
+    signal core_mode     : std_ulogic_vector(4 downto 0);
     signal disk_activity : std_ulogic := '0';
 
     -- Fixup various memory sizes based on generics
@@ -698,14 +698,14 @@ begin
         led8_b_n <= not rgb(0);
     end process;
 
-    led5_r_n <= not '0';
+    led5_r_n <= not (core_mode(2) and not core_mode(1));
     led5_g_n <= not (core_mode(0) and not core_mode(1));
     led5_b_n <= not (not core_mode(0) and not core_mode(1));
     led6_r_n <= not disk_activity;
     led6_g_n <= not disk_activity;
     led6_b_n <= not disk_activity;
-    led7_r_n <= not core_mode(2);
+    led7_r_n <= not core_mode(3);
     led7_g_n <= not '0';
-    led7_b_n <= not core_mode(3);
+    led7_b_n <= not core_mode(4);
 
 end architecture behaviour;

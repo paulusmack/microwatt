@@ -206,7 +206,7 @@ package common is
 
     constant SPRSEL_ZERO  : spr_selector := 4x"0";
     constant SPRSEL_TB    : spr_selector := 4x"1";
-    constant SPRSEL_TBU   : spr_selector := 4x"2";
+    constant SPRSEL_EMUC  : spr_selector := 4x"2";
     constant SPRSEL_DEC   : spr_selector := 4x"3";
     constant SPRSEL_PVR   : spr_selector := 4x"4";
     constant SPRSEL_LOGR  : spr_selector := 4x"5";
@@ -319,6 +319,7 @@ package common is
     type ctrl_t is record
         wait_state: std_ulogic;
         run: std_ulogic;
+        emu_mode: std_ulogic;
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
         cfar: std_ulogic_vector(63 downto 0);
@@ -343,7 +344,7 @@ package common is
         lpcr_hvice: std_ulogic;
     end record;
     constant ctrl_t_init : ctrl_t :=
-        (wait_state => '0', run => '1', xer_low => 18x"0",
+        (wait_state => '0', run => '1', emu_mode => '0', xer_low => 18x"0",
          fscr_ic => x"0", fscr_pref => '1', fscr_scv => '1', fscr_tar => '1', fscr_dscr => '1',
          dscr => (others => '0'),
          dexcr_pnh => aspect_bits_init, dexcr_pro => aspect_bits_init,
@@ -364,6 +365,7 @@ package common is
         virt_mode : std_ulogic;
         priv_mode : std_ulogic;
         big_endian : std_ulogic;
+        emu_mode : std_ulogic;
 	stop_mark: std_ulogic;
         predicted : std_ulogic;
         pred_ntaken : std_ulogic;
@@ -380,6 +382,7 @@ package common is
 	nia: std_ulogic_vector(63 downto 0);
 	insn: std_ulogic_vector(47 downto 0);
         big_endian: std_ulogic;
+        emu_mode: std_ulogic;
         next_predicted: std_ulogic;
         next_pred_ntaken: std_ulogic;
     end record;
@@ -403,6 +406,7 @@ package common is
 	decode: decode_rom_t;
         br_pred: std_ulogic; -- Branch was predicted to be taken
         big_endian: std_ulogic;
+        emu_mode: std_ulogic;
         spr_info : spr_id;
         ram_spr : ram_spr_info;
         reg_a : gspr_index_t;
@@ -413,7 +417,7 @@ package common is
         (valid => '0', stop_mark => '0', second => '0', nia => (others => '0'),
          prefixed => '0', prefix => (others => '0'), insn => (others => '0'),
          misaligned_prefix => '0',
-         decode => decode_rom_init, br_pred => '0', big_endian => '0',
+         decode => decode_rom_init, br_pred => '0', big_endian => '0', emu_mode => '0',
          spr_info => spr_id_init, ram_spr => ram_spr_info_init,
          reg_a => (others => '0'), reg_b => (others => '0'), reg_c => (others => '0'));
 
@@ -517,6 +521,7 @@ package common is
         rot_clear_right : std_ulogic;
         rot_sign_ext : std_ulogic;
         do_popcnt : std_ulogic;
+        emu_mode : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
 	(valid => '0', unit => ALU, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
@@ -541,7 +546,7 @@ package common is
          privileged => '0', prefixed => '0', prefix => (others => '0'),
          misaligned_prefix => '0', illegal_form => '0', uses_tar => '0', uses_dscr => '0',
          right_shift => '0', rot_clear_left => '0', rot_clear_right => '0', rot_sign_ext => '0',
-         do_popcnt => '0',
+         do_popcnt => '0', emu_mode => '0',
          others => (others => '0'));
 
     type MultiplyInputType is record
@@ -853,6 +858,7 @@ package common is
         intr_vec : intr_vector_t;
 	redirect: std_ulogic;
         redir_mode: std_ulogic_vector(3 downto 0);
+        emu_mode: std_ulogic;
         last_nia: std_ulogic_vector(63 downto 0);
         br_last: std_ulogic;
         br_taken: std_ulogic;
@@ -867,7 +873,7 @@ package common is
          write_cr_mask => (others => '0'), write_cr_data => (others => '0'),
          write_reg => (others => '0'),
          interrupt => '0', alt_intr => '0', hv_intr => '0', is_scv => '0', intr_vec => 0,
-         redirect => '0', redir_mode => "0000",
+         redirect => '0', redir_mode => "0000", emu_mode => '0',
          last_nia => (others => '0'),
          br_last => '0', br_taken => '0', abs_br => '0',
          srr1 => (others => '0'));
@@ -954,6 +960,7 @@ package common is
         priv_mode: std_ulogic;
         big_endian: std_ulogic;
         mode_32bit: std_ulogic;
+        emu_mode: std_ulogic;
 	redirect_nia: std_ulogic_vector(63 downto 0);
         br_nia : std_ulogic_vector(63 downto 0);
         br_last : std_ulogic;
@@ -964,7 +971,7 @@ package common is
     end record;
     constant WritebackToFetch1Init : WritebackToFetch1Type :=
         (redirect => '0', virt_mode => '0', priv_mode => '0', big_endian => '0',
-         mode_32bit => '0', redirect_nia => (others => '0'),
+         mode_32bit => '0', emu_mode => '0', redirect_nia => (others => '0'),
          br_last => '0', br_taken => '0', br_nia => (others => '0'),
          interrupt => '0', alt_intr => '0', intr_vec => 64x"0");
 

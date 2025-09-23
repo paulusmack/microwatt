@@ -172,14 +172,19 @@ architecture behaviour of decode2 is
         end case;
     end;
 
-    function decode_output_reg (t : output_reg_a_t; insn_in : std_ulogic_vector(31 downto 0))
-        return decode_output_reg_t is
+    function decode_output_reg (t : output_reg_a_t; insn_in : std_ulogic_vector(31 downto 0);
+                                emu_mode : std_ulogic) return decode_output_reg_t is
+        variable r : gspr_index_t;
     begin
         case t is
             when RT =>
-                return ('1', gpr_to_gspr(insn_rt(insn_in)));
+                r := gpr_to_gspr(insn_rt(insn_in));
+                r(5) := emu_mode;
+                return ('1', r);
             when RA =>
-                return ('1', gpr_to_gspr(insn_ra(insn_in)));
+                r := gpr_to_gspr(insn_ra(insn_in));
+                r(5) := emu_mode;
+                return ('1', r);
             when FRT =>
                 if HAS_FPU then
                     return ('1', fpr_to_gspr(insn_frt(insn_in)));
@@ -372,7 +377,7 @@ begin
         dec_b.reg := d_in.reg_b;
         dec_c.reg_valid := decode_input_reg_c (d_in.decode.input_reg_c);
         dec_c.reg := d_in.reg_c;
-        dec_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn);
+        dec_o := decode_output_reg (d_in.decode.output_reg_a, d_in.insn, d_in.emu_mode);
         case d_in.decode.repeat is
             when DUPD =>
                 if d_in.second = '1' then
@@ -674,9 +679,10 @@ begin
             if (op = OP_MFSPR or op = OP_MTSPR) and d_in.insn(20) = '1' then
                 v.e.privileged := '1';
             end if;
+            v.e.emu_mode := d_in.emu_mode;
             -- Reading TB is privileged if syscon_tb_ctrl.rd_protect is 1
             if tb_ctrl.rd_prot = '1' and op = OP_MFSPR and d_in.spr_info.valid = '1' and
-                 (d_in.spr_info.sel = SPRSEL_TB or d_in.spr_info.sel = SPRSEL_TBU) then
+                d_in.spr_info.sel = SPRSEL_TB then
                 v.e.privileged := '1';
             end if;
             v.e.prefixed := d_in.prefixed;

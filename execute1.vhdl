@@ -112,6 +112,7 @@ architecture behaviour of execute1 is
         write_tbu : std_ulogic;
         send_hmsg : std_ulogic_vector(NCPUS-1 downto 0);
         clr_hmsg : std_ulogic;
+        write_emuc : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (send_hmsg => (others => '0'), others => '0');
 
@@ -179,6 +180,7 @@ architecture behaviour of execute1 is
         ramspr_wraddr : ramspr_index;
         spr_write_data : std_ulogic_vector(63 downto 0);
         ic : std_ulogic_vector(3 downto 0);
+        emu_mode : std_ulogic;
         prefixed : std_ulogic;
         insn : std_ulogic_vector(31 downto 0);
         prefix : std_ulogic_vector(25 downto 0);
@@ -199,7 +201,7 @@ architecture behaviour of execute1 is
          msr => 64x"0",
          xerc => xerc_init, xerc_valid => '0',
          ramspr_wraddr => (others => '0'), spr_write_data => 64x"0",
-         ic => x"0",
+         ic => x"0", emu_mode => '0',
          prefixed => '0', insn => 32x"0", prefix => 26x"0");
 
     type reg_stage2_type is record
@@ -487,6 +489,20 @@ architecture behaviour of execute1 is
             return c.dec;
         else
             return 32x"0" & c.dec(31 downto 0);
+        end if;
+    end;
+
+    function assemble_emuctrl(c: ctrl_t) return std_ulogic_vector is
+    begin
+        return 63x"0" & c.emu_mode;
+    end;
+
+    function hiorlo(tb: std_ulogic_vector(63 downto 0); hi: std_ulogic) return std_ulogic_vector is
+    begin
+        if hi = '0' then
+            return tb;
+        else
+            return 32x"0" & tb(63 downto 32);
         end if;
     end;
 
@@ -826,7 +842,7 @@ begin
                         " op=" & insn_type_t'image(e_in.insn_type) &
                         " wr=" & to_hstring(ex1in.e.write_reg) & " we=" & std_ulogic'image(ex1in.e.write_enable) &
                         " tag=" & integer'image(ex1in.e.instr_tag.tag) & std_ulogic'image(ex1in.e.instr_tag.valid) &
-                        " 2nd=" & std_ulogic'image(e_in.second);
+                        " 2nd=" & std_ulogic'image(e_in.second) & " emu=" & std_ulogic'image(e_in.emu_mode);
                 end if;
                 -- We mustn't get stalled on a cycle where execute2 is
                 -- completing an instruction or generating an interrupt
@@ -1620,6 +1636,8 @@ begin
                             v.se.write_xerlow := '1';
                         when SPRSEL_DEC =>
                             v.se.write_dec := '1';
+                        when SPRSEL_EMUC =>
+                            v.se.write_emuc := '1';
                         when SPRSEL_LOGR =>
                             -- must be writing LOG_ADDR; LOG_DATA is readonly
                             v.se.write_loga := '1';
@@ -1638,9 +1656,8 @@ begin
                         when SPRSEL_CIABR =>
                             v.se.write_ciabr := '1';
                         when SPRSEL_TB =>
-                            v.se.write_tbl := '1';
-                        when SPRSEL_TBU =>
-                            v.se.write_tbu := '1';
+                            v.se.write_tbl := not e_in.insn(16);
+                            v.se.write_tbu := e_in.insn(16);
                         when others =>
                     end case;
                 end if;
@@ -1850,6 +1867,7 @@ begin
             v.prefix := e_in.prefix;
             v.advance_nia := '0';
             v.rin_address := e_in.read_data1(7 downto 0);
+            v.emu_mode := e_in.emu_mode;
         end if;
 
         lv := Execute1ToLoadstore1Init;
@@ -2158,8 +2176,8 @@ begin
     log_spr_data <= (log_wr_addr & ex2.log_addr_spr) when ex1.insn(16) = '0'
          else log_rd_data;
     with ex1.spr_select.sel select spr_result <=
-        timebase when SPRSEL_TB,
-        32x"0" & timebase(63 downto 32) when SPRSEL_TBU,
+        hiorlo(timebase, ex1.insn(16)) when SPRSEL_TB,
+        assemble_emuctrl(ctrl) when SPRSEL_EMUC,
         assemble_dec(ctrl) when SPRSEL_DEC,
         32x"0" & PVR_MICROWATT when SPRSEL_PVR,
         log_spr_data when SPRSEL_LOGR,
@@ -2200,6 +2218,7 @@ begin
         v.ext_interrupt := ex1.ext_interrupt and not stage2_stall;
         v.taken_branch_event := ex1.taken_branch_event and not stage2_stall;
         v.br_mispredict := ex1.br_mispredict and not stage2_stall;
+        v.e.emu_mode := ctrl.emu_mode;
         if stage2_stall = '1' then
             v.e.last_nia := ex2.e.last_nia;
         elsif ex1.advance_nia = '1' then
@@ -2309,9 +2328,12 @@ begin
             if ex1.se.write_dec = '1' then
                 ctrl_tmp.dec <= ex1.spr_write_data;
             end if;
+            if ex1.se.write_emuc = '1' then
+                ctrl_tmp.emu_mode <= ex1.spr_write_data(0);
+            end if;
             if ex1.se.write_cfar = '1' then
                 ctrl_tmp.cfar <= ex1.spr_write_data;
-            elsif ex1.se.set_cfar = '1' then
+            elsif ex1.se.set_cfar = '1' and ex1.emu_mode = '0' then
                 ctrl_tmp.cfar <= ex1.e.last_nia;
             end if;
             if ex1.se.write_loga = '1' then

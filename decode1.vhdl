@@ -546,16 +546,10 @@ architecture behaviour of decode1 is
         i.wonly := '0';
         i.noop  := '0';
         case sprn is
-            when SPR_TB =>
+            when SPR_TB | SPR_TBU =>
                 i.sel := SPRSEL_TB;
                 i.ronly := '1';
-            when SPR_TBU =>
-                i.sel := SPRSEL_TBU;
-                i.ronly := '1';
-            when SPR_TBLW =>
-                i.sel := SPRSEL_TB;
-                i.wonly := '1';
-            when SPR_TBUW =>
+            when SPR_TBLW | SPR_TBUW =>
                 i.sel := SPRSEL_TB;
                 i.wonly := '1';
             when SPR_DEC =>
@@ -567,6 +561,8 @@ architecture behaviour of decode1 is
             when 725 =>     -- LOG_DATA SPR
                 i.sel := SPRSEL_LOGR;
                 i.ronly := '1';
+            when 727 =>     -- EMU_CTRL SPR
+                i.sel := SPRSEL_EMUC;
             when SPR_UPMC1 | SPR_UPMC2 | SPR_UPMC3 | SPR_UPMC4 | SPR_UPMC5 | SPR_UPMC6 |
                 SPR_UMMCR0 | SPR_UMMCR1 | SPR_UMMCR2 | SPR_UMMCRA | SPR_USIER | SPR_USIAR | SPR_USDAR |
                 SPR_PMC1 | SPR_PMC2 | SPR_PMC3 | SPR_PMC4 | SPR_PMC5 | SPR_PMC6 |
@@ -683,6 +679,7 @@ begin
         v.prefixed := pr.prefixed;
         v.stop_mark := f_in.stop_mark;
         v.big_endian := f_in.big_endian;
+        v.emu_mode := f_in.emu_mode;
 
         insn := f_in.insn(31 downto 0);
 	if is_X(f_in.insn) then
@@ -772,6 +769,7 @@ begin
             vr.reg_1_addr := gpr_to_gspr(insn_ra(f_in.insn));
             case iregsel(8 downto 7) is
                 when "01" =>
+                    vr.reg_1_addr(5) := f_in.emu_mode;
                 when "10" =>
                     vr.reg_1_addr(6) := '1';
                 when "11" =>
@@ -783,6 +781,7 @@ begin
             vr.reg_2_addr := gpr_to_gspr(insn_rb(f_in.insn));
             case iregsel(6 downto 5) is
                 when "01" =>
+                    vr.reg_2_addr(5) := f_in.emu_mode;
                 when "10" =>
                     vr.reg_2_addr(6) := '1';
                 when "11" =>
@@ -803,6 +802,9 @@ begin
                     vr.reg_3_addr := gpr_to_gspr(insn_rs(f_in.insn));
             end case;
             vr.reg_3_addr(7 downto 5) := iregsel(4 downto 2);
+            if iregsel(4 downto 2) = "000" then
+                vr.reg_3_addr(5) := f_in.emu_mode;
+            end if;
             vr.read_1_enable := f_in.valid;
             vr.read_2_enable := f_in.valid and maybe_rb;
             vr.read_3_enable := f_in.valid;

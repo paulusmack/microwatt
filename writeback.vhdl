@@ -196,6 +196,7 @@ begin
         f.priv_mode := e_in.redir_mode(2);
         f.big_endian := e_in.redir_mode(1);
         f.mode_32bit := e_in.redir_mode(0);
+        f.emu_mode := e_in.emu_mode;
 
         f_out <= f;
         flush_out <= f_out.redirect or intr;

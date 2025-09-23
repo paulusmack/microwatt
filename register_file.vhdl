@@ -110,7 +110,7 @@ begin
                         report "Writing VSR.lo " & to_hstring(w_addr(4 downto 0)) & " " & to_hstring(w_in.write_data);
                     end if;
                 elsif w_addr(5) = '1' then
-                    report "Writing unused GSPR " & to_hstring(w_addr) & " " & to_hstring(w_in.write_data);
+                    report "Writing alt GPR " & to_hstring(w_addr) & " " & to_hstring(w_in.write_data);
                 else
                     report "Writing GPR " & to_hstring(w_addr) & " " & to_hstring(w_in.write_data);
                 end if;

@@ -122,7 +122,7 @@ begin
 		report "fetch1 rst:" & std_ulogic'image(rst) &
                     " IR:" & std_ulogic'image(r_next.virt_mode) &
                     " P:" & std_ulogic'image(r_next.priv_mode) &
-                    " E:" & std_ulogic'image(r_next.big_endian) &
+                    " E:" & std_ulogic'image(r_next.big_endian) & std_ulogic'image(r_next.emu_mode) &
                     " 32:" & std_ulogic'image(r_next_int.mode_32bit) &
                     " I:" & std_ulogic'image(w_in.interrupt) &
 		    " R:" & std_ulogic'image(w_in.redirect) & std_ulogic'image(d_in.redirect) &
@@ -313,6 +313,7 @@ begin
             v.virt_mode := w_in.virt_mode;
             v.priv_mode := w_in.priv_mode;
             v.big_endian := w_in.big_endian;
+            v.emu_mode := w_in.emu_mode;
             v_int.mode_32bit := w_in.mode_32bit;
             v.fetch_fail := '0';
         elsif d_in.redirect = '1' then
@@ -398,6 +399,7 @@ begin
             v.virt_mode := w_in.alt_intr and not rst;
             v.priv_mode := '1';
             v.big_endian := '0';
+            v.emu_mode := w_in.emu_mode and not rst;
             v_int.mode_32bit := '0';
             v_int.rd_is_niap4 := '0';
             v_int.tlbstall := '0';

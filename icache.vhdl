@@ -155,6 +155,7 @@ architecture rtl of icache is
 	hit_smark : std_ulogic;
 	hit_valid : std_ulogic;
         big_endian: std_ulogic;
+        emu_mode  : std_ulogic;
         predicted  : std_ulogic;
         pred_ntaken: std_ulogic;
 
@@ -568,6 +569,7 @@ begin
 	i_out.stop_mark <= r.hit_smark;
         i_out.fetch_failed <= r.fetch_failed;
         i_out.big_endian <= r.big_endian;
+        i_out.emu_mode <= r.emu_mode;
         i_out.next_predicted <= r.predicted;
         i_out.next_pred_ntaken <= r.pred_ntaken;
 
@@ -622,6 +624,7 @@ begin
                 r.hit_nia <= i_in.nia;
                 r.hit_ra <= real_addr;
                 r.big_endian <= i_in.big_endian;
+                r.emu_mode <= i_in.emu_mode;
                 r.predicted <= i_in.predicted;
                 r.pred_ntaken <= i_in.pred_ntaken;
                 r.fetch_failed <= i_in.fetch_fail and not flush_in;

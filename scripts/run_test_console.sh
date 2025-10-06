@@ -22,6 +22,7 @@ MICROWATT_DIR=$PWD
 cd $TMPDIR
 
 cp ${MICROWATT_DIR}/tests/${TEST}.bin main_ram.bin
+cp ${MICROWATT_DIR}/emulation.bin emulation.bin
 
 ${MICROWATT_DIR}/core_tb > console.out 2> test1.out || true
 

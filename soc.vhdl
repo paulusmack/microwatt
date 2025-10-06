@@ -15,7 +15,7 @@ use work.wishbone_types.all;
 -- Main bus:
 -- 0x00000000: Block RAM (MEMORY_SIZE) or DRAM depending on syscon
 -- 0x40000000: DRAM (when present)
--- 0x80000000: Block RAM (aliased & repeated)
+-- 0x80000000: Emulation ROM
 
 -- IO Bus:
 -- 0xc0000000: SYSCON
@@ -78,6 +78,8 @@ entity soc is
 	HAS_DRAM           : boolean  := false;
 	DRAM_SIZE          : integer := 0;
         DRAM_INIT_SIZE     : integer := 0;
+        HAS_EMUL_ROM       : boolean := true;
+        EMUL_FILENAME      : string := "emulation.hex";
         HAS_SPI_FLASH      : boolean := false;
         SPI_FLASH_DLINES   : positive := 1;
         SPI_FLASH_OFFSET   : integer := 0;
@@ -228,6 +230,10 @@ architecture behaviour of soc is
     -- Main memory signals:
     signal wb_bram_in     : wishbone_master_out;
     signal wb_bram_out    : wishbone_slave_out;
+
+    -- Emulation ROM signals
+    signal wb_erom_in     : wishbone_master_out;
+    signal wb_erom_out    : wishbone_slave_out;
 
     -- DMI debug bus signals
     signal dmi_addr	: std_ulogic_vector(7 downto 0);
@@ -464,9 +470,10 @@ begin
     -- 10xx  - BRAM
     -- 11xx  - IO
     --
-    slave_top_intercon: process(wb_master_out, wb_bram_out, wb_dram_out, wb_io_out, dram_at_0)
+    slave_top_intercon: process(all)
 	type slave_top_type is (SLAVE_TOP_BRAM,
                                 SLAVE_TOP_DRAM,
+                                SLAVE_TOP_EROM,
                                 SLAVE_TOP_IO);
 	variable slave_top : slave_top_type;
         variable top_decode : std_ulogic_vector(3 downto 0);
@@ -483,7 +490,7 @@ begin
 	elsif std_match(top_decode, "01--") then
 	    slave_top := SLAVE_TOP_DRAM;
 	elsif std_match(top_decode, "10--") then
-	    slave_top := SLAVE_TOP_BRAM;
+	    slave_top := SLAVE_TOP_EROM;
 	elsif std_match(top_decode, "11--") then
 	    slave_top := SLAVE_TOP_IO;
 	end if;
@@ -493,6 +500,9 @@ begin
 	wb_bram_in.cyc  <= '0';
 	wb_dram_in <= wb_master_out;
 	wb_dram_in.cyc  <= '0';
+        wb_erom_in <= wb_master_out;
+        wb_erom_in.cyc <= '0';
+        --wb_erom_in.we <= '0';         -- uncomment to make it read-only
 	wb_io_in <= wb_master_out;
 	wb_io_in.cyc  <= '0';
 	case slave_top is
@@ -508,6 +518,9 @@ begin
                 wb_master_in.dat <= (others => '1');
                 wb_master_in.stall <= '0';
             end if;
+        when SLAVE_TOP_EROM =>
+            wb_erom_in.cyc <= wb_master_out.cyc;
+            wb_master_in <= wb_erom_out;
 	when SLAVE_TOP_IO =>
 	    wb_io_in.cyc <= wb_master_out.cyc;
 	    wb_master_in <= wb_io_out;
@@ -1067,6 +1080,27 @@ begin
         wb_bram_out.ack <= wb_bram_in.cyc and wb_bram_in.stb;
         wb_bram_out.dat <= x"FFFFFFFFFFFFFFFF";
         wb_bram_out.stall <= not wb_bram_out.ack;
+    end generate;
+
+    -- Emulation ROM memory slave
+    erom: if HAS_EMUL_ROM generate
+        erom0: entity work.wishbone_bram_wrapper
+            generic map (
+                MEMORY_SIZE   => 32768,
+                RAM_INIT_FILE => EMUL_FILENAME
+                )
+            port map (
+                clk => system_clk,
+                rst => rst_bram,
+                wishbone_in => wb_erom_in,
+                wishbone_out => wb_erom_out
+                );
+    end generate;
+
+    no_erom: if not HAS_EMUL_ROM generate
+        wb_erom_out.ack <= wb_erom_in.cyc and wb_erom_in.stb;
+        wb_erom_out.dat <= x"FFFFFFFFFFFFFFFF";
+        wb_erom_out.stall <= not wb_erom_out.ack;
     end generate;
 
     -- DMI(debug bus) <-> JTAG bridge

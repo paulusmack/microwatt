@@ -20,6 +20,7 @@ MICROWATT_DIR=$PWD
 cd $TMPDIR
 
 cp ${MICROWATT_DIR}/tests/${TEST}.bin main_ram.bin
+cp ${MICROWATT_DIR}/emulation.bin emulation.bin
 
 ${MICROWATT_DIR}/core_tb | sed 's/.*: //' | grep -E '^(GPR[0-9]|LR |CTR |XER |CR [0-9])' | sort | grep -v GPR31 > test.out || true
 

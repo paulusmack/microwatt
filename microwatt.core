@@ -63,6 +63,7 @@ filesets:
       - fpga/pp_soc_uart.vhd
       - fpga/pp_utilities.vhd
       - fpga/firmware.hex : {copyto : firmware.hex, file_type : user}
+      - fpga/emulation.hex : {file_type : user}
       - nonrandom.vhdl
     file_type : vhdlSource-2008
 

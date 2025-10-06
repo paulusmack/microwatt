@@ -21,6 +21,7 @@ begin
             SIM => true,
             MEMORY_SIZE => (384*1024),
             RAM_INIT_FILE => "main_ram.bin",
+            EMUL_FILENAME => "emulation.bin",
             CLK_FREQ => 100000000
             )
         port map(

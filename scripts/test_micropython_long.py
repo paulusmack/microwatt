@@ -14,6 +14,8 @@ os.chdir(tempdir.name)
 
 copyfile(os.path.join(cwd, 'micropython/firmware.bin'),
         os.path.join(tempdir.name, 'main_ram.bin'))
+copyfile(os.path.join(cwd, 'emulation.bin'),
+        os.path.join(tempdir.name, 'emulation.bin'))
 
 cmd = [ os.path.join(cwd, './core_tb') ]
 

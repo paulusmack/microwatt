@@ -16,6 +16,7 @@ entity execute1 is
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
         HAS_VECVSX : boolean := true;
+        HAS_EMUL_ROM : boolean := true;
         CPU_INDEX : natural;
         NCPUS : positive := 1;
         -- Non-zero to enable log data collection
@@ -113,6 +114,7 @@ architecture behaviour of execute1 is
         send_hmsg : std_ulogic_vector(NCPUS-1 downto 0);
         clr_hmsg : std_ulogic;
         write_emuc : std_ulogic;
+        emu_intr : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (send_hmsg => (others => '0'), others => '0');
 
@@ -1401,7 +1403,12 @@ begin
 
         case_0: case e_in.insn_type is
 	    when OP_ILLEGAL =>
-		illegal := '1';
+                if HAS_EMUL_ROM then
+                    v.se.emu_intr := '1';
+                else
+                    illegal := '1';
+                end if;
+
 	    when OP_SC =>
 		-- check bit 1 of the instruction to distinguish sc from scv
                 if e_in.insn(1) = '1' then
@@ -1982,6 +1989,14 @@ begin
             v.busy := actions.start_div or actions.start_mul or
                       actions.start_bsort or actions.start_bperm or actions.start_rin_access;
 
+            if actions.se.emu_intr = '1' then
+                exception := '1';
+                v.e.intr_vec := 16#0#;
+                v.e.hv_intr := '1';
+                v.e.emu_intr := '1';
+                v.se.set_heir := '1';
+            end if;
+
             -- instruction for other units, i.e. LDST
             if e_in.unit = LDST then
                 lv.valid := '1';
@@ -2410,6 +2425,7 @@ begin
             if interrupt_in.scv_int = '0' and interrupt_in.hv_intr = '0' then
                 ctrl_tmp.msr(MSR_RI) <= '0';
             end if;
+            ctrl_tmp.emu_mode <= interrupt_in.emu_int;
         end if;
 
         -- Don't bypass the result from mfspr to slow SPRs or PMU SPRs,

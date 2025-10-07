@@ -17,6 +17,8 @@ entity core is
         HAS_VECVSX : boolean := true;
         HAS_BTC : boolean := true;
 	ALT_RESET_ADDRESS : std_ulogic_vector(63 downto 0) := (others => '0');
+        HAS_EMUL_ROM : boolean := true;
+        EMUL_ROM_ADDR : std_ulogic_vector(31 downto 0) := (others => '0');
         LOG_LENGTH : natural := 512;
         ICACHE_NUM_LINES : natural := 64;
         ICACHE_NUM_WAYS : natural := 2;
@@ -389,6 +391,7 @@ begin
             EX1_BYPASS => EX1_BYPASS,
             HAS_FPU => HAS_FPU,
             HAS_VECVSX => HAS_VECVSX,
+            HAS_EMUL_ROM => HAS_EMUL_ROM,
             LOG_LENGTH => LOG_LENGTH
             )
         port map (
@@ -514,6 +517,9 @@ begin
             );
 
     writeback_0: entity work.writeback
+        generic map (
+            EMUL_ROM_ADDR => EMUL_ROM_ADDR
+            )
         port map (
             clk => clk,
             rst => rst_wback,

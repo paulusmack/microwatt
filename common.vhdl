@@ -854,6 +854,7 @@ package common is
         interrupt : std_ulogic;
         alt_intr : std_ulogic;
         hv_intr : std_ulogic;
+        emu_intr : std_ulogic;
         is_scv : std_ulogic;
         intr_vec : intr_vector_t;
 	redirect: std_ulogic;
@@ -872,7 +873,8 @@ package common is
          write_data => (others => '0'), write_data_lo => (others => '0'),
          write_cr_mask => (others => '0'), write_cr_data => (others => '0'),
          write_reg => (others => '0'),
-         interrupt => '0', alt_intr => '0', hv_intr => '0', is_scv => '0', intr_vec => 0,
+         interrupt => '0', alt_intr => '0', hv_intr => '0',
+         emu_intr => '0', is_scv => '0', intr_vec => 0,
          redirect => '0', redir_mode => "0000", emu_mode => '0',
          last_nia => (others => '0'),
          br_last => '0', br_taken => '0', abs_br => '0',
@@ -1001,6 +1003,7 @@ package common is
         hv_intr : std_ulogic;
         scv_int : std_ulogic;
         alt_int : std_ulogic;
+        emu_int : std_ulogic;
         srr1    : std_ulogic_vector(15 downto 0);
     end record;
 

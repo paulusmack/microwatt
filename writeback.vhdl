@@ -7,6 +7,9 @@ use work.common.all;
 use work.crhelpers.all;
 
 entity writeback is
+    generic (
+        EMUL_ROM_ADDR  : std_ulogic_vector(31 downto 0) := (others => '0')
+        );
     port (
         clk          : in std_ulogic;
         rst          : in std_ulogic;
@@ -74,14 +77,17 @@ begin
         variable intr : std_ulogic;
         variable hvi  : std_ulogic;
         variable scv  : std_ulogic;
-        variable intr_page : std_ulogic_vector(4 downto 0);
+        variable intr_page : std_ulogic_vector(19 downto 0);
         variable intr_seg  : std_ulogic_vector(1 downto 0);
+        variable emu  : std_ulogic;
+        variable alt  : std_ulogic;
     begin
         w_out <= WritebackToRegisterFileInit;
         c_out <= WritebackToCrFileInit;
         f := WritebackToFetch1Init;
         vec := 0;
         hvi := '0';
+        emu := e_in.emu_mode;
 
         complete_out <= instr_tag_init;
         if e_in.valid = '1' then
@@ -97,36 +103,46 @@ begin
         intr := e_in.interrupt or l_in.interrupt or fp_in.interrupt;
         interrupt_out.intr <= intr;
 
-        srr1 := (others => '0');
-        intr_page := 5x"0";
-        if e_in.alt_intr = '1' then
-            intr_page := 5x"4";
+        alt := e_in.alt_intr;
+        if e_in.interrupt = '1' and e_in.emu_intr = '1' then
+            alt := '0';
         end if;
-        intr_seg := e_in.alt_intr & e_in.alt_intr;
+        srr1 := (others => '0');
+        intr_page := 20x"0";
+        if alt = '1' then
+            intr_page := 20x"4";
+        end if;
+        intr_seg := alt & alt;
         scv := '0';
         if e_in.interrupt = '1' then
             vec := e_in.intr_vec;
             srr1 := e_in.srr1;
             hvi := e_in.hv_intr;
             scv := e_in.is_scv;
-            if e_in.is_scv = '1' then
-                if e_in.alt_intr = '0' then
-                    intr_page := 5x"17";
+            emu := e_in.emu_intr;
+            if e_in.emu_intr = '1' then
+                intr_page := EMUL_ROM_ADDR(31 downto 12);
+            elsif e_in.is_scv = '1' then
+                if alt = '0' then
+                    intr_page := 20x"17";
                 else
-                    intr_page := 5x"3";
+                    intr_page := 20x"3";
                 end if;
             end if;
         elsif l_in.interrupt = '1' then
             vec := l_in.intr_vec;
             srr1 := l_in.srr1;
+            emu := '0';
         elsif fp_in.interrupt = '1' then
             vec := fp_in.intr_vec;
             srr1 := fp_in.srr1;
+            emu := '0';
         end if;
         interrupt_out.hv_intr <= hvi;
         interrupt_out.srr1 <= srr1;
         interrupt_out.scv_int <= scv;
-        interrupt_out.alt_int <= e_in.alt_intr;
+        interrupt_out.alt_int <= alt;
+        interrupt_out.emu_int <= emu;
 
         w_out.lovrw_data <= (others => '0');
         if intr = '0' then
@@ -187,8 +203,8 @@ begin
 
         -- Outputs to fetch1
         f.interrupt := intr;
-        f.alt_intr := e_in.alt_intr;
-        f.intr_vec := intr_seg & 45x"0" & intr_page & std_ulogic_vector(to_unsigned(vec, 12));
+        f.alt_intr := alt;
+        f.intr_vec := intr_seg & 30x"0" & intr_page & std_ulogic_vector(to_unsigned(vec, 12));
         f.redirect := e_in.redirect;
         f.redirect_nia := e_in.write_data;
         f.br_nia := e_in.last_nia;
@@ -199,7 +215,7 @@ begin
         f.priv_mode := e_in.redir_mode(2);
         f.big_endian := e_in.redir_mode(1);
         f.mode_32bit := e_in.redir_mode(0);
-        f.emu_mode := e_in.emu_mode;
+        f.emu_mode := emu;
 
         f_out <= f;
         flush_out <= f_out.redirect or intr;

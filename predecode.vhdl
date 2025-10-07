@@ -146,9 +146,11 @@ architecture behaviour of predecoder is
         2#011010_00000# to 2#011010_11111# => (NR, NR, RS,  INSN_xori),       -- 26
         2#011011_00000# to 2#011011_11111# => (NR, NR, RS,  INSN_xoris),      -- 27
         -- major opcode 4
+        2#000100_00000# to 2#000100_01111# => (RA, RB, RC,  INSN_vemu),
         2#000100_10000#                    => (RA, RB, RC,  INSN_maddhd),
         2#000100_10001#                    => (RA, RB, RC,  INSN_maddhdu),
         2#000100_10011#                    => (RA, RB, RC,  INSN_maddld),
+        2#000100_10100# to 2#000100_11111# => (RA, RB, RC,  INSN_vemu),
         -- major opcode 22 (sandbox)
         2#010110_00000#                    => (RA, NR, NR,  INSN_mfrin),
         2#010110_00001#                    => (RA, NR, RS,  INSN_mtrin),
@@ -696,7 +698,7 @@ architecture behaviour of predecoder is
         2#10101_0100# => (NR, VB, VRA, INSN_vorc),
         2#10110_0100# => (NR, VB, VRA, INSN_vnand),
         2#11010_0100# => (NR, VB, VRA, INSN_veqv),
-        others        => (NR, NR, NR,  INSN_illegal)
+        others        => (NR, NR, NR,  INSN_vemu)
         );
 
     -- Primary opcode 60, columns 0 to 30 by 2 (column index
@@ -711,7 +713,7 @@ architecture behaviour of predecoder is
         2#10101_0100# to 2#10101_0101# => (NR, XB, XA, INSN_xxlorc),
         2#10110_0100# to 2#10110_0101# => (NR, XB, XA, INSN_xxlnand),
         2#10111_0100# to 2#10111_0101# => (NR, XB, XA, INSN_xxleqv),
-        others                         => (NR, NR, NR, INSN_illegal)
+        others                         => (NR, NR, NR, INSN_xemu)
         );
 
     constant IOUT_LEN : natural := ICODE_LEN + IMAGE_LEN;

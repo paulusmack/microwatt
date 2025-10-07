@@ -468,6 +468,7 @@ architecture behaviour of decode1 is
         INSN_vor         =>  (ALU,  NONE, OP_COMPUTE,   NONE,       VRB, NONE,        VRA,  VRT,  LOG, "000", '0', '0', '1', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', DVR),
         INSN_vorc        =>  (ALU,  NONE, OP_COMPUTE,   NONE,       VRB, NONE,        VRA,  VRT,  LOG, "000", '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', DVR),
         INSN_vxor        =>  (ALU,  NONE, OP_COMPUTE,   NONE,       VRB, NONE,        VRA,  VRT,  LOG, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVR),
+        INSN_vemu        =>  (ALU,  NONE, OP_XEMU,      NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_wait        =>  (ALU,  NONE, OP_WAIT,      NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '1', NONE),
         INSN_xor         =>  (ALU,  NONE, OP_COMPUTE,   NONE,       RB,  NONE,        RS,   RA,   LOG, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', '0', NONE),
         INSN_xori        =>  (ALU,  NONE, OP_COMPUTE,   NONE,       IMM, CONST_UI,    RS,   RA,   LOG, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
@@ -480,6 +481,7 @@ architecture behaviour of decode1 is
         INSN_xxlor       =>  (ALU,  NONE, OP_COMPUTE,   NONE,       XB,  NONE,        XA,   VRT,  LOG, "000", '0', '0', '1', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', DVR),
         INSN_xxlorc      =>  (ALU,  NONE, OP_COMPUTE,   NONE,       XB,  NONE,        XA,   VRT,  LOG, "000", '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', DVR),
         INSN_xxlxor      =>  (ALU,  NONE, OP_COMPUTE,   NONE,       XB,  NONE,        XA,   VRT,  LOG, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', DVR),
+        INSN_xemu        =>  (ALU,  NONE, OP_XEMU,      NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
 
         others           =>  (ALU,  NONE, OP_ILLEGAL,   NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE)
         );

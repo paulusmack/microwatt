@@ -16,6 +16,7 @@ entity execute1 is
         EX1_BYPASS : boolean := true;
         HAS_FPU : boolean := true;
         HAS_VECVSX : boolean := true;
+        HAS_EMUL_ROM : boolean := true;
         CPU_INDEX : natural;
         NCPUS : positive := 1;
         -- Non-zero to enable log data collection
@@ -113,6 +114,7 @@ architecture behaviour of execute1 is
         send_hmsg : std_ulogic_vector(NCPUS-1 downto 0);
         clr_hmsg : std_ulogic;
         write_emuc : std_ulogic;
+        set_emu_mode : std_ulogic;
     end record;
     constant side_effect_init : side_effect_type := (send_hmsg => (others => '0'), others => '0');
 
@@ -1255,6 +1257,7 @@ begin
 	variable bo, bi : std_ulogic_vector(4 downto 0);
         variable illegal : std_ulogic;
         variable privileged : std_ulogic;
+        variable emu_intr : std_ulogic;
         variable slow_op : std_ulogic;
         variable owait : std_ulogic;
         variable srr1 : std_ulogic_vector(63 downto 0);
@@ -1300,6 +1303,7 @@ begin
 
         illegal := '0';
         privileged := ex1.msr(MSR_PR) and e_in.privileged;
+        emu_intr := '0';
         slow_op := '0';
         owait := '0';
 
@@ -1655,6 +1659,13 @@ begin
                     v.se.enter_wait := '1';
                 end if;
 
+            when OP_XEMU =>
+                if HAS_EMUL_ROM then
+                    v.se.set_emu_mode := '1';
+                else
+                    illegal := '1';
+                end if;
+
             when OP_FETCH_FAILED =>
                 -- Handling an ITLB miss doesn't count as having executed an instruction
                 v.do_trace := '0';
@@ -1915,6 +1926,14 @@ begin
             v.busy := actions.start_div or actions.start_mul or
                       actions.start_bsort or actions.start_bperm or actions.start_rin_access;
 
+            if actions.se.set_emu_mode = '1' then
+                exception := '1';
+                v.e.intr_vec := 16#0#;
+                v.e.hv_intr := '1';
+                v.e.emu_intr := '1';
+                v.se.set_heir := '1';
+            end if;
+
             -- instruction for other units, i.e. LDST
             if e_in.unit = LDST then
                 lv.valid := '1';
@@ -2144,7 +2163,7 @@ begin
         v.ext_interrupt := ex1.ext_interrupt and not stage2_stall;
         v.taken_branch_event := ex1.taken_branch_event and not stage2_stall;
         v.br_mispredict := ex1.br_mispredict and not stage2_stall;
-        v.e.emu_mode := ctrl.emu_mode;
+        v.e.emu_mode := ctrl.emu_mode or ex1.se.set_emu_mode;
         if stage2_stall = '1' then
             v.e.last_nia := ex2.e.last_nia;
         elsif ex1.advance_nia = '1' then
@@ -2253,7 +2272,9 @@ begin
             if ex1.se.write_dec = '1' then
                 ctrl_tmp.dec <= ex1.spr_write_data;
             end if;
-            if ex1.se.write_emuc = '1' then
+            if ex1.se.set_emu_mode = '1' then
+                ctrl_tmp.emu_mode <= '1';
+            elsif ex1.se.write_emuc = '1' then
                 ctrl_tmp.emu_mode <= ex1.spr_write_data(0);
             end if;
             if ex1.se.write_cfar = '1' then

@@ -7,6 +7,9 @@ use work.common.all;
 use work.crhelpers.all;
 
 entity writeback is
+    generic (
+        EMUL_ROM_ADDR  : std_ulogic_vector(31 downto 0) := (others => '0')
+        );
     port (
         clk          : in std_ulogic;
         rst          : in std_ulogic;
@@ -74,7 +77,7 @@ begin
         variable intr : std_ulogic;
         variable hvi  : std_ulogic;
         variable scv  : std_ulogic;
-        variable intr_page : std_ulogic_vector(4 downto 0);
+        variable intr_page : std_ulogic_vector(19 downto 0);
         variable intr_seg  : std_ulogic_vector(1 downto 0);
     begin
         w_out <= WritebackToRegisterFileInit;
@@ -98,9 +101,9 @@ begin
         interrupt_out.intr <= intr;
 
         srr1 := (others => '0');
-        intr_page := 5x"0";
+        intr_page := 20x"0";
         if e_in.alt_intr = '1' then
-            intr_page := 5x"4";
+            intr_page := 20x"4";
         end if;
         intr_seg := e_in.alt_intr & e_in.alt_intr;
         scv := '0';
@@ -109,11 +112,13 @@ begin
             srr1 := e_in.srr1;
             hvi := e_in.hv_intr;
             scv := e_in.is_scv;
-            if e_in.is_scv = '1' then
+            if e_in.emu_intr = '1' then
+                intr_page := EMUL_ROM_ADDR(31 downto 12);
+            elsif e_in.is_scv = '1' then
                 if e_in.alt_intr = '0' then
-                    intr_page := 5x"17";
+                    intr_page := 20x"17";
                 else
-                    intr_page := 5x"3";
+                    intr_page := 20x"3";
                 end if;
             end if;
         elsif l_in.interrupt = '1' then
@@ -185,7 +190,7 @@ begin
         -- Outputs to fetch1
         f.interrupt := intr;
         f.alt_intr := e_in.alt_intr;
-        f.intr_vec := intr_seg & 45x"0" & intr_page & std_ulogic_vector(to_unsigned(vec, 12));
+        f.intr_vec := intr_seg & 30x"0" & intr_page & std_ulogic_vector(to_unsigned(vec, 12));
         f.redirect := e_in.redirect;
         f.redirect_nia := e_in.write_data;
         f.br_nia := e_in.last_nia;

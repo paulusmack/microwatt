@@ -21,6 +21,7 @@ package decode_types is
 			 OP_SC,
 			 OP_SYNC, OP_TLBIE, OP_TRAP,
                          OP_WAIT,
+                         OP_XEMU,
                          OP_FETCH_FAILED
 			 );
 
@@ -494,7 +495,11 @@ package decode_types is
         INSN_xxlnor,
         INSN_xxlorc,
         INSN_xxlnand,
-        INSN_xxleqv
+        INSN_xxleqv,
+
+        -- Emulated vector/VSX instructions
+        INSN_vemu,
+        INSN_xemu
         );
 
     constant INSN_first_frs : insn_code := INSN_stfd;
@@ -1019,6 +1024,7 @@ package body decode_types is
             when INSN_vnor      => return "000100";
             when INSN_vxor      => return "000100";
             when INSN_veqv      => return "000100";
+            when INSN_vemu      => return "000100";
             when INSN_xxland    => return "111100";
             when INSN_xxlandc   => return "111100";
             when INSN_xxlnand   => return "111100";
@@ -1027,6 +1033,7 @@ package body decode_types is
             when INSN_xxlnor    => return "111100";
             when INSN_xxlxor    => return "111100";
             when INSN_xxleqv    => return "111100";
+            when INSN_xemu      => return "111100";
             when others         => return "XXXXXX";
         end case;
     end;

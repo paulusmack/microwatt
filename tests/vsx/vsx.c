@@ -828,6 +828,140 @@ int vsx_test_5(void)
 	return 0;
 }
 
+unsigned long do_xxpermdi(unsigned long which, unsigned long addr)
+{
+	asm(".machine \"power10\"");
+	switch (which) {
+	case 0:
+		asm("lxv 7,0(%0); lxv 8,16(%0); xxpermdi 9,7,8,0; stxv 9,0(%1)" : :
+		    "b" (addr), "b" (&result) : "memory");
+		break;
+	case 1:
+		asm("lxv 37,0(%0); lxv 17,16(%0); xxpermdi 19,37,17,1; stxv 19,0(%1)" : :
+		    "b" (addr), "b" (&result) : "memory");
+		break;
+	case 2:
+		asm("lxv 17,0(%0); lxv 48,16(%0); xxpermdi 29,17,48,2; stxv 29,0(%1)" : :
+		    "b" (addr), "b" (&result) : "memory");
+		break;
+	case 3:
+		asm("lxv 47,0(%0); lxv 58,16(%0); xxpermdi 39,47,58,3; stxv 39,0(%1)" : :
+		    "b" (addr), "b" (&result) : "memory");
+		break;
+	default:
+		asm("xxpermdi 0,0,0,0");
+		break;
+	}
+	return 0;
+}
+
+/* test xxpermdi */
+int vsx_test_6(void)
+{
+	unsigned char data[32] __attribute__((__aligned__(16)));
+	unsigned long ret, i, dm, j;
+	unsigned char v;
+
+	disable_vec();
+	disable_vsx();
+	ret = callit(4, 0, do_xxpermdi);
+	if (ret != 0xf40)
+		return ret + 0x5000;
+	v = 1;
+	for (i = 0; i < 32; ++i)
+		data[i] = (v += 29);
+	enable_vec();
+	enable_vsx();
+	for (dm = 0; dm < 4; ++dm) {
+		for (i = 0; i < 16; ++i)
+			result[i] = (v += 29);
+		ret = callit(dm, (unsigned long) &data, do_xxpermdi);
+		if (ret)
+			return ret + 0x1000 + (dm << 12);
+		j = (dm & 1)? 0: 8;
+		for (i = 0; i < 8; ++i)
+			if (result[i] != data[i + 16 + j])
+				ret = i + 1;
+		j = (dm & 2)? 0: 8;
+		for (i = 0; i < 8; ++i)
+			if (result[i + 8] != data[i + j])
+				ret = i + 9;
+		if (ret) {
+			print_buf(data, 16, "A");
+			print_buf(data+16, 16, "B");
+			print_hex(dm, 1);
+			print_buf(result, 16, "");
+			return (dm << 8) + ret;
+		}
+	}
+	return 0;
+}
+
+unsigned long do_xxsldwi(unsigned long which, unsigned long addr)
+{
+	asm(".machine \"power10\"");
+	switch (which) {
+	case 0:
+		asm("lxv 7,16(%0); lxv 8,0(%0); xxsldwi 9,7,8,0; stxv 9,0(%1)" : :
+		    "b" (addr), "b" (&result) : "memory");
+		break;
+	case 1:
+		asm("lxv 37,16(%0); lxv 17,0(%0); xxsldwi 19,37,17,1; stxv 19,0(%1)" : :
+		    "b" (addr), "b" (&result) : "memory");
+		break;
+	case 2:
+		asm("lxv 17,16(%0); lxv 48,0(%0); xxsldwi 29,17,48,2; stxv 29,0(%1)" : :
+		    "b" (addr), "b" (&result) : "memory");
+		break;
+	case 3:
+		asm("lxv 47,16(%0); lxv 58,0(%0); xxsldwi 39,47,58,3; stxv 39,0(%1)" : :
+		    "b" (addr), "b" (&result) : "memory");
+		break;
+	default:
+		asm("xxsldwi 0,0,0,0");
+		break;
+	}
+	return 0;
+}
+
+/* test xxsldwi */
+int vsx_test_7(void)
+{
+	unsigned char data[32] __attribute__((__aligned__(16)));
+	unsigned long ret, i, shw, j;
+	unsigned char v;
+
+	disable_vec();
+	disable_vsx();
+	ret = callit(4, 0, do_xxsldwi);
+	if (ret != 0xf40)
+		return ret + 0x5000;
+	v = 1;
+	for (i = 0; i < 32; ++i)
+		data[i] = (v += 29);
+	enable_vec();
+	enable_vsx();
+	for (shw = 0; shw < 4; ++shw) {
+		for (i = 0; i < 16; ++i)
+			result[i] = (v += 29);
+		ret = callit(shw, (unsigned long) &data, do_xxsldwi);
+		if (ret)
+			return ret + 0x1000 + (shw << 12);
+		j = 16 - shw * 4;
+		for (i = 0; i < 16; ++i)
+			if (result[i] != data[i + j])
+				ret = i + 1;
+		if (ret) {
+			print_buf(data, 16, "A");
+			print_buf(data+16, 16, "B");
+			print_hex(shw, 1);
+			print_buf(result, 16, "");
+			return (shw << 8) + ret;
+		}
+	}
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -861,6 +995,8 @@ int main(void)
 	do_test(3, vsx_test_3);
 	do_test(4, vsx_test_4);
 	do_test(5, vsx_test_5);
+	do_test(6, vsx_test_6);
+	do_test(7, vsx_test_7);
 
 	return fail;
 }

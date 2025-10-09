@@ -35,6 +35,12 @@ VSR0	= 0x40
 VR0	= 0x80
 LO	= 0x20		# offset to low half of VSR/VR
 
+	# Condition register bits (big-endian numbering)
+LT	= 0
+GT	= 1
+EQ	= 2
+SO	= 3
+
 	.macro	mfrin rt,ra		# move from register indirect, (RA)=reg index
 	.long	0x58000000+(\rt<<21)+(\ra<<16)
 	.endm
@@ -44,6 +50,7 @@ LO	= 0x20		# offset to low half of VSR/VR
 
 entry:
 	mfcr	%r31
+	mfctr	%r30
 	mfspr	%r8,HEIR
 	mfspr	%r2,HSRR1
 	rlwinm	%r4,%r8,5+11,0x1f		# A field
@@ -55,19 +62,23 @@ entry:
 	bne	po60
 
 	# Primary opcode 4, vector instructions
-	rlwinm	%r1,%r8,0,0x7ff			# extended opcode
+	rlwinm	%r1,%r8,32-6+2,0x7c		# extended opcode row * 4
+	rlwinm	%r3,%r8,2,0xfc			# extended opcode column * 4
+	addpcis	%r9,0
+	addi	%r9,%r9,op4_table-.
 	addi	%r4,%r4,VR0
 	addi	%r5,%r5,VR0
 	addi	%r6,%r6,VR0
-	cmpdi	%r1,782
-	beq	do_vpkpx
-illegal:
-	# anything we don't recognize gets punted to e40
-	mtcr	%r31
-	li	%r0,0
-	mtspr	EMUC,%r0
-	isync
-	ba	0xe40
+	lwzx	%r11,%r3,%r9
+	cmpdi	%r11,0
+	beq	illegal
+	add	%r11,%r11,%r9
+	lwzx	%r12,%r1,%r11
+	cmpdi	%r12,0
+	beq	illegal
+	add	%r12,%r12,%r11
+	mtctr	%r12
+	bctr
 
 po60:	rlwinm	%r1,%r8,32-2,0x1ff		# extract extended opcode
 	rlwimi	%r4,%r8,6-2,0x40		# insert AX field
@@ -82,6 +93,148 @@ po60:	rlwinm	%r1,%r8,32-2,0x1ff		# extract extended opcode
 	cmpdi	%r0,4
 	beq	do_xxsldwi
 	b	illegal
+
+illegal:
+	# anything we don't recognize gets punted to e40
+	mtcr	%r31
+	li	%r0,0
+	mtspr	EMUC,%r0
+	isync
+	ba	0xe40
+
+op4_table:
+	.long	0		# column 0
+	.long	0
+	.long	vcol2 - op4_table
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# column 10
+	.long	0
+	.long	0
+	.long	0
+	.long	vcol14 - op4_table
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# column 20
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# column 30
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# column 40
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# column 50
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# column 60
+	.long	0
+	.long	0
+	.long	0
+
+vcol2:
+	.long	do_vmaxub - vcol2		# row 0
+	.long	do_vmaxuh - vcol2
+	.long	do_vmaxuw - vcol2
+	.long	do_vmaxud - vcol2
+	.long	do_vmaxsb - vcol2		# row 4
+	.long	do_vmaxsh - vcol2
+	.long	do_vmaxsw - vcol2
+	.long	do_vmaxsd - vcol2
+	.long	do_vminub - vcol2		# row 8
+	.long	do_vminuh - vcol2
+	.long	do_vminuw - vcol2
+	.long	do_vminud - vcol2
+	.long	do_vminsb - vcol2		# row 12
+	.long	do_vminsh - vcol2
+	.long	do_vminsw - vcol2
+	.long	do_vminsd - vcol2
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 30
+	.long	0
+
+vcol14:
+	.long	0		# row 0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 10
+	.long	0
+	.long	do_vpkpx - vcol14
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 30
+	.long	0
 
 do_xxpermdi:
 	andis.	%r0,%r2,MSR_VSX@h
@@ -147,7 +300,404 @@ do_vpkpx:
 	mtrin	10,6
 	b	return
 
+do_vmaxsb:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,8
+	mtctr	%r11
+	li	%r7,0
+3:	cmpd	%r1,%r0
+	setnbc	%r3,GT
+	clrrdi	%r3,%r3,56
+	or	%r7,%r7,%r3
+	rotldi	%r0,%r0,8
+	rotldi	%r1,%r1,8
+	rotldi	%r7,%r7,8
+	bdnz	3b
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vmaxub:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,8
+	mtctr	%r11
+	li	%r7,0
+3:	cmpld	%r1,%r0
+	setnbc	%r3,GT
+	clrrdi	%r3,%r3,56
+	or	%r7,%r7,%r3
+	rotldi	%r0,%r0,8
+	rotldi	%r1,%r1,8
+	rotldi	%r7,%r7,8
+	bdnz	3b
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vmaxsh:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,4
+	mtctr	%r11
+	li	%r7,0
+3:	cmpd	%r1,%r0
+	setnbc	%r3,GT
+	clrrdi	%r3,%r3,48
+	or	%r7,%r7,%r3
+	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	rotldi	%r7,%r7,16
+	bdnz	3b
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vmaxuh:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,4
+	mtctr	%r11
+	li	%r7,0
+3:	cmpld	%r1,%r0
+	setnbc	%r3,GT
+	clrrdi	%r3,%r3,48
+	or	%r7,%r7,%r3
+	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	rotldi	%r7,%r7,16
+	bdnz	3b
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vmaxsw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,2
+	mtctr	%r11
+	li	%r7,0
+3:	cmpd	%r1,%r0
+	setnbc	%r3,GT
+	clrrdi	%r3,%r3,32
+	or	%r7,%r7,%r3
+	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	rotldi	%r7,%r7,32
+	bdnz	3b
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vmaxuw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,2
+	mtctr	%r11
+	li	%r7,0
+3:	cmpld	%r1,%r0
+	setnbc	%r3,GT
+	clrrdi	%r3,%r3,32
+	or	%r7,%r7,%r3
+	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	rotldi	%r7,%r7,32
+	bdnz	3b
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vmaxsd:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+3:	cmpd	%r1,%r0
+	setnbc	%r7,GT
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vmaxud:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+3:	cmpld	%r1,%r0
+	setnbc	%r7,GT
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vminsb:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,8
+	mtctr	%r11
+	li	%r7,0
+3:	cmpd	%r1,%r0
+	setnbc	%r3,LT
+	clrrdi	%r3,%r3,56
+	or	%r7,%r7,%r3
+	rotldi	%r0,%r0,8
+	rotldi	%r1,%r1,8
+	rotldi	%r7,%r7,8
+	bdnz	3b
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vminub:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,8
+	mtctr	%r11
+	li	%r7,0
+3:	cmpld	%r1,%r0
+	setnbc	%r3,LT
+	clrrdi	%r3,%r3,56
+	or	%r7,%r7,%r3
+	rotldi	%r0,%r0,8
+	rotldi	%r1,%r1,8
+	rotldi	%r7,%r7,8
+	bdnz	3b
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vminsh:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,4
+	mtctr	%r11
+	li	%r7,0
+3:	cmpd	%r1,%r0
+	setnbc	%r3,LT
+	clrrdi	%r3,%r3,48
+	or	%r7,%r7,%r3
+	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	rotldi	%r7,%r7,16
+	bdnz	3b
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vminuh:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,4
+	mtctr	%r11
+	li	%r7,0
+3:	cmpld	%r1,%r0
+	setnbc	%r3,LT
+	clrrdi	%r3,%r3,48
+	or	%r7,%r7,%r3
+	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	rotldi	%r7,%r7,16
+	bdnz	3b
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vminsw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,2
+	mtctr	%r11
+	li	%r7,0
+3:	cmpd	%r1,%r0
+	setnbc	%r3,LT
+	clrrdi	%r3,%r3,32
+	or	%r7,%r7,%r3
+	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	rotldi	%r7,%r7,32
+	bdnz	3b
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vminuw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,2
+	mtctr	%r11
+	li	%r7,0
+3:	cmpld	%r1,%r0
+	setnbc	%r3,LT
+	clrrdi	%r3,%r3,32
+	or	%r7,%r7,%r3
+	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	rotldi	%r7,%r7,32
+	bdnz	3b
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vminsd:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+3:	cmpd	%r1,%r0
+	setnbc	%r7,LT
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vminud:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+3:	cmpld	%r1,%r0
+	setnbc	%r7,LT
+	xor	%r1,%r1,%r0
+	and	%r1,%r1,%r7
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
 return:
+	mtctr	%r30
 	mfspr	%r1,HSRR0
 	addi	%r1,%r1,4
 	mtspr	HSRR0,%r1
@@ -157,6 +707,7 @@ return:
 	hrfid
 
 vec_unavail:
+	mtctr	%r30
 	mfspr	%r0,HSRR0
 	mfspr	%r1,HSRR1
 	mtspr	SRR0,%r0
@@ -168,6 +719,7 @@ vec_unavail:
 	ba	0xf20
 
 vsx_unavail:
+	mtctr	%r30
 	mfspr	%r0,HSRR0
 	mfspr	%r1,HSRR1
 	mtspr	SRR0,%r0

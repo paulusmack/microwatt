@@ -82,6 +82,19 @@ void print_test_number(int i)
 	putchar(':');
 }
 
+void print_buf(unsigned char *buf, unsigned long len, const char *what)
+{
+	unsigned long i;
+
+	print_string(what);
+	print_string(" =");
+	for (i = 0; i < len; ++i) {
+		print_string(" ");
+		print_hex(buf[i], 2);
+	}
+	print_string("\r\n");
+}
+
 #define DO_LSTVX(instr, vr, addr)	asm(instr " %%v%0,0,%1" : : "i" (vr), "r" (addr) : "memory")
 
 unsigned char lvx_result[16] __attribute__((__aligned__(16)));
@@ -220,6 +233,49 @@ int vector_test_2(void)
 	return 0;
 }
 
+unsigned long do_vpkpx(unsigned long addr, unsigned long x)
+{
+	asm("lvx 12,0,%0; lvx 27,0,%1; vpkpx 11,27,12; stvx 11,0,%2" : :
+	    "r" (addr), "r" (addr + 16), "r" (&lvx_result) : "memory");
+	return 0;
+}
+
+int vector_test_3(void)
+{
+	unsigned long ret, i, j, k, v;
+	unsigned char data[32] __attribute__((__aligned__(16)));
+	unsigned char exp[16];
+
+	v = 69;
+	disable_vec();
+	ret = callit((unsigned long)&data, 0, do_vpkpx);
+	if (ret != 0xf20)
+		return ret | 1;
+	enable_vec();
+	for (j = 0; j < 5; ++j) {
+		k = 0;
+		for (i = 0; i < 32; i += 4) {
+			data[i] = (v += 27);
+			exp[k] = (v & 0xf8) >> 3;
+			data[i+1] = (v += 27);
+			exp[k] |= (v & 0x38) << 2;
+			exp[k+1] = (v & 0xc0) >> 6;
+			data[i+2] = (v += 27);
+			exp[k+1] |= (v & 0xf8) >> 1;
+			data[i+3] = (v += 27);
+			exp[k+1] |= (v & 1) << 7;
+			k += 2;
+		}
+		ret = callit((unsigned long)&data, 0, do_vpkpx);
+		if (ret)
+			return ret | 0x1000;
+		for (k = 0; k < 16; ++k)
+			if (lvx_result[k] != exp[k])
+				return 0x8000 | (j << 12) | (k << 8) | lvx_result[k];
+	}
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -244,6 +300,7 @@ int main(void)
 
 	do_test(1, vector_test_1);
 	do_test(2, vector_test_2);
+	do_test(3, vector_test_3);
 
 	return fail;
 }

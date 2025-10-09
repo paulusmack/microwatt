@@ -486,7 +486,7 @@ architecture behaviour of decode1 is
         others           =>  (ALU,  NONE, OP_ILLEGAL,   NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE)
         );
 
-    function decode_ram_spr(sprn : spr_num_t) return ram_spr_info is
+    function decode_ram_spr(sprn : spr_num_t; emu_mode : std_ulogic) return ram_spr_info is
         variable ret : ram_spr_info;
     begin
         ret := (index => (others => '0'), isodd => '0', is32b => '0', valid => '1');
@@ -525,7 +525,7 @@ architecture behaviour of decode1 is
                 ret.isodd := '1';
             when SPR_VRSAVE =>
                 ret.index := RAMSPR_VRSAVE;
-                ret.is32b := '1';
+                ret.is32b := not emu_mode;
             when SPR_HASHKEYR =>
                 ret.index := RAMSPR_HASHKY;
                 ret.isodd := '1';
@@ -690,7 +690,7 @@ begin
 	else
             sprn := decode_spr_num(insn);
             v.spr_info := map_spr(sprn);
-            v.ram_spr := decode_ram_spr(sprn);
+            v.ram_spr := decode_ram_spr(sprn, f_in.emu_mode);
         end if;
 
         -- Unpack predecoded instruction from predecode logic

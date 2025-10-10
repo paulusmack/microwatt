@@ -18,6 +18,7 @@
 	.text
 	.machine "power10"
 
+XER	= 1
 SRR0	= 26
 SRR1	= 27
 HEIR	= 339
@@ -107,7 +108,7 @@ op4_table:
 	.long	0
 	.long	vcol2 - op4_table
 	.long	0
-	.long	0
+	.long	vcol4 - op4_table
 	.long	0
 	.long	0
 	.long	0
@@ -199,6 +200,40 @@ vcol2:
 	.long	0
 	.long	0
 	.long	0
+	.long	0		# row 30
+	.long	0
+
+vcol4:
+	.long	do_vrlb - vcol4		# row 0
+	.long	do_vrlh - vcol4
+	.long	do_vrlw - vcol4
+	.long	do_vrld - vcol4
+	.long	do_vslb - vcol4		# row 4
+	.long	do_vslh - vcol4
+	.long	do_vslw - vcol4
+	.long	do_vsl - vcol4
+	.long	do_vsrb - vcol4		# row 8
+	.long	do_vsrh - vcol4
+	.long	do_vsrw - vcol4
+	.long	do_vsr - vcol4
+	.long	do_vsrab - vcol4	# row 12
+	.long	do_vsrah - vcol4
+	.long	do_vsraw - vcol4
+	.long	do_vsrad - vcol4
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	do_vsld - vcol4
+	.long	0
+	.long	0
+	.long	0
+	.long	do_vsrd - vcol4
+	.long	do_vsrv - vcol4
+	.long	do_vslv - vcol4
 	.long	0		# row 30
 	.long	0
 
@@ -694,6 +729,437 @@ do_vminud:
 	ori	%r5,%r5,LO
 	ori	%r6,%r6,LO
 	beq	1b
+	b	return
+
+do_vrlb:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,8
+	mtctr	%r11
+2:	clrldi	%r8,%r1,61
+	clrldi	%r9,%r0,56
+	sld	%r9,%r9,%r8
+	srdi	%r8,%r9,8
+	or	%r9,%r8,%r9
+	rlwimi	%r3,%r9,0,0xff
+	rotldi	%r0,%r0,8
+	rotldi	%r1,%r1,8
+	rotldi	%r3,%r3,8
+	bdnz	2b
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vrlh:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,4
+	mtctr	%r11
+2:	clrldi	%r8,%r1,60
+	clrldi	%r9,%r0,48
+	sld	%r9,%r9,%r8
+	srdi	%r8,%r9,16
+	or	%r9,%r8,%r9
+	rlwimi	%r3,%r9,0,0xffff
+	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	rotldi	%r3,%r3,16
+	bdnz	2b
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vrlw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	rlwnm	%r3,%r0,%r1,0,31
+	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	rlwnm	%r9,%r0,%r1,0,31
+	rldimi	%r3,%r9,32,0
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vrld:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+2:	rotld	%r3,%r0,%r1
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vslb:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,8
+	mtctr	%r11
+2:	clrldi	%r8,%r1,61
+	sld	%r9,%r0,%r8
+	rlwimi	%r3,%r9,0,0xff
+	rotldi	%r0,%r0,8
+	rotldi	%r1,%r1,8
+	rotldi	%r3,%r3,8
+	bdnz	2b
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vslh:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,4
+	mtctr	%r11
+2:	clrldi	%r8,%r1,60
+	sld	%r9,%r0,%r8
+	rlwimi	%r3,%r9,0,0xffff
+	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	rotldi	%r3,%r3,16
+	bdnz	2b
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vslw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	clrldi	%r8,%r1,59
+	slw	%r3,%r0,%r8
+	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	clrldi	%r8,%r1,59
+	slw	%r9,%r0,%r8
+	rldimi	%r3,%r9,32,0
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vsld:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+2:	clrldi	%r8,%r1,58
+	sld	%r3,%r0,%r8
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vsl:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	mfrin	1,4
+	mfrin	3,5
+	clrldi	%r3,%r3,61
+	li	%r7,-1
+	sld	%r0,%r0,%r3
+	rotld	%r1,%r1,%r3
+	sld	%r7,%r7,%r3
+	andc	%r8,%r1,%r7
+	and	%r1,%r1,%r7
+	or	%r0,%r0,%r8
+	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	1,6
+	b	return
+
+do_vsrb:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,8
+	mtctr	%r11
+2:	clrldi	%r8,%r1,61
+	clrldi	%r9,%r0,56
+	srd	%r9,%r9,%r8
+	rlwimi	%r3,%r9,0,0xff
+	rotldi	%r0,%r0,8
+	rotldi	%r1,%r1,8
+	rotldi	%r3,%r3,8
+	bdnz	2b
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vsrh:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,4
+	mtctr	%r11
+2:	clrldi	%r8,%r1,60
+	clrldi	%r9,%r0,48
+	srd	%r9,%r9,%r8
+	rlwimi	%r3,%r9,0,0xffff
+	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	rotldi	%r3,%r3,16
+	bdnz	2b
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vsrw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	clrldi	%r8,%r1,59
+	srw	%r3,%r0,%r8
+	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	clrldi	%r8,%r1,59
+	slw	%r9,%r0,%r8
+	rldimi	%r3,%r9,32,0
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vsrd:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+2:	clrldi	%r8,%r1,58
+	srd	%r3,%r0,%r8
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vsr:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	mfrin	1,4
+	mfrin	3,5
+	clrldi	%r3,%r3,61
+	li	%r7,-1
+	neg	%r9,%r3
+	rotld	%r0,%r0,%r9
+	srd	%r1,%r1,%r3
+	srd	%r7,%r7,%r3
+	andc	%r8,%r0,%r7
+	and	%r0,%r0,%r7
+	or	%r1,%r1,%r8
+	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	1,6
+	b	return
+
+do_vsrab:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,8
+	mtctr	%r11
+2:	clrldi	%r8,%r1,61
+	extsb	%r9,%r0
+	srd	%r9,%r9,%r8
+	rlwimi	%r3,%r9,0,0xff
+	rotldi	%r0,%r0,8
+	rotldi	%r1,%r1,8
+	rotldi	%r3,%r3,8
+	bdnz	2b
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vsrah:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,4
+	mtctr	%r11
+2:	clrldi	%r8,%r1,60
+	extsh	%r9,%r0
+	srd	%r9,%r9,%r8
+	rlwimi	%r3,%r9,0,0xffff
+	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	rotldi	%r3,%r3,16
+	bdnz	2b
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vsraw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfspr	%r29,XER
+1:	mfrin	0,4
+	mfrin	1,5
+	srad	%r0,%r0,%r1
+	clrldi	%r8,%r1,59
+	sraw	%r3,%r0,%r8
+	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	clrldi	%r8,%r1,59
+	sraw	%r9,%r0,%r8
+	rldimi	%r3,%r9,32,0
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	mtspr	XER,%r29
+	b	return
+
+do_vsrad:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfspr	%r29,XER
+1:	mfrin	0,4
+	mfrin	1,5
+	clrldi	%r8,%r1,58
+	srad	%r3,%r0,%r8
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	beq	1b
+	mtspr	XER,%r29
+	b	return
+
+do_vslv:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfrin	0,4
+	mfrin	7,5
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	mfrin	1,4
+	mfrin	8,5
+	li	%r11,16
+	mtctr	%r11
+1:	rldicl	%r12,%r7,8,61
+	sld	%r12,%r0,%r12
+	srdi	%r12,%r12,56
+	sldi	%r0,%r0,8
+	sldi	%r7,%r7,8
+	rotldi	%r1,%r1,8
+	rotldi	%r8,%r8,8
+	rldimi	%r0,%r1,0,56
+	rldimi	%r7,%r8,0,56
+	clrrdi	%r1,%r1,8
+	sldi	%r9,%r9,8
+	rotldi	%r10,%r10,8
+	rldimi	%r9,%r10,0,56
+	rldimi	%r10,%r12,0,56
+	bdnz	1b
+	mtrin	9,6
+	addi	%r6,%r6,LO
+	mtrin	10,6
+	b	return
+
+do_vsrv:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfrin	0,4
+	mfrin	7,5
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	mfrin	1,4
+	mfrin	8,5
+	li	%r11,16
+	mtctr	%r11
+1:	clrldi	%r12,%r8,61
+	srd	%r12,%r1,%r12
+	rldimi	%r1,%r0,0,56
+	rotldi	%r1,%r1,56
+	srdi	%r0,%r0,8
+	rldimi	%r8,%r7,0,56
+	rotldi	%r8,%r8,56
+	srdi	%r7,%r7,8
+	rldimi	%r10,%r9,0,56
+	rldimi	%r9,%r12,0,56
+	rotldi	%r9,%r9,56
+	rotldi	%r10,%r10,56
+	bdnz	1b
+	mtrin	9,6
+	addi	%r6,%r6,LO
+	mtrin	10,6
 	b	return
 
 return:

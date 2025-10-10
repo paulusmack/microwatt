@@ -21,6 +21,7 @@
 XER	= 1
 SRR0	= 26
 SRR1	= 27
+VRSAVE	= 256
 HEIR	= 339
 HSRR0	= 314
 HSRR1	= 315
@@ -228,8 +229,8 @@ vcol4:
 	.long	0
 	.long	0
 	.long	do_vsld - vcol4
-	.long	0
-	.long	0
+	.long	do_mfvscr - vcol4
+	.long	do_mtvscr - vcol4
 	.long	0
 	.long	do_vsrd - vcol4
 	.long	do_vsrv - vcol4
@@ -1160,6 +1161,31 @@ do_vsrv:
 	mtrin	9,6
 	addi	%r6,%r6,LO
 	mtrin	10,6
+	b	return
+
+# Note: the high 32 bits of VRSAVE are used to store VSCR
+do_mfvscr:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfspr	%r1,VRSAVE
+	srdi	%r1,%r1,32
+	lis	%r3,1			# NJ bit
+	addi	%r3,%r3,1		# SAT bit
+	and	%r1,%r1,%r3		# clear all other bits
+	li	%r0,0
+	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	1,6
+	b	return
+
+do_mtvscr:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	addi	%r5,%r5,LO
+	mfrin	1,5
+	mfspr	%r0,VRSAVE
+	rldimi	%r0,%r1,32,0
+	mtspr	VRSAVE,%r0
 	b	return
 
 return:

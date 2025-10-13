@@ -247,13 +247,13 @@ vcol6:
 	.long	0
 	.long	0
 	.long	0
+	.long	do_vcmpgtub - vcol6
+	.long	do_vcmpgtuh - vcol6
+	.long	do_vcmpgtuw - vcol6		# row 10
 	.long	0
-	.long	0
-	.long	0		# row 10
-	.long	0
-	.long	0
-	.long	0
-	.long	0
+	.long	do_vcmpgtsb - vcol6
+	.long	do_vcmpgtsh - vcol6
+	.long	do_vcmpgtsw - vcol6
 	.long	0
 	.long	do_vcmpequb - vcol6
 	.long	do_vcmpequh - vcol6
@@ -263,48 +263,48 @@ vcol6:
 	.long	0
 	.long	0
 	.long	0
+	.long	do_vcmpgtub - vcol6
+	.long	do_vcmpgtuh - vcol6
+	.long	do_vcmpgtuw - vcol6
 	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 30
+	.long	do_vcmpgtsb - vcol6
+	.long	do_vcmpgtsh - vcol6
+	.long	do_vcmpgtsw - vcol6		# row 30
 	.long	0
 
 vcol7:
-	.long	0		# row 0
-	.long	0
-	.long	0
+	.long	do_vcmpneb - vcol7		# row 0
+	.long	do_vcmpneh - vcol7
+	.long	do_vcmpnew - vcol7
 	.long	do_vcmpequd - vcol7
+	.long	do_vcmpnezb - vcol7
+	.long	do_vcmpnezh - vcol7
+	.long	do_vcmpnezw - vcol7
+	.long	do_vcmpequq - vcol7
 	.long	0
 	.long	0
+	.long	do_vcmpgtuq - vcol7		# row 10
+	.long	do_vcmpgtud - vcol7
 	.long	0
 	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 10
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
+	.long	do_vcmpgtsq - vcol7
+	.long	do_vcmpgtsd - vcol7
+	.long	do_vcmpneb - vcol7
+	.long	do_vcmpneh - vcol7
+	.long	do_vcmpnew - vcol7
 	.long	do_vcmpequd - vcol7
-	.long	0		# row 20
+	.long	do_vcmpnezb - vcol7		# row 20
+	.long	do_vcmpnezh - vcol7
+	.long	do_vcmpnezw - vcol7
+	.long	do_vcmpequq - vcol7
 	.long	0
 	.long	0
+	.long	do_vcmpgtuq - vcol7
+	.long	do_vcmpgtud - vcol7
 	.long	0
 	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 30
-	.long	0
+	.long	do_vcmpgtsq - vcol7		# row 30
+	.long	do_vcmpgtsd - vcol7
 
 vcol14:
 	.long	0		# row 0
@@ -1376,6 +1376,446 @@ do_vcmpequd:
 	setnbc	%r3,EQ
 	mtrin	3,6
 	andi.	%r8,%r8,0x400		# Rc bit set?
+	beq	return
+	li	%r0,0xf0		# clear CR6 image in r30
+	andc	%r30,%r30,%r0
+	or.	%r0,%r2,%r3
+	and	%r1,%r2,%r3
+	cmpdi	%cr1,%r1,-1
+	mfcr	%r0
+	rlwimi	%r30,%r0,8,0x20		# cr0.eq -> cr6 bit 2 (BE numbering)
+	rlwimi	%r30,%r0,14,0x80	# cr1.eq -> cr6 bit 0 (BE numbering)
+	b	return
+
+do_vcmpequq:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfrin	0,4
+	mfrin	1,5
+	cmpd	%r0,%r1
+	bne	2f
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	mfrin	0,4
+	mfrin	1,5
+	cmpd	%r0,%r1
+2:	setnbc	%r7,EQ
+	mtrin	7,6
+	b	return
+
+do_vcmpgtub:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,8
+	mtctr	%r11
+2:	clrrdi	%r2,%r0,56
+	clrrdi	%r3,%r1,56
+	cmpld	%r2,%r3
+	sldi	%r0,%r0,8
+	sldi	%r1,%r1,8
+	sldi	%r7,%r7,8
+	setnbc	%r3,GT
+	rldimi	%r7,%r3,0,56
+	bdnz	2b
+	mtrin	7,6
+	andi.	%r0,%r4,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vcmpgtsb:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,8
+	mtctr	%r11
+2:	clrrdi	%r2,%r0,56
+	clrrdi	%r3,%r1,56
+	cmpd	%r2,%r3
+	sldi	%r0,%r0,8
+	sldi	%r1,%r1,8
+	sldi	%r7,%r7,8
+	setnbc	%r3,GT
+	rldimi	%r7,%r3,0,56
+	bdnz	2b
+	mtrin	7,6
+	andi.	%r0,%r4,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vcmpgtuh:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,4
+	mtctr	%r11
+2:	clrrdi	%r2,%r0,48
+	clrrdi	%r3,%r1,48
+	cmpld	%r2,%r3
+	sldi	%r0,%r0,16
+	sldi	%r1,%r1,16
+	sldi	%r7,%r7,16
+	setnbc	%r3,GT
+	rldimi	%r7,%r3,0,48
+	bdnz	2b
+	mtrin	7,6
+	andi.	%r0,%r4,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vcmpgtsh:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,4
+	mtctr	%r11
+2:	clrrdi	%r2,%r0,48
+	clrrdi	%r3,%r1,48
+	cmpd	%r2,%r3
+	sldi	%r0,%r0,16
+	sldi	%r1,%r1,16
+	sldi	%r7,%r7,16
+	setnbc	%r3,GT
+	rldimi	%r7,%r3,0,48
+	bdnz	2b
+	mtrin	7,6
+	andi.	%r0,%r4,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vcmpgtuw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,2
+	mtctr	%r11
+2:	clrrdi	%r2,%r0,32
+	clrrdi	%r3,%r1,32
+	cmpld	%r2,%r3
+	sldi	%r0,%r0,32
+	sldi	%r1,%r1,32
+	sldi	%r7,%r7,32
+	setnbc	%r3,GT
+	rldimi	%r7,%r3,0,32
+	bdnz	2b
+	mtrin	7,6
+	andi.	%r0,%r4,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vcmpgtsw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	li	%r11,2
+	mtctr	%r11
+2:	clrrdi	%r2,%r0,32
+	clrrdi	%r3,%r1,32
+	cmpd	%r2,%r3
+	sldi	%r0,%r0,32
+	sldi	%r1,%r1,32
+	sldi	%r7,%r7,32
+	setnbc	%r3,GT
+	rldimi	%r7,%r3,0,32
+	bdnz	2b
+	mtrin	7,6
+	andi.	%r0,%r4,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vcmpgtud:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	cmpld	%r0,%r1
+	setnbc	%r7,GT
+	mtrin	7,6
+	andi.	%r0,%r4,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vcmpgtsd:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	cmpd	%r0,%r1
+	setnbc	%r7,GT
+	mtrin	7,6
+	andi.	%r0,%r4,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vcmpgtuq:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfrin	0,4
+	mfrin	1,5
+	cmpld	%r0,%r1
+	bne	2f
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	mfrin	0,4
+	mfrin	1,5
+	cmpld	%r0,%r1
+2:	setnbc	%r7,GT
+	mtrin	7,6
+	b	return
+
+do_vcmpgtsq:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfrin	0,4
+	mfrin	1,5
+	cmpd	%r0,%r1
+	bne	2f
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	mfrin	0,4
+	mfrin	1,5
+	cmpld	%r0,%r1
+2:	setnbc	%r7,GT
+	mtrin	7,6
+	b	return
+
+do_vcmpneb:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfrin	0,4
+	mfrin	1,5
+	cmpb	%r2,%r0,%r1
+	not	%r2,%r2
+	mtrin	2,6
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	0,4
+	mfrin	1,5
+	cmpb	%r3,%r0,%r1
+	not	%r3,%r3
+	mtrin	3,6
+	andi.	%r8,%r8,0x400		# Rc bit set?
+	beq	return
+	li	%r0,0xf0		# clear CR6 image in r30
+	andc	%r30,%r30,%r0
+	or.	%r0,%r2,%r3
+	and	%r1,%r2,%r3
+	cmpdi	%cr1,%r1,-1
+	mfcr	%r0
+	rlwimi	%r30,%r0,8,0x20		# cr0.eq -> cr6 bit 2 (BE numbering)
+	cmpb	%r3,%r1,%r9
+	rlwimi	%r30,%r0,14,0x80	# cr1.eq -> cr6 bit 0 (BE numbering)
+	b	return
+
+do_vcmpnezb:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfrin	0,4
+	mfrin	1,5
+	li	%r9,0
+	cmpb	%r7,%r0,%r1
+	cmpb	%r2,%r0,%r9
+	cmpb	%r10,%r1,%r9
+	or	%r2,%r2,%r10
+	orc	%r2,%r2,%r7
+	mtrin	2,6
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	0,4
+	mfrin	1,5
+	cmpb	%r7,%r0,%r1
+	cmpb	%r3,%r0,%r9
+	cmpb	%r10,%r1,%r9
+	or	%r3,%r3,%r10
+	orc	%r3,%r3,%r7
+	mtrin	3,6
+	andi.	%r8,%r8,0x400		# Rc bit set?
+	beq	return
+	li	%r0,0xf0		# clear CR6 image in r30
+	andc	%r30,%r30,%r0
+	or.	%r0,%r2,%r3
+	and	%r1,%r2,%r3
+	cmpdi	%cr1,%r1,-1
+	mfcr	%r0
+	rlwimi	%r30,%r0,8,0x20		# cr0.eq -> cr6 bit 2 (BE numbering)
+	rlwimi	%r30,%r0,14,0x80	# cr1.eq -> cr6 bit 0 (BE numbering)
+	b	return
+
+do_vcmpneh:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfrin	0,4
+	mfrin	1,5
+	lis	%r9,0xff
+	addi	%r9,%r9,0xff
+	rldimi	%r9,%r9,32,0
+	cmpb	%r2,%r0,%r1
+	srdi	%r10,%r2,8
+	and	%r10,%r10,%r9
+	and	%r2,%r2,%r10
+	sldi	%r10,%r2,8
+	nor	%r2,%r2,%r10
+	mtrin	2,6
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	0,4
+	mfrin	1,5
+	cmpb	%r3,%r0,%r1
+	srdi	%r10,%r3,8
+	and	%r10,%r10,%r9
+	and	%r3,%r3,%r10
+	sldi	%r10,%r3,8
+	nor	%r3,%r3,%r10
+	mtrin	3,6
+	andi.	%r8,%r8,0x400		# Rc bit set?
+	beq	return
+	li	%r0,0xf0		# clear CR6 image in r30
+	andc	%r30,%r30,%r0
+	or.	%r0,%r2,%r3
+	and	%r1,%r2,%r3
+	cmpdi	%cr1,%r1,-1
+	mfcr	%r0
+	rlwimi	%r30,%r0,8,0x20		# cr0.eq -> cr6 bit 2 (BE numbering)
+	rlwimi	%r30,%r0,14,0x80	# cr1.eq -> cr6 bit 0 (BE numbering)
+	b	return
+
+do_vcmpnezh:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	li	%r11,0
+	lis	%r9,0xff
+	addi	%r9,%r9,0xff
+	rldimi	%r9,%r9,32,0
+1:	mfrin	0,4
+	mfrin	1,5
+	cmpb	%r2,%r0,%r1
+	cmpb	%r14,%r0,%r11
+	cmpb	%r15,%r1,%r11
+	srdi	%r10,%r14,8
+	and	%r14,%r14,%r10
+	srdi	%r10,%r15,8
+	and	%r15,%r15,%r10
+	srdi	%r10,%r2,8
+	or	%r14,%r14,%r15
+	orc	%r2,%r14,%r2
+	and	%r2,%r2,%r9
+	sldi	%r10,%r2,8
+	or	%r2,%r2,%r10
+	mtrin	2,6
+	andi.	%r0,%r4,LO
+	bne	2f
+	mr	%r3,%r2
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+	andi.	%r8,%r8,0x400		# Rc bit set?
+	beq	return
+	li	%r0,0xf0		# clear CR6 image in r30
+	andc	%r30,%r30,%r0
+	or.	%r0,%r2,%r3
+	and	%r1,%r2,%r3
+	cmpdi	%cr1,%r1,-1
+	mfcr	%r0
+	rlwimi	%r30,%r0,8,0x20		# cr0.eq -> cr6 bit 2 (BE numbering)
+	rlwimi	%r30,%r0,14,0x80	# cr1.eq -> cr6 bit 0 (BE numbering)
+	b	return
+
+do_vcmpnew:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	cmpw	%r0,%r1
+	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	setnbcr	%r2,EQ
+	cmpw	%r0,%r1
+	setnbcr	%r9,EQ
+	rldimi	%r2,%r9,32,0
+	mtrin	2,6
+	andi.	%r0,%r4,LO
+	beq	2f
+	mr	%r3,%r2
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+2:	andi.	%r8,%r8,0x400		# Rc bit set?
+	beq	return
+	li	%r0,0xf0		# clear CR6 image in r30
+	andc	%r30,%r30,%r0
+	or.	%r0,%r2,%r3
+	and	%r1,%r2,%r3
+	cmpdi	%cr1,%r1,-1
+	mfcr	%r0
+	rlwimi	%r30,%r0,8,0x20		# cr0.eq -> cr6 bit 2 (BE numbering)
+	rlwimi	%r30,%r0,14,0x80	# cr1.eq -> cr6 bit 0 (BE numbering)
+	b	return
+
+do_vcmpnezw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	li	%r11,0
+1:	mfrin	0,4
+	mfrin	1,5
+	cmpw	%r0,%r1
+	cmpw	%cr1,%r0,%r11
+	cmpw	%cr2,%r1,%r11
+	cror	1*4+EQ,1*4+EQ,2*4+EQ
+	crorc	EQ,1*4+EQ,EQ
+	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	setnbc	%r2,EQ
+	cmpw	%r0,%r1
+	cmpw	%cr1,%r0,%r11
+	cmpw	%cr2,%r1,%r11
+	cror	1*4+EQ,1*4+EQ,2*4+EQ
+	crorc	EQ,1*4+EQ,EQ
+	setnbc	%r9,EQ
+	rldimi	%r2,%r9,32,0
+	mtrin	2,6
+	andi.	%r0,%r4,LO
+	beq	2f
+	mr	%r3,%r2
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+2:	andi.	%r8,%r8,0x400		# Rc bit set?
 	beq	return
 	li	%r0,0xf0		# clear CR6 image in r30
 	andc	%r30,%r30,%r0

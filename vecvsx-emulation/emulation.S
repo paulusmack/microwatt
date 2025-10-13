@@ -315,13 +315,13 @@ vcol12:
 	.long	do_vmrglh - vcol12
 	.long	do_vmrglw - vcol12
 	.long	0
+	.long	do_vspltb - vcol12
+	.long	do_vsplth - vcol12
+	.long	do_vspltw - vcol12		# row 10
 	.long	0
-	.long	0
-	.long	0		# row 10
-	.long	0
-	.long	0
-	.long	0
-	.long	0
+	.long	do_vspltisb - vcol12
+	.long	do_vspltish - vcol12
+	.long	do_vspltisw - vcol12
 	.long	0
 	.long	0
 	.long	0
@@ -1950,6 +1950,88 @@ do_vmrgow:
 	addi	%r5,%r5,LO
 	addi	%r6,%r6,LO
 	b	1b
+
+do_vspltb:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	rlwimi	%r5,%r8,12-26+32,LO	# instr bit 12 (BE) -> LO bit
+	rlwinm	%r1,%r8,15-28+32,0x38	# rest of UIM field -> bit shift count
+	xori	%r1,%r1,0x38
+	mfrin	0,5
+	srd	%r0,%r0,%r1
+	rlwimi	%r0,%r0,8,0xff00
+	rlwimi	%r0,%r0,16,0xffff0000
+	rldimi	%r0,%r0,32,0
+	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	0,6
+	b	return
+
+do_vsplth:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	rlwimi	%r5,%r8,13-26+32,LO	# instr bit 13 (BE) -> LO bit
+	rlwinm	%r1,%r8,15-27+32,0x30	# rest of UIM field -> bit shift count
+	xori	%r1,%r1,0x30
+	mfrin	0,5
+	rlwimi	%r0,%r0,16,0xffff0000
+	rldimi	%r0,%r0,32,0
+	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	0,6
+	b	return
+
+do_vspltw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	rlwimi	%r5,%r8,14-26+32,LO	# instr bit 14 (BE) -> LO bit
+	rlwinm	%r1,%r8,15-26+32,0x20	# rest of UIM field -> bit shift count
+	xori	%r1,%r1,0x20
+	mfrin	0,5
+	rldimi	%r0,%r0,32,0
+	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	0,6
+	b	return
+
+do_vspltisb:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	rlwinm	%r1,%r8,15-31+32,0xf	# extract the bottom 4 bits of SIM
+	rlwinm	%r2,%r8,11-27+32,0x10	# extract the sign bit
+	subf	%r0,%r2,%r1
+	rlwimi	%r0,%r0,8,0xff00
+	rlwimi	%r0,%r0,16,0xffff0000
+	rldimi	%r0,%r0,32,0
+	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	0,6
+	b	return
+
+do_vspltish:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	rlwinm	%r1,%r8,15-31+32,0xf	# extract the bottom 4 bits of SIM
+	rlwinm	%r2,%r8,11-27+32,0x10	# extract the sign bit
+	subf	%r0,%r2,%r1
+	rlwimi	%r0,%r0,16,0xffff0000
+	rldimi	%r0,%r0,32,0
+	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	0,6
+	b	return
+
+do_vspltisw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	rlwinm	%r1,%r8,15-31+32,0xf	# extract the bottom 4 bits of SIM
+	rlwinm	%r2,%r8,11-27+32,0x10	# extract the sign bit
+	subf	%r0,%r2,%r1
+	rldimi	%r0,%r0,32,0
+	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	0,6
+	b	return
 
 return:
 	mtctr	%r30

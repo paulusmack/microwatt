@@ -117,7 +117,7 @@ op4_table:
 	.long	0
 	.long	0		# column 10
 	.long	0
-	.long	0
+	.long	vcol12 - op4_table
 	.long	0
 	.long	vcol14 - op4_table
 	.long	0
@@ -305,6 +305,40 @@ vcol7:
 	.long	0
 	.long	do_vcmpgtsq - vcol7		# row 30
 	.long	do_vcmpgtsd - vcol7
+
+vcol12:
+	.long	do_vmrghb - vcol12		# row 0
+	.long	do_vmrghh - vcol12
+	.long	do_vmrghw - vcol12
+	.long	0
+	.long	do_vmrglb - vcol12
+	.long	do_vmrglh - vcol12
+	.long	do_vmrglw - vcol12
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 10
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	do_vmrgow - vcol12
+	.long	0
+	.long	0
+	.long	0
+	.long	do_vmrgew - vcol12		# row 30
+	.long	0
 
 vcol14:
 	.long	0		# row 0
@@ -1826,6 +1860,96 @@ do_vcmpnezw:
 	rlwimi	%r30,%r0,8,0x20		# cr0.eq -> cr6 bit 2 (BE numbering)
 	rlwimi	%r30,%r0,14,0x80	# cr1.eq -> cr6 bit 0 (BE numbering)
 	b	return
+
+do_vmrglb:
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+do_vmrghb:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfrin	0,4
+	mfrin	1,5
+	li	%r11,4
+1:	mtctr	%r11
+2:	rotldi	%r0,%r0,8
+	rotldi	%r1,%r1,8
+	rotldi	%r2,%r2,16
+	rldimi	%r2,%r0,8,48
+	rldimi	%r2,%r1,0,56
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	addi	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vmrglh:
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+do_vmrghh:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfrin	0,4
+	mfrin	1,5
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	rotldi	%r2,%r2,32
+	rldimi	%r2,%r0,16,32
+	rldimi	%r2,%r1,0,48
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	addi	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vmrglw:
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+do_vmrghw:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mfrin	0,4
+	mfrin	1,5
+1:	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	rldimi	%r1,%r0,32,0
+	mtrin	1,6
+	andi.	%r0,%r6,LO
+	addi	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vmrgew:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	rotldi	%r1,%r1,32
+	rldimi	%r0,%r1,0,32
+	mtrin	0,6
+	andi.	%r0,%r4,LO
+	bne	return
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vmrgow:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	0,4
+	mfrin	1,5
+	rldimi	%r1,%r0,32,0
+	mtrin	1,6
+	andi.	%r0,%r4,LO
+	bne	return
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
 
 return:
 	mtctr	%r30

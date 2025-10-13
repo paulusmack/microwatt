@@ -327,7 +327,7 @@ vcol12:
 	.long	do_vsro - vcol12
 	.long	0
 	.long	0
-	.long	0		# row 20
+	.long	do_vgbbd - vcol12		# row 20
 	.long	0
 	.long	0
 	.long	0
@@ -2087,6 +2087,48 @@ do_vsro:
 	addi	%r6,%r6,LO
 	mtrin	1,6
 	b	return
+
+do_vgbbd:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+1:	mfrin	1,5
+	# 8x8 transpose of the bits in r1 is done in 3 steps
+	# 1: swap top-right (TR) and bottom-left (BL) 4x4 blocks
+	li	%r2,0
+	oris	%r2,%r2,0xf0f0
+	ori	%r2,%r2,0xf0f0		# mask of BL bits
+	srdi	%r0,%r1,28		# shift TR bits into BL positions
+	xor	%r3,%r0,%r1		# bits that differ
+	and	%r3,%r3,%r2
+	sldi	%r0,%r3,28
+	or	%r0,%r0,%r3		# change both TR and BL
+	xor	%r1,%r1,%r0
+	# 2: swap TR and BL 2x2 blocks in each 4x4 block
+	li	%r2,0
+	ori	%r2,%r2,0xcccc
+	rldimi	%r2,%r2,32,0
+	srdi	%r0,%r1,14
+	xor	%r3,%r0,%r1
+	and	%r3,%r3,%r2
+	sldi	%r0,%r3,14
+	or	%r0,%r0,%r3
+	xor	%r1,%r1,%r0
+	# 3: swap TR and BL 1x1 blocks in each 2x2 block
+	li	%r2,0xaa
+	ori	%r2,%r2,0xaa
+	rldimi	%r2,%r2,32,0
+	srdi	%r0,%r1,7
+	xor	%r3,%r0,%r1
+	and	%r3,%r3,%r2
+	sldi	%r0,%r3,7
+	or	%r0,%r0,%r3
+	xor	%r1,%r1,%r0
+	mtrin	1,6
+	andi.	%r0,%r5,LO
+	bne	return
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
 
 return:
 	mtctr	%r30

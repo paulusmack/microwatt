@@ -323,8 +323,8 @@ vcol12:
 	.long	do_vspltish - vcol12
 	.long	do_vspltisw - vcol12
 	.long	0
-	.long	0
-	.long	0
+	.long	do_vslo - vcol12
+	.long	do_vsro - vcol12
 	.long	0
 	.long	0
 	.long	0		# row 20
@@ -2031,6 +2031,61 @@ do_vspltisw:
 	mtrin	0,6
 	addi	%r6,%r6,LO
 	mtrin	0,6
+	b	return
+
+do_vslo:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	addi	%r5,%r5,LO
+	mfrin	1,5
+	andi.	%r2,%r1,0x38		# bit shift count within doubleword
+	andi.	%r3,%r1,0x40		# high bit of shift count
+	bne	1f
+	mfrin	0,4			# shifting 0 - 63 bits left
+	addi	%r4,%r4,LO
+	mfrin	1,4
+	rotld	%r1,%r1,%r2
+	b	2f
+1:	addi	%r4,%r4,LO		# shifting 64 - 127 bits left
+	mfrin	0,4
+	li	%r1,0
+2:	sld	%r0,%r0,%r2
+	li	%r3,-1
+	sld	%r3,%r3,%r2
+	andc	%r9,%r1,%r3
+	or	%r0,%r0,%r9
+	and	%r1,%r1,%r3
+	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	1,6
+	b	return
+
+do_vsro:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	addi	%r5,%r5,LO
+	mfrin	1,5
+	andi.	%r2,%r1,0x38		# bit shift count within doubleword
+	andi.	%r9,%r1,0x40		# high bit of shift count
+	bne	1f
+	mfrin	0,4			# shifting 0 - 63 bits right
+	addi	%r4,%r4,LO
+	mfrin	1,4
+	li	%r10,64
+	subf	%r10,%r2,%r10		# right shift count -> left rotate count
+	rotld	%r0,%r0,%r10
+	b	2f
+1:	mfrin	1,4			# shifting 64 - 127 bits right
+	li	%r0,0
+2:	srd	%r1,%r1,%r2
+	li	%r3,-1
+	srd	%r3,%r3,%r2
+	andc	%r9,%r0,%r3
+	or	%r1,%r1,%r9
+	and	%r0,%r0,%r3
+	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	1,6
 	b	return
 
 return:

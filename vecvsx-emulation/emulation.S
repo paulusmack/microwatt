@@ -328,9 +328,9 @@ vcol12:
 	.long	0
 	.long	0
 	.long	do_vgbbd - vcol12		# row 20
+	.long	do_vbpermq - vcol12
 	.long	0
-	.long	0
-	.long	0
+	.long	do_vbpermd - vcol12
 	.long	0
 	.long	0
 	.long	do_vmrgow - vcol12
@@ -2129,6 +2129,60 @@ do_vgbbd:
 	addi	%r5,%r5,LO
 	addi	%r6,%r6,LO
 	b	1b
+
+do_vbpermd:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	li	%r9,8
+1:	mfrin	0,4
+	mfrin	1,5
+	rotldi	%r0,%r0,1
+	li	%r2,0
+	mtctr	%r9
+2:	rotldi	%r1,%r1,8
+	clrldi	%r3,%r1,56
+	sldi	%r2,%r2,1
+	cmpdi	%r3,64
+	bge	3f
+	rotld	%r3,%r0,%r3
+	rldimi	%r2,%r3,0,63
+3:	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r4,LO
+	bne	return
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vbpermq:
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	li	%r9,8
+	mfrin	1,4
+	addi	%r4,%r4,LO
+	mfrin	2,4
+	rotldi	%r1,%r1,1
+	rotldi	%r2,%r2,1
+	li	%r3,0
+1:	mfrin	0,5
+	mtctr	%r9
+2:	rotldi	%r0,%r0,8
+	mtcrf	0x02,%r0
+	sldi	%r3,%r3,1
+	isel	%r8,%r2,%r1,25		# use r2 if 0x40 bit of r0 is set else r1
+	isel	%r8,0,%r8,24		# use 0 if 0x80 bit of r0 is set
+	rotld	%r8,%r8,%r0
+	rldimi	%r3,%r8,0,63
+	bdnz	2b
+	andi.	%r0,%r5,LO
+	ori	%r5,%r5,LO
+	beq	1b
+3:	mtrin	3,6
+	addi	%r6,%r6,LO
+	li	%r0,0
+	mtrin	0,6
+	b	return
 
 return:
 	mtctr	%r30

@@ -43,6 +43,10 @@ GT	= 1
 EQ	= 2
 SO	= 3
 
+	# VSCR bits (stored in high half of VRSAVE)
+SAT	= 1
+NJ	= 0x10000
+
 	.macro	mfrin rt,ra		# move from register indirect, (RA)=reg index
 	.long	0x58000000+(\rt<<21)+(\ra<<16)
 	.endm
@@ -78,6 +82,8 @@ entry:
 	lwzx	%r12,%r1,%r11
 	cmpdi	%r12,0
 	beq	illegal
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
 	add	%r12,%r12,%r11
 	mtctr	%r12
 	bctr
@@ -103,6 +109,30 @@ illegal:
 	mtspr	EMUC,%r0
 	isync
 	ba	0xe40
+
+vec_unavail:
+	mtctr	%r30
+	mfspr	%r0,HSRR0
+	mfspr	%r1,HSRR1
+	mtspr	SRR0,%r0
+	mtspr	SRR1,%r1
+	mtcr	%r31
+	li	%r0,0
+	mtspr	EMUC,%r0
+	isync
+	ba	0xf20
+
+vsx_unavail:
+	mtctr	%r30
+	mfspr	%r0,HSRR0
+	mfspr	%r1,HSRR1
+	mtspr	SRR0,%r0
+	mtspr	SRR1,%r1
+	mtcr	%r31
+	li	%r0,0
+	mtspr	EMUC,%r0
+	isync
+	ba	0xf40
 
 op4_table:
 	.long	0		# column 0
@@ -412,8 +442,6 @@ do_xxsldwi:
 	b	return
 
 do_vpkpx:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	li	%r12,1
 2:	mr	%r9,%r10
 	li	%r10,0
@@ -439,8 +467,6 @@ do_vpkpx:
 	b	return
 
 do_vmaxsb:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,8
@@ -466,8 +492,6 @@ do_vmaxsb:
 	b	return
 
 do_vmaxub:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,8
@@ -493,8 +517,6 @@ do_vmaxub:
 	b	return
 
 do_vmaxsh:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,4
@@ -520,8 +542,6 @@ do_vmaxsh:
 	b	return
 
 do_vmaxuh:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,4
@@ -547,8 +567,6 @@ do_vmaxuh:
 	b	return
 
 do_vmaxsw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,2
@@ -574,8 +592,6 @@ do_vmaxsw:
 	b	return
 
 do_vmaxuw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,2
@@ -601,8 +617,6 @@ do_vmaxuw:
 	b	return
 
 do_vmaxsd:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 3:	cmpd	%r1,%r0
@@ -619,8 +633,6 @@ do_vmaxsd:
 	b	return
 
 do_vmaxud:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 3:	cmpld	%r1,%r0
@@ -637,8 +649,6 @@ do_vmaxud:
 	b	return
 
 do_vminsb:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,8
@@ -664,8 +674,6 @@ do_vminsb:
 	b	return
 
 do_vminub:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,8
@@ -691,8 +699,6 @@ do_vminub:
 	b	return
 
 do_vminsh:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,4
@@ -718,8 +724,6 @@ do_vminsh:
 	b	return
 
 do_vminuh:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,4
@@ -745,8 +749,6 @@ do_vminuh:
 	b	return
 
 do_vminsw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,2
@@ -772,8 +774,6 @@ do_vminsw:
 	b	return
 
 do_vminuw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,2
@@ -799,8 +799,6 @@ do_vminuw:
 	b	return
 
 do_vminsd:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 3:	cmpd	%r1,%r0
@@ -817,8 +815,6 @@ do_vminsd:
 	b	return
 
 do_vminud:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 3:	cmpld	%r1,%r0
@@ -835,8 +831,6 @@ do_vminud:
 	b	return
 
 do_vrlb:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,8
@@ -860,8 +854,6 @@ do_vrlb:
 	b	return
 
 do_vrlh:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,4
@@ -885,8 +877,6 @@ do_vrlh:
 	b	return
 
 do_vrlw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	rlwnm	%r3,%r0,%r1,0,31
@@ -903,8 +893,6 @@ do_vrlw:
 	b	return
 
 do_vrld:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 2:	rotld	%r3,%r0,%r1
@@ -917,8 +905,6 @@ do_vrld:
 	b	return
 
 do_vslb:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,8
@@ -939,8 +925,6 @@ do_vslb:
 	b	return
 
 do_vslh:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,4
@@ -961,8 +945,6 @@ do_vslh:
 	b	return
 
 do_vslw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	clrldi	%r8,%r1,59
@@ -981,8 +963,6 @@ do_vslw:
 	b	return
 
 do_vsld:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 2:	clrldi	%r8,%r1,58
@@ -996,8 +976,6 @@ do_vsld:
 	b	return
 
 do_vsl:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	addi	%r4,%r4,LO
 	addi	%r5,%r5,LO
@@ -1017,8 +995,6 @@ do_vsl:
 	b	return
 
 do_vsrb:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,8
@@ -1040,8 +1016,6 @@ do_vsrb:
 	b	return
 
 do_vsrh:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,4
@@ -1063,8 +1037,6 @@ do_vsrh:
 	b	return
 
 do_vsrw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	clrldi	%r8,%r1,59
@@ -1083,8 +1055,6 @@ do_vsrw:
 	b	return
 
 do_vsrd:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 2:	clrldi	%r8,%r1,58
@@ -1098,8 +1068,6 @@ do_vsrd:
 	b	return
 
 do_vsr:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	addi	%r4,%r4,LO
 	addi	%r5,%r5,LO
@@ -1120,8 +1088,6 @@ do_vsr:
 	b	return
 
 do_vsrab:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,8
@@ -1143,8 +1109,6 @@ do_vsrab:
 	b	return
 
 do_vsrah:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,4
@@ -1166,8 +1130,6 @@ do_vsrah:
 	b	return
 
 do_vsraw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfspr	%r29,XER
 1:	mfrin	0,4
 	mfrin	1,5
@@ -1189,8 +1151,6 @@ do_vsraw:
 	b	return
 
 do_vsrad:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfspr	%r29,XER
 1:	mfrin	0,4
 	mfrin	1,5
@@ -1206,8 +1166,6 @@ do_vsrad:
 	b	return
 
 do_vslv:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	7,5
 	addi	%r4,%r4,LO
@@ -1237,8 +1195,6 @@ do_vslv:
 	b	return
 
 do_vsrv:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	7,5
 	addi	%r4,%r4,LO
@@ -1267,12 +1223,10 @@ do_vsrv:
 
 # Note: the high 32 bits of VRSAVE are used to store VSCR
 do_mfvscr:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfspr	%r1,VRSAVE
 	srdi	%r1,%r1,32
-	lis	%r3,1			# NJ bit
-	addi	%r3,%r3,1		# SAT bit
+	lis	%r3,NJ@h		# NJ bit
+	addi	%r3,%r3,SAT		# SAT bit
 	and	%r1,%r1,%r3		# clear all other bits
 	li	%r0,0
 	mtrin	0,6
@@ -1281,8 +1235,6 @@ do_mfvscr:
 	b	return
 
 do_mtvscr:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	addi	%r5,%r5,LO
 	mfrin	1,5
 	mfspr	%r0,VRSAVE
@@ -1291,8 +1243,6 @@ do_mtvscr:
 	b	return
 
 do_vcmpequb:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	1,5
 	cmpb	%r2,%r0,%r1
@@ -1317,8 +1267,6 @@ do_vcmpequb:
 	b	return
 
 do_vcmpequh:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	1,5
 	lis	%r9,0xff
@@ -1356,8 +1304,6 @@ do_vcmpequh:
 	b	return
 
 do_vcmpequw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	1,5
 	cmpw	%r0,%r1
@@ -1394,8 +1340,6 @@ do_vcmpequw:
 	b	return
 
 do_vcmpequd:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	1,5
 	cmpd	%r0,%r1
@@ -1422,8 +1366,6 @@ do_vcmpequd:
 	b	return
 
 do_vcmpequq:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	1,5
 	cmpd	%r0,%r1
@@ -1438,8 +1380,6 @@ do_vcmpequq:
 	b	return
 
 do_vcmpgtub:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,8
@@ -1462,8 +1402,6 @@ do_vcmpgtub:
 	b	1b
 
 do_vcmpgtsb:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,8
@@ -1486,8 +1424,6 @@ do_vcmpgtsb:
 	b	1b
 
 do_vcmpgtuh:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,4
@@ -1510,8 +1446,6 @@ do_vcmpgtuh:
 	b	1b
 
 do_vcmpgtsh:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,4
@@ -1534,8 +1468,6 @@ do_vcmpgtsh:
 	b	1b
 
 do_vcmpgtuw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,2
@@ -1558,8 +1490,6 @@ do_vcmpgtuw:
 	b	1b
 
 do_vcmpgtsw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	li	%r11,2
@@ -1582,8 +1512,6 @@ do_vcmpgtsw:
 	b	1b
 
 do_vcmpgtud:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	cmpld	%r0,%r1
@@ -1597,8 +1525,6 @@ do_vcmpgtud:
 	b	1b
 
 do_vcmpgtsd:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	cmpd	%r0,%r1
@@ -1612,8 +1538,6 @@ do_vcmpgtsd:
 	b	1b
 
 do_vcmpgtuq:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	1,5
 	cmpld	%r0,%r1
@@ -1628,8 +1552,6 @@ do_vcmpgtuq:
 	b	return
 
 do_vcmpgtsq:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	1,5
 	cmpd	%r0,%r1
@@ -1644,8 +1566,6 @@ do_vcmpgtsq:
 	b	return
 
 do_vcmpneb:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	1,5
 	cmpb	%r2,%r0,%r1
@@ -1673,8 +1593,6 @@ do_vcmpneb:
 	b	return
 
 do_vcmpnezb:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	1,5
 	li	%r9,0
@@ -1708,8 +1626,6 @@ do_vcmpnezb:
 	b	return
 
 do_vcmpneh:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	1,5
 	lis	%r9,0xff
@@ -1747,8 +1663,6 @@ do_vcmpneh:
 	b	return
 
 do_vcmpnezh:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	li	%r11,0
 	lis	%r9,0xff
 	addi	%r9,%r9,0xff
@@ -1789,8 +1703,6 @@ do_vcmpnezh:
 	b	return
 
 do_vcmpnew:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	cmpw	%r0,%r1
@@ -1821,8 +1733,6 @@ do_vcmpnew:
 	b	return
 
 do_vcmpnezw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	li	%r11,0
 1:	mfrin	0,4
 	mfrin	1,5
@@ -1865,8 +1775,6 @@ do_vmrglb:
 	addi	%r4,%r4,LO
 	addi	%r5,%r5,LO
 do_vmrghb:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	1,5
 	li	%r11,4
@@ -1887,8 +1795,6 @@ do_vmrglh:
 	addi	%r4,%r4,LO
 	addi	%r5,%r5,LO
 do_vmrghh:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	1,5
 	li	%r11,2
@@ -1909,8 +1815,6 @@ do_vmrglw:
 	addi	%r4,%r4,LO
 	addi	%r5,%r5,LO
 do_vmrghw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	mfrin	0,4
 	mfrin	1,5
 1:	rotldi	%r0,%r0,32
@@ -1923,8 +1827,6 @@ do_vmrghw:
 	b	return
 
 do_vmrgew:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	rotldi	%r1,%r1,32
@@ -1938,8 +1840,6 @@ do_vmrgew:
 	b	1b
 
 do_vmrgow:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	0,4
 	mfrin	1,5
 	rldimi	%r1,%r0,32,0
@@ -1952,8 +1852,6 @@ do_vmrgow:
 	b	1b
 
 do_vspltb:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	rlwimi	%r5,%r8,12-26+32,LO	# instr bit 12 (BE) -> LO bit
 	rlwinm	%r1,%r8,15-28+32,0x38	# rest of UIM field -> bit shift count
 	xori	%r1,%r1,0x38
@@ -1968,8 +1866,6 @@ do_vspltb:
 	b	return
 
 do_vsplth:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	rlwimi	%r5,%r8,13-26+32,LO	# instr bit 13 (BE) -> LO bit
 	rlwinm	%r1,%r8,15-27+32,0x30	# rest of UIM field -> bit shift count
 	xori	%r1,%r1,0x30
@@ -1982,8 +1878,6 @@ do_vsplth:
 	b	return
 
 do_vspltw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	rlwimi	%r5,%r8,14-26+32,LO	# instr bit 14 (BE) -> LO bit
 	rlwinm	%r1,%r8,15-26+32,0x20	# rest of UIM field -> bit shift count
 	xori	%r1,%r1,0x20
@@ -1995,8 +1889,6 @@ do_vspltw:
 	b	return
 
 do_vspltisb:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	rlwinm	%r1,%r8,15-31+32,0xf	# extract the bottom 4 bits of SIM
 	rlwinm	%r2,%r8,11-27+32,0x10	# extract the sign bit
 	subf	%r0,%r2,%r1
@@ -2009,8 +1901,6 @@ do_vspltisb:
 	b	return
 
 do_vspltish:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	rlwinm	%r1,%r8,15-31+32,0xf	# extract the bottom 4 bits of SIM
 	rlwinm	%r2,%r8,11-27+32,0x10	# extract the sign bit
 	subf	%r0,%r2,%r1
@@ -2022,8 +1912,6 @@ do_vspltish:
 	b	return
 
 do_vspltisw:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	rlwinm	%r1,%r8,15-31+32,0xf	# extract the bottom 4 bits of SIM
 	rlwinm	%r2,%r8,11-27+32,0x10	# extract the sign bit
 	subf	%r0,%r2,%r1
@@ -2034,8 +1922,6 @@ do_vspltisw:
 	b	return
 
 do_vslo:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	addi	%r5,%r5,LO
 	mfrin	1,5
 	andi.	%r2,%r1,0x38		# bit shift count within doubleword
@@ -2061,8 +1947,6 @@ do_vslo:
 	b	return
 
 do_vsro:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	addi	%r5,%r5,LO
 	mfrin	1,5
 	andi.	%r2,%r1,0x38		# bit shift count within doubleword
@@ -2089,8 +1973,6 @@ do_vsro:
 	b	return
 
 do_vgbbd:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 1:	mfrin	1,5
 	# 8x8 transpose of the bits in r1 is done in 3 steps
 	# 1: swap top-right (TR) and bottom-left (BL) 4x4 blocks
@@ -2131,8 +2013,6 @@ do_vgbbd:
 	b	1b
 
 do_vbpermd:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	li	%r9,8
 1:	mfrin	0,4
 	mfrin	1,5
@@ -2156,8 +2036,6 @@ do_vbpermd:
 	b	1b
 
 do_vbpermq:
-	andis.	%r0,%r2,MSR_VEC@h
-	beq	vec_unavail
 	li	%r9,8
 	mfrin	1,4
 	addi	%r4,%r4,LO
@@ -2193,27 +2071,3 @@ return:
 	li	%r0,0
 	mtspr	EMUC,%r0
 	hrfid
-
-vec_unavail:
-	mtctr	%r30
-	mfspr	%r0,HSRR0
-	mfspr	%r1,HSRR1
-	mtspr	SRR0,%r0
-	mtspr	SRR1,%r1
-	mtcr	%r31
-	li	%r0,0
-	mtspr	EMUC,%r0
-	isync
-	ba	0xf20
-
-vsx_unavail:
-	mtctr	%r30
-	mfspr	%r0,HSRR0
-	mfspr	%r1,HSRR1
-	mtspr	SRR0,%r0
-	mtspr	SRR1,%r1
-	mtcr	%r31
-	li	%r0,0
-	mtspr	EMUC,%r0
-	isync
-	ba	0xf40

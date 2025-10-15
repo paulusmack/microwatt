@@ -79,6 +79,8 @@ entry:
 	cmpdi	%r11,0
 	beq	illegal
 	add	%r11,%r11,%r9
+	andi.	%r0,%r11,1			# LSB set => whole column is one op
+	bne	1f
 	lwzx	%r12,%r1,%r11
 	cmpdi	%r12,0
 	beq	illegal
@@ -86,6 +88,12 @@ entry:
 	beq	vec_unavail
 	add	%r12,%r12,%r11
 	mtctr	%r12
+	bctr
+1:	rlwinm	%r7,%r8,5+21,0x1f		# get C field from instruction
+	addi	%r7,%r7,VR0
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mtctr	%r11
 	bctr
 
 po60:	rlwinm	%r1,%r8,32-2,0x1ff		# extract extended opcode
@@ -177,7 +185,7 @@ op4_table:
 	.long	0
 	.long	0		# column 40
 	.long	0
-	.long	0
+	.long	do_vsel - op4_table + 1
 	.long	0
 	.long	0
 	.long	0
@@ -2463,6 +2471,22 @@ do_vupkhsw:
 	addi	%r6,%r6,LO
 	beq	1b
 	b	return
+
+do_vsel:
+1:	mfrin	0,4
+	mfrin	1,5
+	mfrin	2,7
+	andc	%r0,%r0,%r2
+	and	%r1,%r1,%r2
+	or	%r0,%r1,%r0
+	mtrin	0,6
+	andi.	%r0,%r6,LO
+	bne	return
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	addi	%r7,%r7,LO
+	b	1b
 
 setsatif31:
 	bf+	31,return

@@ -379,14 +379,14 @@ vcol14:
 	.long	do_vpkswus - vcol14
 	.long	do_vpkshss - vcol14
 	.long	do_vpkswss - vcol14
-	.long	0
-	.long	0
-	.long	0		# row 10
-	.long	0
+	.long	do_vupkhsb - vcol14
+	.long	do_vupkhsh - vcol14
+	.long	do_vupklsb - vcol14		# row 10
+	.long	do_vupklsh - vcol14
 	.long	do_vpkpx - vcol14
+	.long	do_vupkhpx - vcol14
 	.long	0
-	.long	0
-	.long	0
+	.long	do_vupklpx - vcol14
 	.long	0
 	.long	do_vpkudum - vcol14
 	.long	0
@@ -396,9 +396,9 @@ vcol14:
 	.long	0
 	.long	do_vpksdss - vcol14
 	.long	0
+	.long	do_vupkhsw - vcol14
 	.long	0
-	.long	0
-	.long	0
+	.long	do_vupklsw - vcol14
 	.long	0
 	.long	0
 	.long	0		# row 30
@@ -464,6 +464,27 @@ do_vpkpx:
 	mtrin	9,6
 	addi	%r6,%r6,LO
 	mtrin	10,6
+	b	return
+
+do_vupklpx:
+	addi	%r5,%r5,LO
+do_vupkhpx:
+	mfrin	1,5
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r1,%r1,16
+	sldi	%r2,%r2,32
+	rlwinm	%r0,%r1,9,0x1000000
+	neg	%r0,%r0
+	rlwimi	%r0,%r1,6,0x1f0000
+	rlwimi	%r0,%r1,3,0x1f00
+	rlwimi	%r0,%r1,0,0x1f
+	rldimi	%r2,%r0,0,32
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	addi	%r6,%r6,LO
+	beq	1b
 	b	return
 
 do_vmaxsb:
@@ -2396,6 +2417,52 @@ do_vpksdss:
 	mr	%r4,%r5
 	ori	%r6,%r6,LO
 	b	1b
+
+do_vupklsb:
+	addi	%r5,%r5,LO
+do_vupkhsb:
+	li	%r11,4
+1:	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r1,%r1,8
+	rotldi	%r2,%r2,16
+	extsb	%r0,%r1
+	rldimi	%r2,%r0,0,48
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	addi	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vupklsh:
+	addi	%r5,%r5,LO
+do_vupkhsh:
+	li	%r11,2
+1:	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r1,%r1,16
+	rotldi	%r2,%r2,32
+	extsh	%r0,%r1
+	rldimi	%r2,%r0,0,32
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	addi	%r6,%r6,LO
+	beq	1b
+	b	return
+
+do_vupklsw:
+	addi	%r5,%r5,LO
+do_vupkhsw:
+	mfrin	1,5
+1:	rotldi	%r1,%r1,32
+	extsw	%r0,%r1
+	mtrin	0,6
+	andi.	%r0,%r6,LO
+	addi	%r6,%r6,LO
+	beq	1b
+	b	return
 
 setsatif31:
 	bf+	31,return

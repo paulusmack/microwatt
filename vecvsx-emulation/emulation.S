@@ -371,14 +371,14 @@ vcol12:
 	.long	0
 
 vcol14:
-	.long	0		# row 0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
+	.long	do_vpkuhum - vcol14		# row 0
+	.long	do_vpkuwum - vcol14
+	.long	do_vpkuhus - vcol14
+	.long	do_vpkuwus - vcol14
+	.long	do_vpkshus - vcol14
+	.long	do_vpkswus - vcol14
+	.long	do_vpkshss - vcol14
+	.long	do_vpkswss - vcol14
 	.long	0
 	.long	0
 	.long	0		# row 10
@@ -388,13 +388,13 @@ vcol14:
 	.long	0
 	.long	0
 	.long	0
+	.long	do_vpkudum - vcol14
 	.long	0
-	.long	0
-	.long	0
+	.long	do_vpkudus - vcol14
 	.long	0		# row 20
+	.long	do_vpksdus - vcol14
 	.long	0
-	.long	0
-	.long	0
+	.long	do_vpksdss - vcol14
 	.long	0
 	.long	0
 	.long	0
@@ -2062,6 +2062,349 @@ do_vbpermq:
 	mtrin	0,6
 	b	return
 
+do_vpkuhum:
+	li	%r11,4
+1:	li	%r2,0
+	mfrin	0,4
+	addi	%r4,%r4,LO
+	mfrin	1,4
+	mtctr	%r11
+2:	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	rotldi	%r2,%r2,8
+	rldimi	%r2,%r0,32,24
+	rldimi	%r2,%r1,0,56
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	mr	%r4,%r5
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vpkuhus:
+	li	%r11,4
+	li	%r7,255
+	crclr	31
+1:	li	%r1,0
+	mfrin	2,4
+	addi	%r4,%r4,LO
+	mfrin	3,4
+	mtctr	%r11
+2:	rotldi	%r1,%r1,8
+	rotldi	%r2,%r2,16
+	andi.	%r8,%r2,0xff00
+	crorc	31,31,EQ
+	isel	%r8,%r2,%r7,EQ
+	rldimi	%r1,%r8,32,24
+	rotldi	%r3,%r3,16
+	andi.	%r8,%r3,0xff00
+	cror	31,31,EQ
+	isel	%r8,%r3,%r7,EQ
+	rldimi	%r1,%r3,0,56
+	bdnz	2b
+	mtrin	1,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	mr	%r4,%r5
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vpkuwum:
+	li	%r11,2
+1:	li	%r2,0
+	mfrin	0,4
+	addi	%r4,%r4,LO
+	mfrin	1,4
+	mtctr	%r11
+2:	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	rotldi	%r2,%r2,16
+	rldimi	%r2,%r0,32,16
+	rldimi	%r2,%r1,0,48
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	mr	%r4,%r5
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vpkuwus:
+	li	%r11,2
+	li	%r7,0
+	ori	%r7,%r7,0xffff
+	crclr	31
+1:	li	%r1,0
+	mfrin	2,4
+	addi	%r4,%r4,LO
+	mfrin	3,4
+	mtctr	%r11
+2:	rotldi	%r1,%r1,16
+	rotldi	%r2,%r2,32
+	andis.	%r8,%r2,0xffff
+	crorc	31,31,EQ
+	isel	%r8,%r2,%r7,EQ
+	rldimi	%r1,%r8,32,16
+	rotldi	%r3,%r3,32
+	andis.	%r8,%r3,0xffff
+	crorc	31,31,EQ
+	isel	%r8,%r3,%r7,EQ
+	rldimi	%r1,%r3,0,48
+	bdnz	2b
+	mtrin	1,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	mr	%r4,%r5
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vpkshus:
+	li	%r11,4
+	li	%r12,255
+	li	%r9,0
+	crclr	31
+1:	li	%r1,0
+	mfrin	2,4
+	addi	%r4,%r4,LO
+	mfrin	3,4
+	mtctr	%r11
+2:	rotldi	%r1,%r1,8
+	rotldi	%r2,%r2,16
+	extsh	%r0,%r2
+	cmpdi	%r0,255
+	cmpdi	%cr1,%r0,0
+	cror	31,31,GT
+	isel	%r8,%r12,%r2,GT
+	cror	31,31,4*1+LT
+	isel	%r8,0,%r8,4*1+LT
+	rldimi	%r1,%r8,32,24
+	rotldi	%r3,%r3,16
+	extsh	%r0,%r3
+	cmpdi	%r0,255
+	cmpdi	%cr1,%r0,0
+	cror	31,31,GT
+	isel	%r8,%r12,%r3,GT
+	cror	31,31,4*1+LT
+	isel	%r8,0,%r8,4*1+LT
+	rldimi	%r1,%r3,0,56
+	bdnz	2b
+	mtrin	1,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	mr	%r4,%r5
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vpkshss:
+	li	%r11,4
+	li	%r12,127
+	li	%r13,-128
+	li	%r9,0
+	crclr	31
+1:	li	%r1,0
+	mfrin	2,4
+	addi	%r4,%r4,LO
+	mfrin	3,4
+	mtctr	%r11
+2:	rotldi	%r1,%r1,8
+	rotldi	%r2,%r2,16
+	extsh	%r0,%r2
+	cmpdi	%r0,127
+	cmpdi	%cr1,%r0,-128
+	cror	31,31,GT
+	isel	%r8,%r12,%r2,GT
+	cror	31,31,4*1+LT
+	isel	%r8,%r13,%r8,4*1+LT
+	rldimi	%r1,%r8,32,24
+	rotldi	%r3,%r3,16
+	extsh	%r0,%r3
+	cmpdi	%r0,127
+	cmpdi	%cr1,%r0,-128
+	cror	31,31,GT
+	isel	%r8,%r12,%r3,GT
+	cror	31,31,4*1+LT
+	isel	%r8,%r13,%r8,4*1+LT
+	rldimi	%r1,%r3,0,56
+	bdnz	2b
+	mtrin	1,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	mr	%r4,%r5
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vpkswus:
+	li	%r11,2
+	li	%r12,0
+	ori	%r12,%r12,65535
+	li	%r9,0
+	crclr	31
+1:	li	%r1,0
+	mfrin	2,4
+	addi	%r4,%r4,LO
+	mfrin	3,4
+	mtctr	%r11
+2:	rotldi	%r1,%r1,16
+	rotldi	%r2,%r2,32
+	extsw	%r0,%r2
+	cmpd	%r0,%r12
+	cmpdi	%cr1,%r0,0
+	cror	31,31,GT
+	isel	%r8,%r12,%r2,GT
+	cror	31,31,4*1+LT
+	isel	%r8,0,%r8,4*1+LT
+	rldimi	%r1,%r8,32,16
+	rotldi	%r3,%r3,32
+	extsw	%r0,%r3
+	cmpd	%r0,%r12
+	cmpdi	%cr1,%r0,0
+	cror	31,31,GT
+	isel	%r8,%r12,%r3,GT
+	cror	31,31,4*1+LT
+	isel	%r8,0,%r8,4*1+LT
+	rldimi	%r1,%r3,0,48
+	bdnz	2b
+	mtrin	1,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	mr	%r4,%r5
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vpkswss:
+	li	%r11,2
+	ori	%r12,%r12,32767
+	li	%r13,-32768
+	li	%r9,0
+	crclr	31
+1:	li	%r1,0
+	mfrin	2,4
+	addi	%r4,%r4,LO
+	mfrin	3,4
+	mtctr	%r11
+2:	rotldi	%r1,%r1,16
+	rotldi	%r2,%r2,32
+	extsw	%r0,%r2
+	cmpdi	%r0,32767
+	cmpdi	%cr1,%r0,-32768
+	cror	31,31,GT
+	isel	%r8,%r12,%r2,GT
+	cror	31,31,4*1+LT
+	isel	%r8,%r13,%r8,4*1+LT
+	rldimi	%r1,%r8,32,16
+	rotldi	%r3,%r3,32
+	extsw	%r0,%r3
+	cmpdi	%r0,32767
+	cmpdi	%cr1,%r0,-32768
+	cror	31,31,GT
+	isel	%r8,%r12,%r3,GT
+	cror	31,31,4*1+LT
+	isel	%r8,%r13,%r8,4*1+LT
+	rldimi	%r1,%r3,0,48
+	bdnz	2b
+	mtrin	1,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	mr	%r4,%r5
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vpkudum:
+1:	mfrin	0,4
+	addi	%r4,%r4,LO
+	mfrin	1,4
+	rldimi	%r1,%r0,0,32
+	mtrin	1,6
+	andi.	%r0,%r6,LO
+	bne	return
+	mr	%r4,%r5
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vpkudus:
+	li	%r12,-1
+	clrldi	%r12,%r12,32
+	crclr	31
+1:	mfrin	2,4
+	addi	%r4,%r4,LO
+	mfrin	3,4
+	cmpld	%r2,%r12
+	cror	31,31,GT
+	isel	%r0,%r12,%r2,GT
+	cmpld	%r3,%r12
+	cror	31,31,GT
+	isel	%r1,%r12,%r3,GT
+	rldimi	%r1,%r0,32,0
+	mtrin	1,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	mr	%r4,%r5
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vpksdus:
+	li	%r12,-1
+	clrldi	%r12,%r12,32
+	crclr	31
+1:	mfrin	2,4
+	addi	%r4,%r4,LO
+	mfrin	3,4
+	cmpd	%r2,%r12
+	cmpdi	%cr1,%r2,0
+	cror	31,31,GT
+	isel	%r8,%r12,%r2,GT
+	cror	31,31,4*1+LT
+	isel	%r8,0,%r8,4*1+LT
+	cmpd	%r3,%r12
+	cmpdi	%cr1,%r3,0
+	cror	31,31,GT
+	isel	%r9,%r12,%r3,GT
+	cror	31,31,4*1+LT
+	isel	%r9,0,%r9,4*1+LT
+	rldimi	%r9,%r8,32,0
+	mtrin	9,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	mr	%r4,%r5
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vpksdss:
+	lis	%r13,-32768
+	not	%r12,%r13
+	crclr	31
+1:	mfrin	2,4
+	addi	%r4,%r4,LO
+	mfrin	3,4
+	cmpd	%r2,%r12
+	cmpd	%cr1,%r2,%r13
+	cror	31,31,GT
+	isel	%r8,%r12,%r2,GT
+	cror	31,31,4*1+LT
+	isel	%r8,%r13,%r8,4*1+LT
+	cmpd	%r3,%r12
+	cmpd	%cr1,%r3,%r13
+	cror	31,31,GT
+	isel	%r9,%r12,%r3,GT
+	cror	31,31,4*1+LT
+	isel	%r9,%r13,%r9,4*1+LT
+	rldimi	%r9,%r8,32,0
+	mtrin	9,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	mr	%r4,%r5
+	ori	%r6,%r6,LO
+	b	1b
+
+setsatif31:
+	bf+	31,return
+setsat:
+	mfspr	%r12,VRSAVE
+	li	%r9,SAT
+	sldi	%r9,%r9,32
+	or	%r12,%r12,%r9
+	mtspr	VRSAVE,%r12
 return:
 	mtctr	%r30
 	mfspr	%r1,HSRR0

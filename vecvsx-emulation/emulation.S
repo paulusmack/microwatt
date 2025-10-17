@@ -186,7 +186,7 @@ op4_table:
 	.long	0		# column 40
 	.long	0
 	.long	do_vsel - op4_table + 1
-	.long	0
+	.long	do_vperm - op4_table + 1
 	.long	0
 	.long	0
 	.long	0
@@ -202,7 +202,7 @@ op4_table:
 	.long	0
 	.long	0
 	.long	0
-	.long	0
+	.long	do_vpermr - op4_table + 1
 	.long	0		# column 60
 	.long	0
 	.long	0
@@ -2487,6 +2487,62 @@ do_vsel:
 	addi	%r6,%r6,LO
 	addi	%r7,%r7,LO
 	b	1b
+
+do_vperm:
+	mfrin	8,4
+	mfrin	10,5
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	mfrin	9,4
+	mfrin	11,5
+	li	%r3,8
+1:	mfrin	1,7
+	mtctr	%r3
+	sldi	%r1,%r1,3
+	li	%r2,0
+2:	rldicr	%r1,%r1,8,60
+	mtcrf	0x02,%r1
+	isel	%r12,%r10,%r8,24
+	isel	%r13,%r11,%r9,24
+	isel	%r0,%r13,%r12,25
+	rldcr	%r0,%r0,%r1,7
+	or	%r2,%r2,%r0
+	rotldi	%r2,%r2,8
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	addi	%r6,%r6,LO
+	addi	%r7,%r7,LO
+	beq	1b
+	b	return
+
+do_vpermr:
+	mfrin	8,4
+	mfrin	10,5
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	mfrin	9,4
+	mfrin	11,5
+	li	%r3,8
+1:	mfrin	1,7
+	mtctr	%r3
+	sldi	%r1,%r1,3
+	li	%r2,0
+2:	rldicr	%r1,%r1,8,60
+	mtcrf	0x02,%r1
+	isel	%r12,%r8,%r10,24
+	isel	%r13,%r9,%r11,24
+	isel	%r0,%r12,%r13,25
+	srd	%r0,%r0,%r1
+	rldimi	%r2,%r0,56,0
+	rotldi	%r2,%r2,8
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	addi	%r6,%r6,LO
+	addi	%r7,%r7,LO
+	beq	1b
+	b	return
 
 setsatif31:
 	bf+	31,return

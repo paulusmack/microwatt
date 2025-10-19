@@ -165,7 +165,7 @@ op4_table:
 	.long	0
 	.long	0		# column 20
 	.long	0
-	.long	0
+	.long	vcol22 - op4_table
 	.long	0
 	.long	0
 	.long	0
@@ -187,7 +187,7 @@ op4_table:
 	.long	0
 	.long	do_vsel - op4_table + 1
 	.long	do_vperm - op4_table + 1
-	.long	0
+	.long	do_vsldoi - op4_table + 1
 	.long	0
 	.long	0
 	.long	0
@@ -410,6 +410,40 @@ vcol14:
 	.long	0
 	.long	0
 	.long	0		# row 30
+	.long	0
+
+vcol22:
+	.long	do_vsldbi - vcol22	# row 0
+	.long	do_vsldbi - vcol22
+	.long	do_vsldbi - vcol22
+	.long	do_vsldbi - vcol22
+	.long	do_vsldbi - vcol22
+	.long	do_vsldbi - vcol22
+	.long	do_vsldbi - vcol22
+	.long	do_vsldbi - vcol22
+	.long	0			# row 8
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	do_vsrdbi - vcol22	# row 16
+	.long	do_vsrdbi - vcol22
+	.long	do_vsrdbi - vcol22
+	.long	do_vsrdbi - vcol22
+	.long	do_vsrdbi - vcol22
+	.long	do_vsrdbi - vcol22
+	.long	do_vsrdbi - vcol22
+	.long	do_vsrdbi - vcol22
+	.long	0			# row 24
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
 	.long	0
 
 do_xxpermdi:
@@ -2542,6 +2576,60 @@ do_vpermr:
 	addi	%r6,%r6,LO
 	addi	%r7,%r7,LO
 	beq	1b
+	b	return
+
+do_vsldoi:
+	andi.	%r0,%r8,0x200		# test MSB of SHB
+	addi	%r7,%r4,LO
+	bne	1f
+	mfrin	0,4			# SHB <= 7, get left 3 dwords
+	mfrin	1,7
+	b	2f
+1:	mfrin	0,7
+	mfrin	1,5
+	addi	%r5,%r5,LO
+2:	rlwinm.	%r8,%r8,32-3,0x38	# extract SHB * 8
+4:	beq	3f
+	mfrin	2,5
+	neg	%r3,%r8
+	clrldi	%r3,%r3,58
+	sld	%r0,%r0,%r8
+	srd	%r9,%r1,%r3
+	or	%r0,%r0,%r9
+	sld	%r1,%r1,%r8
+	srd	%r2,%r2,%r3
+	or	%r1,%r1,%r2
+3:	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	1,6
+	b	return
+
+do_vsldbi:
+	mfrin	0,4
+	addi	%r4,%r4,LO
+	mfrin	1,4
+	rlwinm.	%r8,%r8,32-6,7		# extract SH
+	b	4b
+
+do_vsrdbi:
+	mfrin	0,5
+	addi	%r5,%r5,LO
+	mfrin	1,5
+	rlwinm.	%r8,%r5,32-6,7		# extract SH
+	beq	3f
+	addi	%r4,%r4,LO
+	mfrin	2,4
+	neg	%r9,%r8
+	clrldi	%r9,%r9,58
+	srd	%r1,%r1,%r8
+	sld	%r3,%r0,%r9
+	or	%r1,%r1,%r3
+	srd	%r0,%r0,%r8
+	srd	%r2,%r2,%r9
+	or	%r0,%r0,%r2
+3:	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	1,6
 	b	return
 
 setsatif31:

@@ -225,21 +225,21 @@ vcol0:
 	.long	do_vaddshs - vcol0
 	.long	do_vaddsws - vcol0
 	.long	0
+	.long	do_vsububm - vcol0		# row 16
+	.long	do_vsubuhm - vcol0
+	.long	do_vsubuwm - vcol0
+	.long	do_vsubudm - vcol0
+	.long	do_vsubuqm - vcol0		# row 20
+	.long	do_vsubcuq - vcol0
+	.long	do_vsubcuw - vcol0
 	.long	0
+	.long	do_vsububs - vcol0		# row 24
+	.long	do_vsubuhs - vcol0
+	.long	do_vsubuws - vcol0
 	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 20
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 30
+	.long	do_vsubsbs - vcol0		# row 28
+	.long	do_vsubshs - vcol0
+	.long	do_vsubsws - vcol0
 	.long	0
 
 vcol2:
@@ -2946,6 +2946,296 @@ do_vaddsws:
 	clrldi	%r2,%r0,32
 	clrldi	%r3,%r1,32
 	add	%r1,%r0,%r1
+	cmpd	%r1,%r12
+	cmpd	%cr1,%r1,%r13
+	rotldi	%r8,%r8,32
+	isel	%r1,%r12,%r1,GT
+	isel	%r1,%r13,%r1,4*1+LT
+	rldimi	%r8,%r1,0,32
+	cror	31,31,GT
+	cror	31,31,4*1+LT
+	bdnz	2b
+	mtrin	8,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vsububm:
+	li	%r11,8
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,8
+	rotldi	%r1,%r1,8
+	subf	%r1,%r1,%r0
+	rotldi	%r8,%r8,8
+	rldimi	%r8,%r1,0,56
+	bdnz	2b
+	mtrin	8,6
+	andi.	%r0,%r6,LO
+	bne	return
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vsubuhm:
+	li	%r11,4
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	subf	%r1,%r1,%r0
+	rotldi	%r8,%r8,16
+	rldimi	%r8,%r1,0,48
+	bdnz	2b
+	mtrin	8,6
+	andi.	%r0,%r6,LO
+	bne	return
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vsubuwm:
+	li	%r11,2
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	subf	%r1,%r1,%r0
+	rotldi	%r8,%r8,32
+	rldimi	%r8,%r1,0,32
+	bdnz	2b
+	mtrin	8,6
+	andi.	%r0,%r6,LO
+	bne	return
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vsubcuw:
+	li	%r11,2
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	clrldi	%r0,%r0,32
+	clrldi	%r1,%r1,32
+	subf	%r1,%r1,%r0
+	srdi	%r1,%r1,32
+	addi	%r1,%r1,1
+	rotldi	%r8,%r8,32
+	rldimi	%r8,%r1,0,32
+	bdnz	2b
+	mtrin	8,6
+	andi.	%r0,%r6,LO
+	bne	return
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vsubudm:
+	mfrin	0,4
+	mfrin	1,5
+	subf	%r1,%r1,%r0
+	mtrin	1,6
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	0,4
+	mfrin	1,5
+	subf	%r1,%r1,%r0
+	mtrin	1,6
+	b	return
+
+do_vsubuqm:
+	mfrin	0,4
+	mfrin	2,5
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	mfrin	1,4
+	mfrin	3,5
+	mfxer	%r29
+	subfc	%r3,%r3,%r1
+	subfe	%r2,%r2,%r0
+	mtrin	2,6
+	addi	%r6,%r6,LO
+	mtrin	3,6
+	mtxer	%r29
+	b	return
+
+do_vsubcuq:
+	mfrin	0,4
+	mfrin	2,5
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	mfrin	1,4
+	mfrin	3,5
+	mfxer	%r29
+	li	%r8,0
+	subfc	%r3,%r3,%r1
+	subfe	%r2,%r2,%r0
+	addze	%r9,%r8
+	mtrin	8,6
+	addi	%r6,%r6,LO
+	mtrin	9,6
+	mtxer	%r29
+	b	return
+
+do_vsububs:
+	crclr	31
+	li	%r11,8
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,8
+	rotldi	%r1,%r1,8
+	clrldi	%r2,%r0,56
+	clrldi	%r3,%r1,56
+	subf.	%r1,%r1,%r0
+	rotldi	%r8,%r8,8
+	isel	%r1,0,%r1,LT
+	rldimi	%r8,%r1,0,56
+	cror	31,31,LT
+	bdnz	2b
+	mtrin	8,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vsubuhs:
+	crclr	31
+	li	%r11,4
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	clrldi	%r2,%r0,48
+	clrldi	%r3,%r1,48
+	subf.	%r1,%r1,%r0
+	rotldi	%r8,%r8,16
+	isel	%r1,0,%r1,LT
+	rldimi	%r8,%r1,0,48
+	cror	31,31,LT
+	bdnz	2b
+	mtrin	8,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vsubuws:
+	crclr	31
+	li	%r11,2
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	clrldi	%r2,%r0,32
+	clrldi	%r3,%r1,32
+	subf.	%r1,%r1,%r0
+	rotldi	%r8,%r8,32
+	isel	%r1,0,%r1,LT
+	rldimi	%r8,%r1,0,32
+	cror	31,31,LT
+	bdnz	2b
+	mtrin	8,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vsubsbs:
+	crclr	31
+	li	%r11,8
+	li	%r12,127
+	li	%r13,-128
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,8
+	rotldi	%r1,%r1,8
+	clrldi	%r2,%r0,56
+	clrldi	%r3,%r1,56
+	subf	%r1,%r1,%r0
+	cmpd	%r1,%r12
+	cmpd	%cr1,%r1,%r13
+	rotldi	%r8,%r8,8
+	isel	%r1,%r12,%r1,GT
+	isel	%r1,%r13,%r1,4*1+LT
+	rldimi	%r8,%r1,0,56
+	cror	31,31,GT
+	cror	31,31,4*1+LT
+	bdnz	2b
+	mtrin	8,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vsubshs:
+	crclr	31
+	li	%r11,4
+	li	%r12,32767
+	li	%r13,-32768
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	clrldi	%r2,%r0,48
+	clrldi	%r3,%r1,48
+	subf	%r1,%r1,%r0
+	cmpd	%r1,%r12
+	cmpd	%cr1,%r1,%r13
+	rotldi	%r8,%r8,16
+	isel	%r1,%r12,%r1,GT
+	isel	%r1,%r13,%r1,4*1+LT
+	rldimi	%r8,%r1,0,48
+	cror	31,31,GT
+	cror	31,31,4*1+LT
+	bdnz	2b
+	mtrin	8,6
+	andi.	%r0,%r6,LO
+	bne	setsatif31
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vsubsws:
+	crclr	31
+	li	%r11,2
+	lis	%r12,32767
+	lis	%r13,-32768
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	clrldi	%r2,%r0,32
+	clrldi	%r3,%r1,32
+	subf	%r1,%r1,%r0
 	cmpd	%r1,%r12
 	cmpd	%cr1,%r1,%r13
 	rotldi	%r8,%r8,32

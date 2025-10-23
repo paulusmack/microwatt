@@ -203,10 +203,10 @@ op4_table:
 	.long	0
 	.long	0
 	.long	do_vpermr - op4_table + 1
-	.long	0		# column 60
-	.long	0
-	.long	0
-	.long	0
+	.long	do_vaddeuqm - op4_table + 1		# column 60
+	.long	do_vaddecuq - op4_table + 1
+	.long	do_vsubeuqm - op4_table + 1
+	.long	do_vsubecuq - op4_table + 1
 
 vcol0:
 	.long	do_vaddubm - vcol0		# row 0
@@ -2963,6 +2963,48 @@ do_vaddsws:
 	addi	%r6,%r6,LO
 	b	1b
 
+do_vaddeuqm:
+	mfrin	0,4
+	mfrin	2,5
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r7,%r7,LO
+	mfrin	1,4
+	mfrin	3,5
+	mfrin	8,7
+	mfxer	%r29
+	rlwinm	%r8,%r8,29,29,29	# get LSB of VRC into XER[CA]
+	mtxer	%r8
+	add	%r3,%r3,%r1
+	add	%r2,%r2,%r0
+	mtrin	2,6
+	addi	%r6,%r6,LO
+	mtrin	3,6
+	mtxer	%r29
+	b	return
+
+do_vaddecuq:
+	mfrin	0,4
+	mfrin	2,5
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r7,%r7,LO
+	mfrin	1,4
+	mfrin	3,5
+	mfrin	8,7
+	mfxer	%r29
+	rlwinm	%r8,%r8,29,29,29	# get LSB of VRC into XER[CA]
+	mtxer	%r8
+	li	%r8,0
+	add	%r3,%r3,%r1
+	add	%r2,%r2,%r0
+	addze	%r9,%r8
+	mtrin	8,6
+	addi	%r6,%r6,LO
+	mtrin	9,6
+	mtxer	%r29
+	b	return
+
 do_vsububm:
 	li	%r11,8
 1:	mfrin	0,4
@@ -3252,6 +3294,48 @@ do_vsubsws:
 	addi	%r5,%r5,LO
 	addi	%r6,%r6,LO
 	b	1b
+
+do_vsubeuqm:
+	mfrin	0,4
+	mfrin	2,5
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r7,%r7,LO
+	mfrin	1,4
+	mfrin	3,5
+	mfrin	8,7
+	mfxer	%r29
+	rlwinm	%r8,%r8,29,29,29	# get LSB of VRC into XER[CA]
+	mtxer	%r8
+	subfe	%r3,%r3,%r1
+	subfe	%r2,%r2,%r0
+	mtrin	2,6
+	addi	%r6,%r6,LO
+	mtrin	3,6
+	mtxer	%r29
+	b	return
+
+do_vsubecuq:
+	mfrin	0,4
+	mfrin	2,5
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r7,%r7,LO
+	mfrin	1,4
+	mfrin	3,5
+	mfrin	8,7
+	mfxer	%r29
+	rlwinm	%r8,%r8,29,29,29	# get LSB of VRC into XER[CA]
+	mtxer	%r8
+	li	%r8,0
+	subfe	%r3,%r3,%r1
+	subfe	%r2,%r2,%r0
+	addze	%r9,%r8
+	mtrin	8,6
+	addi	%r6,%r6,LO
+	mtrin	9,6
+	mtxer	%r29
+	b	return
 
 setsatif31:
 	bf+	31,return

@@ -84,13 +84,25 @@ entry:
 	lwzx	%r12,%r1,%r11
 	cmpdi	%r12,0
 	beq	illegal
+	add	%r12,%r12,%r11
+	andi.	%r0,%r12,1			# LSB set => use expanded opcode
+	bne	2f
 	andis.	%r0,%r2,MSR_VEC@h
 	beq	vec_unavail
-	add	%r12,%r12,%r11
 	mtctr	%r12
 	bctr
 1:	rlwinm	%r7,%r8,5+21,0x1f		# get C field from instruction
 	addi	%r7,%r7,VR0
+	andis.	%r0,%r2,MSR_VEC@h
+	beq	vec_unavail
+	mtctr	%r11
+	bctr
+2:	rlwinm	%r1,%r8,16+2,0x7c		# expanded opcode * 4
+	clrrdi	%r12,%r12,1
+	lwzx	%r11,%r1,%r12
+	cmpdi	%r11,0
+	beq	illegal
+	add	%r11,%r11,%r12
 	andis.	%r0,%r2,MSR_VEC@h
 	beq	vec_unavail
 	mtctr	%r11
@@ -146,7 +158,7 @@ op4_table:
 	.long	vcol0 - op4_table	# column 0
 	.long	0
 	.long	vcol2 - op4_table
-	.long	0
+	.long	vcol3 - op4_table
 	.long	vcol4 - op4_table
 	.long	0
 	.long	vcol6 - op4_table
@@ -267,14 +279,48 @@ vcol2:
 	.long	0
 	.long	0
 	.long	0
+	.long	xpnd004_2 - vcol2 + 1
+	.long	0
+	.long	0
+	.long	0
+	.long	do_vclzb - vcol2
+	.long	do_vclzh - vcol2
+	.long	do_vclzw - vcol2		# row 30
+	.long	do_vclzd - vcol2
+
+vcol3:
+	.long	0		# row 0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 4
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 8
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 12
 	.long	0
 	.long	0
 	.long	0
 	.long	0
 	.long	0
 	.long	0
-	.long	0		# row 30
 	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	do_vpopcntb - vcol3
+	.long	do_vpopcnth - vcol3
+	.long	do_vpopcntw - vcol3		# row 30
+	.long	do_vpopcntd - vcol3
 
 vcol4:
 	.long	do_vrlb - vcol4		# row 0
@@ -307,8 +353,8 @@ vcol4:
 	.long	do_vsrd - vcol4
 	.long	do_vsrv - vcol4
 	.long	do_vslv - vcol4
-	.long	0		# row 30
-	.long	0
+	.long	do_vclzdm - vcol4		# row 30
+	.long	do_vctzdm - vcol4
 
 vcol6:
 	.long	do_vcmpequb - vcol6		# row 0
@@ -480,6 +526,40 @@ vcol22:
 	.long	0
 	.long	0
 
+xpnd004_2:
+	.long	do_vclzlsbb - xpnd004_2		# row 0
+	.long	do_vctzlsbb - xpnd004_2
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 8
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 16
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 24
+	.long	0
+	.long	0
+	.long	0
+	.long	do_vctzb - xpnd004_2
+	.long	do_vctzh - xpnd004_2
+	.long	do_vctzw - xpnd004_2
+	.long	do_vctzd - xpnd004_2
+	
 do_xxpermdi:
 	andis.	%r0,%r2,MSR_VSX@h
 	beq	vsx_unavail
@@ -3354,3 +3434,255 @@ return:
 	li	%r0,0
 	mtspr	EMUC,%r0
 	hrfid
+
+do_vclzb:
+	li	%r11,8
+	li	%r12,1
+	sldi	%r12,%r12,56
+1:	mfrin	1,5
+	li	%r2,0
+	mtctr	%r11
+2:	or	%r0,%r1,%r12
+	cntlzd	%r0,%r0
+	rotldi	%r1,%r1,8
+	rotldi	%r2,%r2,8
+	rldimi	%r2,%r0,0,56
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vclzh:
+	li	%r11,4
+	li	%r12,1
+	sldi	%r12,%r12,48
+1:	mfrin	1,5
+	li	%r2,0
+	mtctr	%r11
+2:	or	%r0,%r1,%r12
+	cntlzd	%r0,%r0
+	rotldi	%r1,%r1,16
+	rotldi	%r2,%r2,16
+	rldimi	%r2,%r0,0,48
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vclzw:
+1:	mfrin	1,5
+	cntlzw	%r2,%r1
+	rotldi	%r1,%r1,32
+	cntlzw	%r0,%r1
+	rldimi	%r2,%r0,0,32
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vclzd:
+	mfrin	1,5
+	cntlzd	%r2,%r1
+	mtrin	2,6
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	1,5
+	cntlzd	%r2,%r1
+	mtrin	2,6
+	b	return
+
+do_vclzdm:
+	mfrin	0,4
+	mfrin	1,5
+	cntlzdm	%r2,%r0,%r1
+	mtrin	2,6
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	0,4
+	mfrin	1,5
+	cntlzdm	%r2,%r0,%r1
+	mtrin	2,6
+	b	return
+
+do_vctzb:
+	li	%r11,8
+	li	%r12,0x100
+1:	mfrin	1,5
+	li	%r2,0
+	mtctr	%r11
+2:	rotldi	%r1,%r1,8
+	or	%r0,%r1,%r12
+	cnttzd	%r0,%r0
+	rotldi	%r2,%r2,8
+	rldimi	%r2,%r0,0,56
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vctzh:
+	li	%r11,4
+	lis	%r12,1
+1:	mfrin	1,5
+	li	%r2,0
+	mtctr	%r11
+2:	rotldi	%r1,%r1,16
+	or	%r0,%r1,%r12
+	cnttzd	%r0,%r0
+	rotldi	%r2,%r2,16
+	rldimi	%r2,%r0,0,48
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vctzw:
+1:	mfrin	1,5
+	cnttzw	%r2,%r1
+	rotldi	%r1,%r1,32
+	cnttzw	%r0,%r1
+	rldimi	%r2,%r0,0,32
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	b	1b
+
+do_vctzd:
+	mfrin	1,5
+	cnttzd	%r2,%r1
+	mtrin	2,6
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	1,5
+	cnttzd	%r2,%r1
+	mtrin	2,6
+	b	return
+
+do_vctzdm:
+	mfrin	0,4
+	mfrin	1,5
+	cnttzdm	%r2,%r0,%r1
+	mtrin	2,6
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	0,4
+	mfrin	1,5
+	cnttzdm	%r2,%r0,%r1
+	mtrin	2,6
+	b	return
+
+do_vpopcntb:
+	mfrin	1,5
+	popcntb	%r1,%r1
+	mtrin	1,6
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	1,5
+	popcntb	%r1,%r1
+	mtrin	1,6
+	b	return
+
+do_vpopcnth:
+	mfrin	1,5
+	popcntb	%r1,%r1			# there is no popcnth instruction
+	li	%r2,0x1f
+	addis	%r2,%r2,0x1f
+	rldimi	%r2,%r2,32,0
+	srdi	%r0,%r1,8
+	add	%r1,%r1,%r0
+	and	%r1,%r1,%r2
+	mtrin	1,6
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	1,5
+	popcntb	%r1,%r1
+	srdi	%r0,%r1,8
+	add	%r1,%r1,%r0
+	and	%r1,%r1,%r2
+	mtrin	1,6
+	b	return
+
+do_vpopcntw:
+	mfrin	1,5
+	popcntw	%r1,%r1
+	mtrin	1,6
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	1,5
+	popcntw	%r1,%r1
+	mtrin	1,6
+	b	return
+
+do_vpopcntd:
+	mfrin	1,5
+	popcntd	%r1,%r1
+	mtrin	1,6
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	1,5
+	popcntd	%r1,%r1
+	mtrin	1,6
+	b	return
+
+do_vclzlsbb:
+	li	%r11,8
+	li	%r3,8
+1:	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r1,%r1,8
+	andi.	%r0,%r1,1
+	bne	3f
+	bdnz	2b
+	andi.	%r0,%r5,LO
+	bne	3f
+	addi	%r5,%r5,LO
+	addi	%r3,%r3,8
+	b	1b
+3:	mfctr	%r0
+	subf	%r3,%r0,%r3
+	li	%r2,0
+	mtrin	2,6
+	addi	%r6,%r6,LO
+	mtrin	3,6
+	b	return
+
+do_vctzlsbb:
+	li	%r11,8
+	li	%r3,8
+	addi	%r5,%r5,LO
+1:	mfrin	1,5
+	mtctr	%r11
+2:	andi.	%r0,%r1,1
+	bne	3f
+	rotldi	%r1,%r1,56
+	bdnz	2b
+	andi.	%r0,%r5,LO
+	beq	3f
+	subi	%r5,%r5,LO
+	addi	%r3,%r3,8
+	b	1b
+3:	mfctr	%r0
+	subf	%r3,%r0,%r3
+	li	%r2,0
+	mtrin	2,6
+	addi	%r6,%r6,LO
+	mtrin	3,6
+	b	return

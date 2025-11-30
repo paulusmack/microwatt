@@ -486,6 +486,7 @@ architecture behaviour of decode1 is
         INSN_xxlor       =>  (VSU,  VSX,  OP_COMPUTE,   XA,         XB,  NONE,        NONE, XT,   LOG, "010", '0', '0', '1', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', NONE),
         INSN_xxlorc      =>  (VSU,  VSX,  OP_COMPUTE,   XA,         XB,  NONE,        NONE, XT,   LOG, "010", '0', '0', '1', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_xxlxor      =>  (VSU,  VSX,  OP_COMPUTE,   XA,         XB,  NONE,        NONE, XT,   LOG, "011", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_xxpermdi    =>  (VSU,  VSX,  OP_COMPUTE,   XA,         XB,  NONE,        NONE, XT,   LOG, "100", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
 
         others           =>  (ALU,  NONE, OP_ILLEGAL,   NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE)
         );

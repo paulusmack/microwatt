@@ -120,6 +120,15 @@ begin
                     a_inv := not a_in;
                 end if;
                 vec_result <= a_inv xor b_in;
+            when "100" =>
+                -- xxpermdi
+                vec_result <= e_in.vra_hi & e_in.vrb_hi;
+                if e_in.insn(9) = '1' then
+                    vec_result(127 downto 64) <= e_in.vra_lo;
+                end if;
+                if e_in.insn(8) = '1' then
+                    vec_result(63 downto 0) <= e_in.vrb_lo;
+                end if;
             when others =>
         end case;
     end process;

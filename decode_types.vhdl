@@ -496,7 +496,8 @@ package decode_types is
         INSN_xxlnor,
         INSN_xxlorc,
         INSN_xxlnand,
-        INSN_xxleqv
+        INSN_xxleqv,
+        INSN_xxpermdi
         );
 
     constant INSN_first_frs : insn_code := INSN_stfd;
@@ -1032,6 +1033,7 @@ package body decode_types is
             when INSN_xxlnor    => return "111100";
             when INSN_xxlxor    => return "111100";
             when INSN_xxleqv    => return "111100";
+            when INSN_xxpermdi  => return "111100";
             when others         => return "XXXXXX";
         end case;
     end;

@@ -1143,6 +1143,18 @@ begin
                 end if;
                 vector_result <= a_inv xor b_in;
                 vector_res_lo <= a_inv_lo xor e_in.lo_read_data2;
+            when "100" =>
+                -- xxpermdi
+                if e_in.insn(9) = '0' then
+                    vector_result <= a_in;
+                else
+                    vector_result <= e_in.lo_read_data1;
+                end if;
+                if e_in.insn(8) = '0' then
+                    vector_res_lo <= b_in;
+                else
+                    vector_res_lo <= e_in.lo_read_data2;
+                end if;
             when others =>
                 vector_result <= (others => '0');
                 vector_res_lo <= (others => '0');

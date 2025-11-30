@@ -705,6 +705,10 @@ architecture behaviour of predecoder is
         2#10101_0100# to 2#10101_0101# => (XA, XB, NR, INSN_xxlorc),
         2#10110_0100# to 2#10110_0101# => (XA, XB, NR, INSN_xxlnand),
         2#10111_0100# to 2#10111_0101# => (XA, XB, NR, INSN_xxleqv),
+        2#00001_0100# to 2#00001_0101# => (XA, XB, NR, INSN_xxpermdi),
+        2#00101_0100# to 2#00101_0101# => (XA, XB, NR, INSN_xxpermdi),
+        2#01001_0100# to 2#01001_0101# => (XA, XB, NR, INSN_xxpermdi),
+        2#01101_0100# to 2#01101_0101# => (XA, XB, NR, INSN_xxpermdi),
         others                         => (NR, NR, NR, INSN_illegal)
         );
 

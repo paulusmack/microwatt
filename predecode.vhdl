@@ -697,6 +697,7 @@ architecture behaviour of predecoder is
     -- is bits 5:1 of the instruction), indexed by bits 10:2
     type vsx_predecode_rom_t is array(0 to 511) of predec_insn;
     constant vsx_predecode_rom : vsx_predecode_rom_t := (
+        2#10001_1001#                  => (NR, XB, NR, INSN_xsrsp),
         2#10000_0100# to 2#10000_0101# => (XA, XB, NR, INSN_xxland),
         2#10001_0100# to 2#10001_0101# => (XA, XB, NR, INSN_xxlandc),
         2#10010_0100# to 2#10010_0101# => (XA, XB, NR, INSN_xxlor),

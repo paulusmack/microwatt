@@ -485,6 +485,7 @@ package decode_types is
         INSN_veqv,
 
         -- VSX ops
+        INSN_xsrsp,
         INSN_xxland,
         INSN_xxlandc,
         INSN_xxlor,
@@ -1013,6 +1014,7 @@ package body decode_types is
             when INSN_vnor      => return "000100";
             when INSN_vxor      => return "000100";
             when INSN_veqv      => return "000100";
+            when INSN_xsrsp     => return "111100";
             when INSN_xxland    => return "111100";
             when INSN_xxlandc   => return "111100";
             when INSN_xxlnand   => return "111100";

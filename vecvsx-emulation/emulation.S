@@ -66,6 +66,8 @@ entry:
 	rlwinm	%r0,%r8,6,0x3f			# primary opcode field
 	cmpdi	%r0,60
 	beq	po60
+	cmpdi	%r0,31
+	beq	po31
 	cmpdi	%r0,4
 	bne	illegal
 
@@ -135,6 +137,13 @@ po60:	rlwinm	%r1,%r8,32-2,0x1ff		# extract extended opcode/2
 1:	add	%r11,%r11,%r9
 	mtctr	%r11
 	bctr
+
+po31:	rlwinm	%r1,%r8,32-1,0x3ff		# extract extended opcode
+	cmpdi	%r1,6
+	beq	do_lvsl
+	cmpdi	%r1,38
+	beq	do_lvsr
+	b	illegal
 
 illegal:
 	# anything we don't recognize gets punted to e40
@@ -837,6 +846,37 @@ do_xxsel:
 	or	%r0,%r0,%r1
 	mtrin	0,6
 	b	return
+
+do_lvsl:
+	cmpdi	%r4,0
+	beq	1f
+	mfrin	4,4
+1:	mfrin	5,5
+	add	%r4,%r4,%r5
+	clrldi	%r4,%r4,60
+4:	li	%r8,8
+	addi	%r6,%r6,VR0
+2:	mtctr	%r8
+3:	sldi	%r0,%r0,8
+	rldimi	%r0,%r4,0,56
+	addi	%r4,%r4,1
+	bdnz	3b
+	mtrin	0,6
+	andi.	%r0,%r6,LO
+	ori	%r6,%r6,LO
+	beq	2b
+	b	return
+
+do_lvsr:
+	cmpdi	%r4,0
+	beq	1f
+	mfrin	4,4
+1:	mfrin	5,5
+	add	%r5,%r4,%r5
+	clrldi	%r5,%r5,60
+	li	%r4,16
+	subf	%r4,%r5,%r4
+	b	4b
 
 do_vpkpx:
 	li	%r12,1

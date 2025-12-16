@@ -34,12 +34,12 @@ _start:
 	LOAD_IMM64(%r10,__bss_start)
 	LOAD_IMM64(%r11,__bss_end)
 	subf	%r11,%r10,%r11
-	addi	%r11,%r11,63
-	srdi.	%r11,%r11,6
+	addi	%r11,%r11,127
+	srdi.	%r11,%r11,7
 	beq	2f
 	mtctr	%r11
 1:	dcbz	0,%r10
-	addi	%r10,%r10,64
+	addi	%r10,%r10,128
 	bdnz	1b
 
 2:	LOAD_IMM64(%r1,__stack_top)

@@ -87,7 +87,7 @@ void print_test_number(int i)
 	putchar(':');
 }
 
-#define CACHE_LINE_SIZE	64
+#define CACHE_LINE_SIZE	128
 
 void zero_memory(void *ptr, unsigned long nbytes)
 {

@@ -636,6 +636,8 @@ begin
                 noop := not l_in.hash_enable;
             when "011" =>
                 v.dcbz := '1';
+                -- truncate address to start of 128-byte region
+                addr(6 downto 0) := 7x"0";
             when "100" =>
                 if HAS_VECVSX then
                     v.is_vector := '1';
@@ -710,6 +712,11 @@ begin
                 end if;
             end if;
             addr := std_ulogic_vector(unsigned(r1.addr0) + resize(inc, 64));
+            if l_in.mode = "011" then
+                -- dcbz: clear the other cache line of a pair
+                -- (for 128-byte dcbz emulation)
+                addr(6) := '1';
+            end if;
         end if;
         byte_off := '0' & addr(2 downto 0);
         if HAS_VECVSX and v.is_vector = '1' then

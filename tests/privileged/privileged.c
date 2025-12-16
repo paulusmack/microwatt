@@ -63,7 +63,7 @@ static inline void store_pte(unsigned long *p, unsigned long pte)
 	__asm__ volatile("stdbrx %1,0,%0" : : "r" (p), "r" (pte) : "memory");
 }
 
-#define CACHE_LINE_SIZE	64
+#define CACHE_LINE_SIZE	128
 
 void zero_memory(void *ptr, unsigned long nbytes)
 {

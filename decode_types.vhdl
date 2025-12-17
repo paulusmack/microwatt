@@ -489,6 +489,10 @@ package decode_types is
         INSN_xscvdpsxws,
         INSN_xscvdpuxds,
         INSN_xscvdpuxws,
+        INSN_xscvsxddp,
+        INSN_xscvuxddp,
+        INSN_xscvsxdsp,
+        INSN_xscvuxdsp,
         INSN_xsrsp,
         INSN_xxland,
         INSN_xxlandc,
@@ -1023,6 +1027,10 @@ package body decode_types is
             when INSN_xscvdpsxws=> return "111100";
             when INSN_xscvdpuxds=> return "111100";
             when INSN_xscvdpuxws=> return "111100";
+            when INSN_xscvsxddp => return "111100";
+            when INSN_xscvuxddp => return "111100";
+            when INSN_xscvsxdsp => return "111100";
+            when INSN_xscvuxdsp => return "111100";
             when INSN_xxland    => return "111100";
             when INSN_xxlandc   => return "111100";
             when INSN_xxlnand   => return "111100";

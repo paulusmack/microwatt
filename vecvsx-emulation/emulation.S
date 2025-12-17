@@ -28,6 +28,8 @@ HSRR1	= 315
 # emulation control SPR
 EMUC	= 727
 
+	# MSR bits
+MSR_FP	= 0x2000
 MSR_VSX = 0x800000
 MSR_VEC = 0x2000000
 
@@ -47,6 +49,9 @@ SO	= 3
 	# VSCR bits (stored in high half of VRSAVE)
 SAT	= 1
 NJ	= 0x10000
+
+	# FPSCR bits
+FPS_VE	= 0x80
 
 	.macro	mfrin rt,ra		# move from register indirect, (RA)=reg index
 	.long	0x58000000+(\rt<<21)+(\ra<<16)
@@ -125,6 +130,8 @@ po60:	rlwinm	%r1,%r8,32-2,0x1ff		# extract extended opcode/2
 	bge	do_xxsel
 	cmpdi	%r0,2
 	beq	do_xcol8
+	cmpdi	%r0,3
+	beq	do_xcol12
 	cmpdi	%r0,5
 	beq	do_xcol20
 	b	illegal
@@ -132,7 +139,7 @@ po60:	rlwinm	%r1,%r8,32-2,0x1ff		# extract extended opcode/2
 do_xcol8:
 	addpcis	%r9,0
 	addi	%r9,%r9,xcol8-.
-	lwzx	%r11,%r3,%r9
+2:	lwzx	%r11,%r3,%r9
 	cmpdi	%r11,0
 	beq	illegal
 	andi.	%r0,%r11,1
@@ -142,6 +149,11 @@ do_xcol8:
 1:	add	%r11,%r11,%r9
 	mtctr	%r11
 	bctr
+
+do_xcol12:
+	addpcis	%r9,0
+	addi	%r9,%r9,xcol12-.
+	b	2b
 
 do_xcol20:
 	cmpdi	%r1,475
@@ -686,6 +698,40 @@ xcol8:
 	.long	do_xxpndins - xcol8 + 1
 	.long	do_xxsldwi - xcol8		# row 12
 	.long	do_xxpermdi - xcol8
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 30
+	.long	0
+
+xcol12:
+	.long	do_xscmpeqdp - xcol12		# row 0
+	.long	do_xscmpgtdp - xcol12
+	.long	do_xscmpgedp - xcol12
+	.long	0
+	.long	0		# row 4
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 8
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 12
+	.long	0
 	.long	0
 	.long	0
 	.long	0
@@ -4372,4 +4418,82 @@ do_xxbrq:
 	mtrin	0,6
 	ori	%r6,%r6,LO
 	mtrin	1,6
+	b	return
+
+# common preliminary code for binary scalar floating-point ops
+xsb_prolog:
+	# enable floating-point and VSX
+	mfmsr	%r8
+	ori	%r8,%r8,MSR_FP
+	oris	%r8,%r8,MSR_VSX@h
+	mtmsrd	%r8
+	# save a couple of FPRs and their VSR low halves
+	mffprd	%r24,%f0
+	mfvsrld	%r25,%vs0
+	mffprd	%r26,%f1
+	mfvsrld	%r27,%vs1
+	# get parameters
+	mfrin	2,4
+	mfrin	3,5
+	# save FPSCR
+	mffs	%f0
+	mffprd	%r28,%f0
+	# put parameters in FP regs
+	mtfprd	%f0,%r2
+	mtfprd	%f1,%r3
+	blr
+
+do_xscmpeqdp:
+	mflr	%r23
+	bl	xsb_prolog
+	fcmpu	%cr1,%f0,%f1
+	setnbc	%r0,1*4+2
+	bf+	1*4+3,xscmp_finish	# if neither operand is a NaN
+	# is either operand a signaling NaN?
+	rotldi	%r2,%r2,12	# move sign and exponent to right end
+	cmpdi	%r2,0x1000	# check if any mantissa bit is set
+	blt	1f		# and MSB of mantissa is 0
+	clrldi	%r2,%r2,53	# get exponent
+	cmpdi	%r2,0x7ff
+	beq	3f		# if XA was SNaN
+1:	rotldi	%r3,%r3,12	# move sign and exponent to right end
+	cmpdi	%r3,0x1000	# check if any mantissa bit is set
+	blt	2f		# and MSB of mantissa is 0
+	clrldi	%r3,%r3,53	# get exponent
+	cmpdi	%r3,0x7ff
+	beq	3f		# if XB was SNaN
+2:	crclr	1*4+3		# neither was SNaN, no exception
+3:	li	%r0,0
+	b	xscmp_finish
+
+do_xscmpgtdp:
+	mflr	%r23
+	bl	xsb_prolog
+	fcmpo	%cr1,%f0,%f1
+	setnbc	%r0,1*4+1
+	b	xscmp_finish
+
+do_xscmpgedp:
+	mflr	%r23
+	bl	xsb_prolog
+	fcmpo	%cr1,%f0,%f1
+	setnbcr	%r0,1*4+0
+
+xscmp_finish:
+	li	%r1,0
+	# restore FPCC and FPRs and their low halves
+	# do this before writing results in case dest is vs0 or vs1
+	mtfprd	%f0,%r28
+	mtfsf	0x08,%f0
+	mtvsrdd	%vs0,%r24,%r25
+	mtvsrdd	%vs1,%r26,%r27
+	isync
+	mtlr	%r23
+	bt	1*4+3,1f		# if VXSNAN or VXVC got set
+2:	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	1,6
+	b	return
+1:	andi.	%r0,%r28,FPS_VE
+	beq	2b
 	b	return

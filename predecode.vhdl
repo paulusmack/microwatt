@@ -698,6 +698,10 @@ architecture behaviour of predecoder is
     type vsx_predecode_rom_t is array(0 to 511) of predec_insn;
     constant vsx_predecode_rom : vsx_predecode_rom_t := (
         2#10001_1001#                  => (NR, XB, NR, INSN_xsrsp),
+        2#10101_1000#                  => (NR, XB, NR, INSN_xscvdpsxds),
+        2#00101_1000#                  => (NR, XB, NR, INSN_xscvdpsxws),
+        2#10100_1000#                  => (NR, XB, NR, INSN_xscvdpuxds),
+        2#00100_1000#                  => (NR, XB, NR, INSN_xscvdpuxws),
         2#10000_0100# to 2#10000_0101# => (XA, XB, NR, INSN_xxland),
         2#10001_0100# to 2#10001_0101# => (XA, XB, NR, INSN_xxlandc),
         2#10010_0100# to 2#10010_0101# => (XA, XB, NR, INSN_xxlor),

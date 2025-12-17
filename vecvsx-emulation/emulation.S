@@ -224,7 +224,7 @@ op4_table:
 	.long	0		# column 10
 	.long	0
 	.long	vcol12 - op4_table
-	.long	0
+	.long	vcol13 - op4_table
 	.long	vcol14 - op4_table
 	.long	0
 	.long	0
@@ -545,6 +545,40 @@ vcol12:
 	.long	0
 	.long	0
 	.long	do_vmrgew - vcol12		# row 30
+	.long	0
+
+vcol13:
+	.long	0		# row 0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 4
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 8
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 12
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	0
+	.long	do_vextublx - vcol13
+	.long	do_vextuhlx - vcol13
+	.long	do_vextuwlx - vcol13
+	.long	0
+	.long	do_vextubrx - vcol13
+	.long	do_vextuhrx - vcol13
+	.long	do_vextuwrx - vcol13		# row 30
 	.long	0
 
 vcol14:
@@ -4375,6 +4409,78 @@ do_vextsd2q:
 	ori	%r6,%r6,LO
 	mtrin	1,6
 	b	return
+
+do_vextublx:
+	clrldi	%r4,%r4,59		# RT and RA are GPRs not VRs
+	mfrin	2,4			# RA = byte index
+2:	clrldi	%r6,%r6,59
+	rlwimi	%r5,%r2,LOBIT-3,LO	# put bit 3 of index into r5
+	rlwinm	%r2,%r2,3,0x38		# shift count from bits 0-2
+	mfrin	1,5
+	sld	%r1,%r1,%r2		# target byte to MSB
+	srdi	%r1,%r1,56		# move it to LSB
+	mtrin	1,6
+	b	return
+
+do_vextubrx:
+	clrldi	%r4,%r4,59		# RT and RA are GPRs not VRs
+	mfrin	2,4			# RA = byte index
+	not	%r2,%r2			# convert to big-endian index
+	b	2b
+
+do_vextuhlx:
+	clrldi	%r4,%r4,59		# RT and RA are GPRs not VRs
+	mfrin	2,4			# RA = byte index (0 = MSB)
+2:	clrldi	%r6,%r6,59
+	rlwimi	%r5,%r2,LOBIT-3,LO	# put bit 3 of index into r5
+	mfrin	0,5			# fetch both dwords of VRB
+	xori	%r5,%r5,LO
+	mfrin	1,5
+	rlwinm	%r2,%r2,3,0x38		# shift count from bits 0-2
+	sld	%r0,%r0,%r2
+	rotld	%r1,%r1,%r2
+	li	%r3,1			# mask for bits from r0
+	sld	%r3,%r3,%r2
+	neg	%r3,%r3
+	andc	%r1,%r1,%r3
+	or	%r0,%r0,%r1
+	srdi	%r0,%r0,48		# move bytes 0:1 to right end
+	mtrin	0,6
+	b	return
+
+do_vextuhrx:
+	clrldi	%r4,%r4,59		# RT and RA are GPRs not VRs
+	mfrin	0,4			# RA = byte index
+	li	%r2,14			# convert to big-endian index
+	subf	%r2,%r0,%r2
+	b	2b
+
+do_vextuwlx:
+	clrldi	%r4,%r4,59		# RT and RA are GPRs not VRs
+	mfrin	2,4			# RA = byte index (0 = MSB)
+2:	clrldi	%r6,%r6,59
+	rlwimi	%r5,%r2,LOBIT-3,LO	# put bit 3 of index into r5
+	mfrin	0,5			# fetch both dwords of VRB
+	xori	%r5,%r5,LO
+	mfrin	1,5
+	rlwinm	%r2,%r2,3,0x38		# shift count from bits 0-2
+	sld	%r0,%r0,%r2
+	rotld	%r1,%r1,%r2
+	li	%r3,1			# mask for bits from r0
+	sld	%r3,%r3,%r2
+	neg	%r3,%r3
+	andc	%r1,%r1,%r3
+	or	%r0,%r0,%r1
+	srdi	%r0,%r0,32		# move bytes 0:3 to right end
+	mtrin	0,6
+	b	return
+
+do_vextuwrx:
+	clrldi	%r4,%r4,59		# RT and RA are GPRs not VRs
+	mfrin	0,4			# RA = byte index
+	li	%r2,12			# convert to big-endian index
+	subf	%r2,%r0,%r2
+	b	2b
 
 do_xxbrh:
 	mfrin	1,5

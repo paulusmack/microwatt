@@ -582,6 +582,7 @@ begin
         variable disp : std_ulogic_vector(63 downto 0);
         variable multi_dword : std_ulogic;
         variable noop : std_ulogic;
+        variable inc : unsigned(4 downto 0);
     begin
         v := request_init;
         sprn := l_in.insn(15 downto 11) & l_in.insn(20 downto 16);
@@ -699,8 +700,16 @@ begin
             -- as the value to write back to RA.
             -- for a quadword load or store, use the previous
             -- address + 8.
-            addr := std_ulogic_vector(unsigned(r1.addr0(63 downto 3)) + not l_in.update) &
-                    r1.addr0(2 downto 0);
+            -- for lxvp/stxvp, use previous address + 16.
+            inc := "00000";
+            if l_in.update = '0' then
+                if l_in.mode(2) = '1' then
+                    inc := "10000";
+                elsif l_in.mode = "000" then
+                    inc := "01000";
+                end if;
+            end if;
+            addr := std_ulogic_vector(unsigned(r1.addr0) + resize(inc, 64));
         end if;
         byte_off := '0' & addr(2 downto 0);
         if HAS_VECVSX and v.is_vector = '1' then

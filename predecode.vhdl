@@ -47,7 +47,8 @@ architecture behaviour of predecoder is
         VRC,
         VRS,
         XC,
-        XS);
+        XS,
+        XSP);
         
     type predec_insn is record
         areg : reg_class_a_t;
@@ -143,6 +144,11 @@ architecture behaviour of predecoder is
         2#000100_10000#                    => (RA, RB, RC,  INSN_maddhd),
         2#000100_10001#                    => (RA, RB, RC,  INSN_maddhdu),
         2#000100_10011#                    => (RA, RB, RC,  INSN_maddld),
+        -- major opcode 6
+        2#000110_00000#                    => (RA, NR, NR,  INSN_lxvp),
+        2#000110_00001#                    => (RA, NR, XSP, INSN_stxvp),
+        2#000110_10000#                    => (RA, NR, NR,  INSN_lxvp),
+        2#000110_10001#                    => (RA, NR, XSP, INSN_stxvp),
         -- major opcode 30
         2#011110_01000# to 2#011110_01001# => (NR, NR, RS,  INSN_rldic),
         2#011110_01010# to 2#011110_01011# => (NR, NR, RS,  INSN_rldic),
@@ -432,6 +438,7 @@ architecture behaviour of predecoder is
         2#0_00010_01101#  => (RA, RB, NR,   INSN_lxvrwx),
         2#0_01000_01101#  => (RA, RB, NR,   INSN_lxvl),
         2#0_01001_01101#  => (RA, RB, NR,   INSN_lxvll),
+        2#0_01010_01101#  => (RA, RB, NR,   INSN_lxvpx),
         2#0_10010_00000#  => (NR, NR, NR,   INSN_mcrxrx),
         2#0_00000_10011#  => (NR, NR, NR,   INSN_mfcr),
         2#0_00010_10011#  => (NR, NR, NR,   INSN_mfmsr),
@@ -551,6 +558,7 @@ architecture behaviour of predecoder is
         2#0_00110_01101#  => (RA, RB, XS,   INSN_stxvrwx),
         2#0_01100_01101#  => (RA, RB, XS,   INSN_stxvl),
         2#0_01101_01101#  => (RA, RB, XS,   INSN_stxvll),
+        2#0_01110_01101#  => (RA, RB, XSP,  INSN_stxvpx),
         2#0_00001_01000#  => (RA, RB, NR,   INSN_subf),
         2#0_10001_01000#  => (RA, RB, NR,   INSN_subf), -- subfo
         2#0_00000_01000#  => (RA, RB, NR,   INSN_subfc),
@@ -672,8 +680,10 @@ architecture behaviour of predecoder is
         55     => (RA, NR, VRS,  INSN_pstxv_vec),
         56     => (RA, NR, NR,   INSN_plq),
         57     => (RA, NR, NR,   INSN_pld),
+        58     => (RA, NR, NR,   INSN_plxvp),
         60     => (RA, NR, RS,   INSN_pstq),
         61     => (RA, NR, RS,   INSN_pstd),
+        62     => (RA, NR, XSP,  INSN_pstxvp),
         others => (NR, NR, NR,   INSN_illegal)
         );
 
@@ -1073,6 +1083,10 @@ begin
                 when XC =>
                     irc := "1010";
                     irc(2) := iword(3);
+                when XSP =>
+                    irc := "1000";
+                    irc(2) := iword(21);        -- SX bit
+                    irc(0) := iword(21) xnor be_1;
             end case;
             iregs := ira & irb & '0' & irc;
 

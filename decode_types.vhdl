@@ -437,10 +437,13 @@ package decode_types is
         INSN_stxvrdx,
         INSN_stxvrhx,
         INSN_stxvrwx,
+        INSN_stxvp,
+        INSN_pstxvp,
+        INSN_stxvpx,
 
         INSN_lxsd,
         INSN_plxsd,
-        INSN_lxssp, -- 420
+        INSN_lxssp,
         INSN_plxssp,
         INSN_lxv,
         INSN_plxv,
@@ -450,7 +453,7 @@ package decode_types is
         INSN_lxsibzx,
         INSN_lxsihzx,
         INSN_lxsiwax,
-        INSN_lxsiwzx, -- 430
+        INSN_lxsiwzx,
         INSN_lxsspx,
         INSN_lxvb16x,
         INSN_lxvd2x,
@@ -460,9 +463,12 @@ package decode_types is
         INSN_lxvdsx,
         INSN_lxvwsx,
         INSN_lxvrbx,
-        INSN_lxvrdx, -- 440
+        INSN_lxvrdx,
         INSN_lxvrhx,
         INSN_lxvrwx,
+        INSN_lxvp,
+        INSN_plxvp,
+        INSN_lxvpx,
 
         INSN_mfvsrd,
         INSN_mfvsrwz,
@@ -472,7 +478,7 @@ package decode_types is
         INSN_mtvsrwa,
         INSN_mtvsrwz,
         INSN_mtvsrws,
-        INSN_mtvsrdd, -- 450
+        INSN_mtvsrdd,
 
         -- Vector ops
         INSN_vand,
@@ -552,8 +558,8 @@ package decode_types is
     type input_reg_b_t is (IMM, RB, FRB, VRB, XB);
     type const_sel_t is   (NONE, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
                            CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI);
-    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRS, XS);
-    type output_reg_a_t is (NONE, RT, RA, FRT, VRT, XT, XT3, XT26);
+    type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRS, XS, XSP);
+    type output_reg_a_t is (NONE, RT, RA, FRT, VRT, XT, XT3, XT26, XTP);
     type rc_t is (NONE, ONE, RC, RCOE);
     type carry_in_t is (ZERO, CA, OV, ONE);
 
@@ -584,7 +590,8 @@ package decode_types is
 
     type repeat_t is (NONE,      -- instruction is not repeated
                       DUPD,      -- update-form load
-                      DRP);      -- double RS or RT (R, R+1, or R+1, R)
+                      DRP,       -- double RS/RT (R, R+1)
+                      DRPE);     -- double RS/RT (BE: R, R+1; LE: R+1, R)
 
     type decode_rom_t is record
 	unit         : unit_t;
@@ -733,6 +740,9 @@ package body decode_types is
             when INSN_lxv       => return "111101";
             when INSN_stxv_fp   => return "111101";
             when INSN_stxv_vec  => return "111101";
+            when INSN_lxvp      => return "000110";
+            when INSN_stxvp     => return "000110";
+                                   
             when INSN_stxsd     => return "111101";
             when INSN_stxssp    => return "111101";
             when INSN_std       => return "111110";
@@ -852,6 +862,7 @@ package body decode_types is
             when INSN_lxvrwx    => return "011111";
             when INSN_lxvl      => return "011111";
             when INSN_lxvll     => return "011111";
+            when INSN_lxvpx     => return "011111";
             when INSN_mcrxrx    => return "011111";
             when INSN_mfcr      => return "011111";
             when INSN_mfmsr     => return "011111";
@@ -940,6 +951,7 @@ package body decode_types is
             when INSN_stxvrwx   => return "011111";
             when INSN_stxvl     => return "011111";
             when INSN_stxvll    => return "011111";
+            when INSN_stxvpx    => return "011111";
             when INSN_subf      => return "011111";
             when INSN_subfc     => return "011111";
             when INSN_subfe     => return "011111";
@@ -1020,6 +1032,8 @@ package body decode_types is
             when INSN_plxv      => return "000001";
             when INSN_pstxv_fp  => return "000001";
             when INSN_pstxv_vec => return "000001";
+            when INSN_plxvp     => return "000001";
+            when INSN_pstxvp    => return "000001";
             when INSN_plq       => return "000001";
             when INSN_pld       => return "000001";
             when INSN_pstq      => return "000001";

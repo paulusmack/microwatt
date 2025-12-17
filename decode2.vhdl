@@ -165,7 +165,7 @@ architecture behaviour of decode2 is
         return std_ulogic is
     begin
         case t is
-            when RS | RCR | FRS | FRC | VRS | XS =>
+            when RS | RCR | FRS | FRC | VRS | XS | XSP =>
                 return '1';
             when NONE =>
                 return '0';
@@ -207,6 +207,12 @@ architecture behaviour of decode2 is
             when XT26 =>
                 if HAS_VECVSX then
                     return ('1', vsr_to_gspr(insn_xt26(insn_in)));
+                else
+                    return ('0', no_reg);
+                end if;
+            when XTP =>
+                if HAS_VECVSX then
+                    return ('1', vsr_to_gspr(insn_xtp(insn_in)));
                 else
                     return ('0', no_reg);
                 end if;
@@ -374,11 +380,13 @@ begin
                     dec_o.reg := dec_a.reg;
                 end if;
             when DRP =>
-                -- non-prefixed lq, lqarx do RT|1, RT in LE mode; others do RT, RT|1
+                -- plq, pstq do RT, RT|1
                 -- (if this is a store-quad instruction then dec_o.reg is not used)
-                if d_in.second = (d_in.big_endian or d_in.prefixed) then
-                    dec_o.reg(0) := '1';
-                end if;
+                dec_o.reg(0) := d_in.second;
+            when DRPE =>
+                -- non-prefixed lq, lqarx, [p]lxvp[x] do RT|1, RT in LE mode
+                -- or RT, RT|1 in BE mode
+                dec_o.reg(0) := d_in.second xnor d_in.big_endian;
             when others =>
         end case;
         -- For the second instance of a doubled instruction, we ignore the RA
@@ -685,13 +693,16 @@ begin
 
             -- check for invalid forms that cause an illegal instruction interrupt
             -- Does RA = RT for a load quadword instr, or RB = RT for lqarx?
-            if d_in.decode.repeat = DRP and d_in.decode.output_reg_a = RT and
+            if (d_in.decode.repeat = DRP or d_in.decode.repeat = DRPE) and
+                d_in.decode.output_reg_a = RT and
                 (insn_ra(d_in.insn) = insn_rt(d_in.insn) or
                  (d_in.decode.reserve = '1' and insn_rb(d_in.insn) = insn_rt(d_in.insn))) then
                 v.e.illegal_form := '1';
             end if;
             -- Is RS/RT odd for a load/store quadword instruction?
-            if d_in.decode.repeat = DRP and d_in.insn(21) = '1' then
+            -- Exclude lxvp/stxvp since bit 21 is SX/TX there
+            if (d_in.decode.repeat = DRP or d_in.decode.repeat = DRPE) and
+                d_in.decode.subresult(2) = '0' and d_in.insn(21) = '1' then
                 v.e.illegal_form := '1';
             end if;
         end if;

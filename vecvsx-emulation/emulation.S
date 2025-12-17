@@ -124,7 +124,12 @@ po60:	rlwinm	%r1,%r8,32-2,0x1ff		# extract extended opcode/2
 	cmpdi	%r0,6
 	bge	do_xxsel
 	cmpdi	%r0,2
-	bne	illegal
+	beq	do_xcol8
+	cmpdi	%r0,5
+	beq	do_xcol20
+	b	illegal
+
+do_xcol8:
 	addpcis	%r9,0
 	addi	%r9,%r9,xcol8-.
 	lwzx	%r11,%r3,%r9
@@ -135,6 +140,22 @@ po60:	rlwinm	%r1,%r8,32-2,0x1ff		# extract extended opcode/2
 	andis.	%r0,%r2,MSR_VSX@h
 	beq	vsx_unavail
 1:	add	%r11,%r11,%r9
+	mtctr	%r11
+	bctr
+
+do_xcol20:
+	cmpdi	%r1,475
+	bne	illegal
+	# XPND060-3
+	addpcis	%r9,0
+	addi	%r9,%r9,xpnd060_3-.
+	rlwinm	%r3,%r4,2,0x7c
+	lwzx	%r11,%r3,%r9
+	cmpdi	%r11,0
+	beq	illegal
+	andis.	%r0,%r2,MSR_VSX@h
+	beq	vsx_unavail
+	add	%r11,%r11,%r9
 	mtctr	%r11
 	bctr
 
@@ -589,32 +610,66 @@ xpnd004_2:
 	.long	0
 	.long	0
 	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 8
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 16
+	.long	do_vnegw - xpnd004_2
+	.long	do_vnegd - xpnd004_2
+	.long	do_vprtybw - xpnd004_2		# row 8
+	.long	do_vprtybd - xpnd004_2
+	.long	do_vprtybq - xpnd004_2
 	.long	0
 	.long	0
 	.long	0
 	.long	0
 	.long	0
+	.long	do_vextsb2w - xpnd004_2		# row 16
+	.long	do_vextsh2w - xpnd004_2
 	.long	0
 	.long	0
-	.long	0		# row 24
 	.long	0
 	.long	0
 	.long	0
+	.long	0
+	.long	do_vextsb2d - xpnd004_2		# row 24
+	.long	do_vextsh2d - xpnd004_2
+	.long	do_vextsw2d - xpnd004_2
+	.long	do_vextsd2q - xpnd004_2
 	.long	do_vctzb - xpnd004_2
 	.long	do_vctzh - xpnd004_2
 	.long	do_vctzw - xpnd004_2
 	.long	do_vctzd - xpnd004_2
+
+xpnd060_3:
+	.long	0		# row 0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 4
+	.long	0
+	.long	0
+	.long	do_xxbrh - xpnd060_3
+	.long	0		# row 8
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 12
+	.long	0
+	.long	0
+	.long	do_xxbrw - xpnd060_3
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	do_xxbrd - xpnd060_3
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 30
+	.long	do_xxbrq - xpnd060_3
 
 xcol8:
 	.long	do_xxsldwi - xcol8		# row 0
@@ -649,7 +704,7 @@ xcol8:
 	.long	0
 	.long	0		# row 30
 	.long	0
-	
+
 do_xxpermdi:
 	rlwimi	%r4,%r8,LOBIT-9+32,LO		# insert bit 0 of DM
 	rlwimi	%r5,%r8,LOBIT-8+32,LO		# insert bit 1 of DM
@@ -3951,6 +4006,41 @@ do_vpopcntd:
 	mtrin	1,6
 	b	return
 
+do_vprtybw:
+	mfrin	1,5
+	prtyw	%r1,%r1
+	mtrin	1,6
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	1,5
+	prtyw	%r1,%r1
+	mtrin	1,6
+	b	return
+
+do_vprtybd:
+	mfrin	1,5
+	prtyd	%r1,%r1
+	mtrin	1,6
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	mfrin	1,5
+	prtyd	%r1,%r1
+	mtrin	1,6
+	b	return
+
+do_vprtybq:
+	mfrin	0,5
+	prtyd	%r0,%r0
+	addi	%r5,%r5,LO
+	mfrin	1,5
+	prtyd	%r1,%r1
+	xor	%r1,%r0,%r1
+	li	%r0,0
+	mtrin	0,6
+	addi	%r6,%r6,LO
+	mtrin	1,6
+	b	return
+
 do_vclzlsbb:
 	li	%r11,8
 	li	%r3,8
@@ -4143,3 +4233,143 @@ do_vsum4ubs:
 	addi	%r5,%r5,LO
 	addi	%r6,%r6,LO
 	b	1b
+
+do_vnegw:
+	li	%r11,2
+	mtctr	%r11
+1:	mfrin	1,5
+	neg	%r0,%r1
+	rotldi	%r1,%r1,32
+	neg	%r1,%r1
+	rldimi	%r0,%r1,32,0
+	mtrin	0,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	bdnz	1b
+	b	return
+
+do_vnegd:
+	mfrin	1,5
+	neg	%r1,%r1
+	mtrin	1,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	1,5
+	neg	%r1,%r1
+	mtrin	1,6
+	b	return
+
+do_vextsb2w:
+	li	%r11,2
+	mtctr	%r11
+1:	mfrin	1,5
+	extsb	%r0,%r1
+	rotldi	%r1,%r1,32
+	extsb	%r1,%r1
+	rldimi	%r0,%r1,32,0
+	mtrin	0,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	bdnz	1b
+	b	return
+
+do_vextsh2w:
+	li	%r11,2
+	mtctr	%r11
+1:	mfrin	1,5
+	extsh	%r0,%r1
+	rotldi	%r1,%r1,32
+	extsh	%r1,%r1
+	rldimi	%r0,%r1,32,0
+	mtrin	0,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	bdnz	1b
+	b	return
+
+do_vextsb2d:
+	mfrin	1,5
+	extsb	%r1,%r1
+	mtrin	1,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	1,5
+	extsb	%r1,%r1
+	mtrin	1,6
+	b	return
+
+do_vextsh2d:
+	mfrin	1,5
+	extsh	%r1,%r1
+	mtrin	1,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	1,5
+	extsh	%r1,%r1
+	mtrin	1,6
+	b	return
+
+do_vextsw2d:
+	mfrin	1,5
+	extsw	%r1,%r1
+	mtrin	1,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	1,5
+	extsw	%r1,%r1
+	mtrin	1,6
+	b	return
+
+do_vextsd2q:
+	ori	%r5,%r5,LO
+	mfrin	1,5
+	srdi	%r0,%r1,63
+	neg	%r0,%r0
+	mtrin	0,6
+	ori	%r6,%r6,LO
+	mtrin	1,6
+	b	return
+
+do_xxbrh:
+	mfrin	1,5
+	brh	%r1,%r1
+	mtrin	1,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	1,5
+	brh	%r1,%r1
+	mtrin	1,6
+	b	return
+
+do_xxbrw:
+	mfrin	1,5
+	brw	%r1,%r1
+	mtrin	1,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	1,5
+	brw	%r1,%r1
+	mtrin	1,6
+	b	return
+
+do_xxbrd:
+	mfrin	1,5
+	brd	%r1,%r1
+	mtrin	1,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	1,5
+	brd	%r1,%r1
+	mtrin	1,6
+	b	return
+
+do_xxbrq:
+	mfrin	1,5
+	brd	%r1,%r1
+	ori	%r5,%r5,LO
+	mfrin	0,5
+	brd	%r0,%r0
+	mtrin	0,6
+	ori	%r6,%r6,LO
+	mtrin	1,6
+	b	return

@@ -485,6 +485,16 @@ package decode_types is
         INSN_veqv,
 
         -- VSX ops
+        INSN_xsadddp,
+        INSN_xssubdp,
+        INSN_xsmuldp,
+        INSN_xsdivdp,
+        INSN_xsaddsp,
+        INSN_xssubsp,
+        INSN_xsmulsp,
+        INSN_xsdivsp,
+        INSN_xssqrtdp,
+        INSN_xssqrtsp,
         INSN_xscvdpsxds,
         INSN_xscvdpsxws,
         INSN_xscvdpuxds,
@@ -1031,6 +1041,16 @@ package body decode_types is
             when INSN_xscvuxddp => return "111100";
             when INSN_xscvsxdsp => return "111100";
             when INSN_xscvuxdsp => return "111100";
+            when INSN_xsadddp   => return "111100";
+            when INSN_xsaddsp   => return "111100";
+            when INSN_xsdivdp   => return "111100";
+            when INSN_xsdivsp   => return "111100";
+            when INSN_xsmuldp   => return "111100";
+            when INSN_xsmulsp   => return "111100";
+            when INSN_xssubdp   => return "111100";
+            when INSN_xssubsp   => return "111100";
+            when INSN_xssqrtdp  => return "111100";
+            when INSN_xssqrtsp  => return "111100";
             when INSN_xxland    => return "111100";
             when INSN_xxlandc   => return "111100";
             when INSN_xxlnand   => return "111100";

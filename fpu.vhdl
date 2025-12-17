@@ -53,6 +53,7 @@ architecture behaviour of fpu is
                      DO_FCFID, DO_FCTI,
                      DO_FRSP, DO_FRI,
                      DO_FADD, DO_FMUL, DO_FDIV, DO_FSQRT,
+                     DO_XSMUL,
                      DO_FRE,
                      DO_FSEL,
                      DO_IDIVMOD,
@@ -835,6 +836,7 @@ begin
     fpu_specialcases: process(all)
         variable e : specialcase_t;
         variable invalid_mul  : std_ulogic;
+        variable m2c : fp_number_class;
     begin
         e.invalid := '0';
         e.zero_divide := '0';
@@ -856,12 +858,18 @@ begin
 
         -- Check for this case here since VXIMZ can be set along with VXSNAN
         invalid_mul := '0';
-        if r.is_multiply = '1' and
-            ((r.a.class = INFINITY and r.c.class = ZERO) or
-             (r.a.class = ZERO and r.c.class = INFINITY)) then
-            e.new_fpscr(FPSCR_VXIMZ) := '1';
-            e.invalid := '1';
-            invalid_mul := '1';
+        if r.is_multiply = '1' then
+            if r.use_c = '1' then
+                m2c := r.c.class;
+            else
+                m2c := r.b.class;
+            end if;
+            if ((r.a.class = INFINITY and m2c = ZERO) or
+                (r.a.class = ZERO and m2c = INFINITY)) then
+                e.new_fpscr(FPSCR_VXIMZ) := '1';
+                e.invalid := '1';
+                invalid_mul := '1';
+            end if;
         end if;
 
         -- Note that any operand for which r.use_X is 0 will have class = ZERO
@@ -888,6 +896,8 @@ begin
                 -- some operand is an infinity
                 if invalid_mul = '1' then
                     e.qnan_result := '1';
+                elsif r.is_multiply = '1' and r.use_c = '0' then
+                    -- xsmul[ds]p, result is infinity
                 elsif (r.a.class = INFINITY or r.c.class = INFINITY) then
                     if r.is_multiply = '1' then
                         e.rsgn_op := RSGN_SUB;
@@ -963,6 +973,12 @@ begin
                 -- other things, result is zero
                 e.result_class := ZERO;
             end if;
+
+        elsif r.use_b = '1' and r.b.class = ZERO and r.is_multiply = '1' and
+            r.use_c = '0' then
+            -- xsmul[ds]p with B=0
+            e.immed_result := '1';
+            e.result_class := ZERO;
         end if;
         if r.is_sqrt = '1' and r.b.class = FINITE and r.b.negative = '1' then
             e.immed_result := '1';
@@ -1142,16 +1158,19 @@ begin
                                 v.add_bsmall := '1';
                             end if;
                             v.is_subtract := e_in.fra(63) xor e_in.frb(63) xor e_in.negate_b;
-                        when "101" =>         -- fmul and fmadd family
+                        when "101" =>         -- fmul, fmadd family and xsmul[ds]p
                             v.is_multiply := '1';
                             if e_in.valid_b = '0' then    -- fmul
                                 v.result_sign := e_in.fra(63) xor e_in.frc(63);
-                            else
+                            elsif e_in.valid_c = '1' then
                                 v.is_addition := '1';
                                 v.result_sign := e_in.frb(63) xor e_in.negate_b;
                                 v.is_subtract := e_in.fra(63) xor e_in.frb(63) xor
                                                  e_in.frc(63) xor e_in.negate_b;
                                 v.negate := e_in.negate;
+                            else
+                                -- xsmul[ds]p has 2nd operand in B position
+                                v.result_sign := e_in.fra(63) xor e_in.frb(63);
                             end if;
                             v.do_renorm_b := '1';
                         when "110" =>         -- fdiv
@@ -1749,7 +1768,11 @@ begin
                 re_set_result <= '1';
                 -- put b.exp into shift
                 rs_sel1 <= RSH1_B;
-                if r.use_b = '0' or r.b.class = ZERO then
+                if r.use_c = '0' then
+                    -- xsmul[ds]p has 2nd multiplicand in B
+                    -- get B into R since we can't do A*B directly
+                    v.state := DO_XSMUL;
+                elsif r.use_b = '0' or r.b.class = ZERO then
                     -- fmul, or fmadd etc. with B=0
                     f_to_multiply.valid <= '1';
                     v.state := MULT_1;
@@ -1765,6 +1788,15 @@ begin
                     -- the add/subtract operation.
                     v.state := FMADD_1;
                 end if;
+
+            when DO_XSMUL =>
+                msel_2 <= MUL2_R;
+                -- put a.exp + b.exp into result_exp
+                re_sel1 <= REXP1_A;
+                re_sel2 <= REXP2_B;
+                re_set_result <= '1';
+                f_to_multiply.valid <= '1';
+                v.state := MULT_1;
 
             when RENORM_A =>
                 -- Get A into R

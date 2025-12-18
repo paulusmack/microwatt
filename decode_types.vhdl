@@ -310,6 +310,8 @@ package decode_types is
         INSN_stfiwx,
         INSN_stfsux,
         INSN_stfsx, -- 270
+        INSN_stfdp,
+        INSN_stfdpx,
         -- These ones don't actually have an FRS operand (rather an FRT destination)
         -- but are here so that all FP instructions are >= INST_first_frs.
         INSN_lfdu,
@@ -319,16 +321,14 @@ package decode_types is
         INSN_lfiwax,
         INSN_lfiwzx,
         INSN_lfsx,
-        INSN_lfsux,
+        INSN_lfsux, -- 280
+        INSN_lfdp,
+        INSN_lfdpx,
         -- These are here in order to keep the FP instructions together
         INSN_mcrfs,
-        INSN_mtfsb, -- 280
+        INSN_mtfsb,
         INSN_mtfsfi,
-        INSN_282, -- padding
-        INSN_283,
-        INSN_284,
-        INSN_285,
-        INSN_286,
+        INSN_286, -- padding
         INSN_287,
 
         -- The following instructions access FRA and/or FRB operands
@@ -678,6 +678,7 @@ package body decode_types is
             when INSN_lbz       => return "100010";
             when INSN_lbzu      => return "100011";
             when INSN_lfd       => return "110010";
+            when INSN_lfdp      => return "111001";
             when INSN_lfdu      => return "110011";
             when INSN_lfs       => return "110000";
             when INSN_lfsu      => return "110001";
@@ -699,6 +700,7 @@ package body decode_types is
             when INSN_stb       => return "100110";
             when INSN_stbu      => return "100111";
             when INSN_stfd      => return "110110";
+            when INSN_stfdp     => return "111101";
             when INSN_stfdu     => return "110111";
             when INSN_stfs      => return "110100";
             when INSN_stfsu     => return "110101";
@@ -818,6 +820,7 @@ package body decode_types is
             when INSN_ldux      => return "011111";
             when INSN_ldx       => return "011111";
             when INSN_lfdx      => return "011111";
+            when INSN_lfdpx     => return "011111";
             when INSN_lfdux     => return "011111";
             when INSN_lfiwax    => return "011111";
             when INSN_lfiwzx    => return "011111";
@@ -915,6 +918,7 @@ package body decode_types is
             when INSN_stdux     => return "011111";
             when INSN_stdx      => return "011111";
             when INSN_stfdx     => return "011111";
+            when INSN_stfdpx    => return "011111";
             when INSN_stfdux    => return "011111";
             when INSN_stfiwx    => return "011111";
             when INSN_stfsx     => return "011111";

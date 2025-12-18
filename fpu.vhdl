@@ -370,11 +370,11 @@ architecture behaviour of fpu is
         2#000# => DO_FMRG,
         2#001# => DO_FMRG,
         2#010# => DO_FCFID,
+        2#011# => DO_FRI,
         2#100# => DO_FRI,
         2#101# => DO_FRI,
         2#110# => DO_FRI,
-        2#111# => DO_FRI,
-        others => DO_ILLEGAL
+        2#111# => DO_FRI
         );
 
     constant move_decode : decode8 := (
@@ -1197,7 +1197,6 @@ begin
                     exec_state := cmp_decode(to_integer(unsigned(e_in.subsel)));
                 when OP_FP_MISC =>
                     v.fp_rc := e_in.rc;
-                    fpin_b := e_in.valid_b and e_in.subsel(2);
                     exec_state := misc_decode(to_integer(unsigned(e_in.subsel)));
                     v.result_sign := e_in.frb(63) and e_in.is_signed;
                     case e_in.subsel is
@@ -1206,7 +1205,11 @@ begin
                             v.int_result := '1';
                         when "010" =>   -- fcfid*
                             v.longmask := e_in.single;
+                        when "011" =>   -- xsrdpic
+                            fpin_b := e_in.valid_b;
+                            v.cycle_1_ar := '1';
                         when "100" | "101" | "110" | "111" =>      -- fri[nzpm]
+                            fpin_b := e_in.valid_b;
                             v.cycle_1_ar := '1';
                             v.round_mode := e_in.subsel;
                             v.zero_fri := '1';

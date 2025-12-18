@@ -336,7 +336,7 @@ vcol2:
 	.long	0
 	.long	0
 	.long	xpnd004_2 - vcol2 + 1
-	.long	0
+	.long	xpnd004_3 - vcol2 + 1
 	.long	0
 	.long	0
 	.long	do_vclzb - vcol2
@@ -682,6 +682,40 @@ xpnd004_2:
 	.long	do_vctzh - xpnd004_2
 	.long	do_vctzw - xpnd004_2
 	.long	do_vctzd - xpnd004_2
+
+xpnd004_3:
+	.long	0		# row 0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	do_vextractbm - xpnd004_3		# row 8
+	.long	do_vextracthm - xpnd004_3
+	.long	do_vextractwm - xpnd004_3
+	.long	do_vextractdm - xpnd004_3
+	.long	do_vextractqm - xpnd004_3
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 16
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 24
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
 
 xpnd060_3:
 	.long	0		# row 0
@@ -4481,6 +4515,76 @@ do_vextuwrx:
 	li	%r2,12			# convert to big-endian index
 	subf	%r2,%r0,%r2
 	b	2b
+
+do_vextractbm:
+	clrldi	%r6,%r6,59		# RT is a GPR
+	li	%r3,0
+	li	%r11,8
+1:	mfrin	1,5
+	rotldi	%r1,%r1,1
+	mtctr	%r11
+2:	rotldi	%r3,%r3,1
+	rldimi	%r3,%r1,0,63
+	rotldi	%r1,%r1,8
+	bdnz	2b
+	andi.	%r0,%r5,LO
+	addi	%r5,%r5,LO
+	beq	1b
+	mtrin	3,6
+	b	return
+
+do_vextracthm:
+	clrldi	%r6,%r6,59		# RT is a GPR
+	li	%r3,0
+	li	%r11,4
+1:	mfrin	1,5
+	rotldi	%r1,%r1,1
+	mtctr	%r11
+2:	rotldi	%r3,%r3,1
+	rldimi	%r3,%r1,0,63
+	rotldi	%r1,%r1,16
+	bdnz	2b
+	andi.	%r0,%r5,LO
+	addi	%r5,%r5,LO
+	beq	1b
+	mtrin	3,6
+	b	return
+
+do_vextractwm:
+	clrldi	%r6,%r6,59		# RT is a GPR
+	li	%r3,0
+	li	%r11,2
+1:	mfrin	1,5
+	rotldi	%r1,%r1,1
+	mtctr	%r11
+2:	rotldi	%r3,%r3,1
+	rldimi	%r3,%r1,0,63
+	rotldi	%r1,%r1,32
+	bdnz	2b
+	andi.	%r0,%r5,LO
+	addi	%r5,%r5,LO
+	beq	1b
+	mtrin	3,6
+	b	return
+
+do_vextractdm:
+	clrldi	%r6,%r6,59		# RT is a GPR
+	mfrin	1,5
+	rldicl	%r3,%r1,1,63
+	sldi	%r3,%r3,1
+	addi	%r5,%r5,LO
+	mfrin	1,5
+	rldicl	%r1,%r1,1,63
+	or	%r3,%r3,%r1
+	mtrin	3,6
+	b	return
+
+do_vextractqm:
+	clrldi	%r6,%r6,59		# RT is a GPR
+	mfrin	1,5
+	rldicl	%r3,%r1,1,63
+	mtrin	3,6
+	b	return
 
 do_xxbrh:
 	mfrin	1,5

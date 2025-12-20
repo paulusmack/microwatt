@@ -130,6 +130,8 @@ po60:	rlwinm	%r1,%r8,32-2,0x1ff		# extract extended opcode/2
 	rlwinm	%r3,%r8,32-6+2,0x7c		# row number * 4
 	cmpdi	%r0,6
 	bge	do_xxsel
+	cmpdi	%r0,0
+	beq	do_xcol0
 	cmpdi	%r0,2
 	beq	do_xcol8
 	cmpdi	%r0,3
@@ -151,6 +153,11 @@ do_xcol8:
 1:	add	%r11,%r11,%r9
 	mtctr	%r11
 	bctr
+
+do_xcol0:
+	addpcis	%r9,0
+	addi	%r9,%r9,xcol0-.
+	b	2b
 
 do_xcol12:
 	addpcis	%r9,0
@@ -772,6 +779,40 @@ xpnd060_3:
 	.long	0
 	.long	0		# row 30
 	.long	do_xxbrq - xpnd060_3
+
+xcol0:
+	.long	0		# row 0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 4
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 8
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 12
+	.long	0
+	.long	0
+	.long	0
+	.long	do_xsmaxcdp - xcol0
+	.long	do_xsmincdp - xcol0
+	.long	0
+	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 30
+	.long	0
 
 xcol8:
 	.long	do_xxsldwi - xcol8		# row 0
@@ -4996,13 +5037,10 @@ xsb_prolog:
 	mtfprd	%f1,%r3
 	blr
 
-do_xscmpeqdp:
-	mflr	%r23
-	bl	xsb_prolog
-	fcmpu	%cr1,%f0,%f1
-	setnbc	%r0,1*4+2
-	bf+	1*4+3,xscmp_finish	# if neither operand is a NaN
-	# is either operand a signaling NaN?
+check_snan:
+	# is either operand, r2 or r3, a signaling NaN?
+	# clears cr1.so if neither is, leaves unmodified otherwise
+	# may destroy values in r2 and r3
 	rotldi	%r2,%r2,12	# move sign and exponent to right end
 	cmpdi	%r2,0x1000	# check if any mantissa bit is set
 	blt	1f		# and MSB of mantissa is 0
@@ -5016,7 +5054,16 @@ do_xscmpeqdp:
 	cmpdi	%r3,0x7ff
 	beq	3f		# if XB was SNaN
 2:	crclr	1*4+3		# neither was SNaN, no exception
-3:	li	%r0,0
+3:	blr
+
+do_xscmpeqdp:
+	mflr	%r23
+	bl	xsb_prolog
+	fcmpu	%cr1,%f0,%f1
+	setnbc	%r0,1*4+2
+	bf+	1*4+3,xscmp_finish	# if neither operand is a NaN
+	bl	check_snan
+	li	%r0,0
 	b	xscmp_finish
 
 do_xscmpgtdp:
@@ -5033,6 +5080,8 @@ do_xscmpgedp:
 	setnbcr	%r0,1*4+0
 
 xscmp_finish:
+	li	%r3,0
+xsmm_finish:
 	li	%r1,0
 	# restore FPCC and FPRs and their low halves
 	# do this before writing results in case dest is vs0 or vs1
@@ -5047,6 +5096,30 @@ xscmp_finish:
 	addi	%r6,%r6,LO
 	mtrin	1,6
 	b	return
-1:	andi.	%r0,%r28,FPS_VE
+1:	mr	%r0,%r3
+	andi.	%r1,%r28,FPS_VE
 	beq	2b
 	b	return
+
+do_xsmincdp:
+	mflr	%r23
+	bl	xsb_prolog
+	mr	%r0,%r3			# answer defaults to B
+	fcmpu	%cr1,%f0,%f1
+	bt	1*4+3,1f		# if either operand is a NaN
+	bge	%cr1,xsmm_finish
+	mr	%r0,%r2
+	b	xsmm_finish
+1:	bl	check_snan
+	mr	%r3,%r0
+	b	xsmm_finish
+
+do_xsmaxcdp:
+	mflr	%r23
+	bl	xsb_prolog
+	mr	%r0,%r3			# answer defaults to B
+	fcmpu	%cr1,%f0,%f1
+	bt	1*4+3,1b		# if either operand is a NaN
+	ble	%cr1,xsmm_finish
+	mr	%r0,%r2
+	b	xsmm_finish

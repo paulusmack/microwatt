@@ -69,6 +69,8 @@ entry:
 	rlwinm	%r5,%r8,5+16,0x1f		# B field
 	rlwinm	%r6,%r8,5+6,0x1f		# T field
 	rlwinm	%r0,%r8,6,0x3f			# primary opcode field
+	srdi.	%r7,%r8,32			# prefix
+	bne	prefixed
 	cmpdi	%r0,60
 	beq	po60
 	cmpdi	%r0,31
@@ -177,6 +179,26 @@ po31:	rlwinm	%r1,%r8,32-1,0x3ff		# extract extended opcode
 	cmpdi	%r1,38
 	beq	do_lvsr
 	b	illegal
+
+prefixed:
+	srdi	%r1,%r7,21
+	cmpdi	%r1,0x28			# is it prefix opcode with 8RR form?
+	bne	illegal
+	cmpdi	%r0,32
+	bne	illegal
+ext132:	cmpdi	%r4,8
+	bge	illegal
+	andis.	%r0,%r2,MSR_VSX@h
+	beq	vsx_unavail
+	ori	%r6,%r6,VSR0
+	rlwimi	%r6,%r4,5-0,0x20		# insert TX bit
+	clrldi	%r1,%r8,48			# form immediate value
+	rldimi	%r1,%r7,16,32
+	cmpdi	%r4,4
+	blt	do_xxsplti32dx
+	cmpdi	%r4,6
+	blt	do_xxspltidp
+	b	do_xxspltiw
 
 illegal:
 	# anything we don't recognize gets punted to e40
@@ -818,6 +840,48 @@ xcol12:
 	.long	0
 	.long	0		# row 30
 	.long	0
+
+do_xxsplti32dx:
+	andi.	%r0,%r4,2
+	ori	%r7,%r6,LO
+	bne	1f				# if changing low words
+	mfrin	0,6
+	rldimi	%r0,%r1,32,0			# put immediate in high word
+	mtrin	0,6
+	mfrin	0,7
+	rldimi	%r0,%r1,32,0
+	mtrin	0,7
+	b	preturn
+1:	mfrin	0,6
+	rldimi	%r0,%r1,0,32			# put immediate in low word
+	mtrin	0,6
+	mfrin	0,7
+	rldimi	%r0,%r1,0,32
+	mtrin	0,7
+	b	preturn
+
+do_xxspltidp:
+	# convert immediate value in r1 from single to double precision
+	rldicr	%r2,%r1,32,0			# extract sign bit
+	rlwinm.	%r3,%r1,9,0xff			# extract exponent
+	beq	9f				# if zero or denorm, flush to 0
+	rldimi	%r2,%r1,52-23,12		# insert mantissa into result
+	cmpdi	%r3,0xff			# infinity or NaN?
+	bne	2f
+	addi	%r3,%r3,0x380			# ff + 700 -> 7ff
+2:	addi	%r3,%r3,0x380			# add 1023 - 127 extra exponent bias
+	rldimi	%r2,%r3,52,1			# insert exponent
+9:	mtrin	2,6
+	ori	%r6,%r6,LO
+	mtrin	2,6
+	b	preturn
+
+do_xxspltiw:
+	rldimi	%r1,%r1,32,0
+	mtrin	1,6
+	ori	%r6,%r6,LO
+	mtrin	1,6
+	b	preturn
 
 do_xxpermdi:
 	rlwimi	%r4,%r8,LOBIT-9+32,LO		# insert bit 0 of DM
@@ -3904,14 +3968,18 @@ setsat:
 	or	%r12,%r12,%r9
 	mtspr	VRSAVE,%r12
 return:
-	mtctr	%r30
 	mfspr	%r1,HSRR0
 	addi	%r1,%r1,4
-	mtspr	HSRR0,%r1
+1:	mtspr	HSRR0,%r1
+	mtctr	%r30
 	mtcr	%r31
 	li	%r0,0
 	mtspr	EMUC,%r0
 	hrfid
+preturn:
+	mfspr	%r1,HSRR0
+	addi	%r1,%r1,8
+	b	1b
 
 do_vclzb:
 	li	%r11,8

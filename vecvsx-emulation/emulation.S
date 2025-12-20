@@ -276,8 +276,8 @@ op4_table:
 	.long	0
 	.long	0
 	.long	0
-	.long	0
-	.long	0
+	.long	do_vmsumubm - op4_table + 1
+	.long	do_vmsummbm - op4_table + 1
 	.long	0
 	.long	0
 	.long	0		# column 40
@@ -4969,6 +4969,81 @@ do_vextractqm:
 	rldicl	%r3,%r1,1,63
 	mtrin	3,6
 	b	return
+
+do_vmsumubm:
+	li	%r11,2
+1:	mfrin	8,4
+	mfrin	9,5
+	mfrin	10,7
+	mtctr	%r11
+2:	rotldi	%r10,%r10,32
+	rotldi	%r8,%r8,32
+	rotldi	%r9,%r9,32
+	clrldi	%r0,%r8,56
+	clrldi	%r1,%r9,56
+	mullw	%r2,%r0,%r1
+	rldicl	%r0,%r8,56,56
+	rldicl	%r1,%r9,56,56
+	add	%r3,%r10,%r2
+	mullw	%r2,%r0,%r1
+	rldicl	%r0,%r8,48,56
+	rldicl	%r1,%r9,48,56
+	add	%r3,%r3,%r2
+	mullw	%r2,%r0,%r1
+	rldicl	%r0,%r8,40,56
+	rldicl	%r1,%r9,40,56
+	mullw	%r0,%r0,%r1
+	add	%r3,%r3,%r2
+	add	%r3,%r3,%r0
+	rldimi	%r10,%r3,0,32
+	bdnz	2b
+	mtrin	10,6
+	andi.	%r0,%r6,LO
+	bne	return
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	addi	%r7,%r7,LO
+	b	1b
+
+do_vmsummbm:
+	li	%r11,2
+1:	mfrin	8,4
+	mfrin	9,5
+	mfrin	10,7
+	mtctr	%r11
+2:	rotldi	%r10,%r10,32
+	rotldi	%r8,%r8,32
+	rotldi	%r9,%r9,32
+	extsb	%r0,%r8
+	clrldi	%r1,%r9,56
+	mullw	%r2,%r0,%r1
+	rldicl	%r0,%r8,56,56
+	extsb	%r0,%r0
+	rldicl	%r1,%r9,56,56
+	add	%r3,%r10,%r2
+	mullw	%r2,%r0,%r1
+	rldicl	%r0,%r8,48,56
+	extsb	%r0,%r0
+	rldicl	%r1,%r9,48,56
+	add	%r3,%r3,%r2
+	mullw	%r2,%r0,%r1
+	rldicl	%r0,%r8,40,56
+	extsb	%r0,%r0
+	rldicl	%r1,%r9,40,56
+	mullw	%r0,%r0,%r1
+	add	%r3,%r3,%r2
+	add	%r3,%r3,%r0
+	rldimi	%r10,%r3,0,32
+	bdnz	2b
+	mtrin	10,6
+	andi.	%r0,%r6,LO
+	bne	return
+	addi	%r4,%r4,LO
+	addi	%r5,%r5,LO
+	addi	%r6,%r6,LO
+	addi	%r7,%r7,LO
+	b	1b
 
 do_xxbrh:
 	mfrin	1,5

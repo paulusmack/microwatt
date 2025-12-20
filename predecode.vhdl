@@ -749,6 +749,8 @@ architecture behaviour of predecoder is
         2#00111_0000# to 2#00111_0001# => (XA, XB, NR, INSN_xsdivdp),
         2#00000_1011#                  => (NR, XB, NR, INSN_xssqrtsp),
         2#00100_1011#                  => (NR, XB, NR, INSN_xssqrtdp),
+        2#00101_0110# to 2#00101_0111# => (XA, XB, NR, INSN_xscmpodp),
+        2#00100_0110# to 2#00100_0111# => (XA, XB, NR, INSN_xscmpudp),
         2#10000_0100# to 2#10000_0101# => (XA, XB, NR, INSN_xxland),
         2#10001_0100# to 2#10001_0101# => (XA, XB, NR, INSN_xxlandc),
         2#10010_0100# to 2#10010_0101# => (XA, XB, NR, INSN_xxlor),

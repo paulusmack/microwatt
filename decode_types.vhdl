@@ -501,6 +501,8 @@ package decode_types is
         INSN_xsdivsp,
         INSN_xssqrtdp,
         INSN_xssqrtsp,
+        INSN_xscmpodp,
+        INSN_xscmpudp,
         INSN_xscvdpsxds,
         INSN_xscvdpsxws,
         INSN_xscvdpuxds,
@@ -1061,6 +1063,8 @@ package body decode_types is
             when INSN_xsrdpip   => return "111100";
             when INSN_xsrdpiz   => return "111100";
             when INSN_xsrsp     => return "111100";
+            when INSN_xscmpodp  => return "111100";
+            when INSN_xscmpudp  => return "111100";
             when INSN_xscvdpsxds=> return "111100";
             when INSN_xscvdpsxws=> return "111100";
             when INSN_xscvdpuxds=> return "111100";

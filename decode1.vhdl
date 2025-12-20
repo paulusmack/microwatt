@@ -496,6 +496,8 @@ architecture behaviour of decode1 is
         INSN_xssqrtsp    =>  (FPU,  VSX,  OP_FP_ARITH,  NONE,       XB,  NONE,        NONE, XT,   ADD, "111", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', '0', NONE),
         INSN_xssubdp     =>  (FPU,  VSX,  OP_FP_ARITH,  XA,         XB,  NONE,        NONE, XT,   ADD, "100", '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_xssubsp     =>  (FPU,  VSX,  OP_FP_ARITH,  XA,         XB,  NONE,        NONE, XT,   ADD, "100", '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '0', '0', NONE),
+        INSN_xscmpodp    =>  (FPU,  VSX,  OP_FP_CMP,    XA,         XB,  NONE,        NONE, NONE, ADD, "001", '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_xscmpudp    =>  (FPU,  VSX,  OP_FP_CMP,    XA,         XB,  NONE,        NONE, NONE, ADD, "000", '0', '1', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_xscvdpsxds  =>  (FPU,  VSX,  OP_FP_ARITH,  NONE,       XB,  NONE,        NONE, XT,   ADD, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', NONE),
         INSN_xscvdpsxws  =>  (FPU,  VSX,  OP_FP_ARITH,  NONE,       XB,  NONE,        NONE, XT,   ADD, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', NONE, '0', '0', '0', NONE),
         INSN_xscvdpuxds  =>  (FPU,  VSX,  OP_FP_ARITH,  NONE,       XB,  NONE,        NONE, XT,   ADD, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),

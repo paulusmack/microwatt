@@ -502,22 +502,22 @@ vcol7:
 	.long	do_vcmpgtsq - vcol7		# row 30
 	.long	do_vcmpgtsd - vcol7
 vcol8:
-	.long	0		# row 0
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 4
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 8
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 12
-	.long	0
-	.long	0
-	.long	0
+	.long	do_vmuloub - vcol8		# row 0
+	.long	do_vmulouh - vcol8
+	.long	do_vmulouw - vcol8
+	.long	do_vmuloud - vcol8
+	.long	do_vmulosb - vcol8		# row 4
+	.long	do_vmulosh - vcol8
+	.long	do_vmulosw - vcol8
+	.long	do_vmulosd - vcol8
+	.long	do_vmuleub - vcol8		# row 8
+	.long	do_vmuleuh - vcol8
+	.long	do_vmuleuw - vcol8
+	.long	do_vmuleud - vcol8
+	.long	do_vmulesb - vcol8		# row 12
+	.long	do_vmulesh - vcol8
+	.long	do_vmulesw - vcol8
+	.long	do_vmulesd - vcol8
 	.long	0
 	.long	0
 	.long	0
@@ -4439,6 +4439,281 @@ do_vnegd:
 	mfrin	1,5
 	neg	%r1,%r1
 	mtrin	1,6
+	b	return
+
+do_vmulesb:
+	li	%r11,4
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+	srdi	%r0,%r0,8
+	srdi	%r1,%r1,8
+2:	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	extsb	%r8,%r0
+	extsb	%r9,%r1
+	mullw	%r8,%r8,%r9
+	rotldi	%r2,%r2,16
+	rldimi	%r2,%r8,0,48
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vmulosb:
+	li	%r11,4
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	extsb	%r8,%r0
+	extsb	%r9,%r1
+	mullw	%r8,%r8,%r9
+	rotldi	%r2,%r2,16
+	rldimi	%r2,%r8,0,48
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vmuleub:
+	li	%r11,4
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+	srdi	%r0,%r0,8
+	srdi	%r1,%r1,8
+2:	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	clrldi	%r8,%r0,56
+	clrldi	%r9,%r1,56
+	mullw	%r8,%r8,%r9
+	rotldi	%r2,%r2,16
+	rldimi	%r2,%r8,0,48
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vmuloub:
+	li	%r11,4
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,16
+	rotldi	%r1,%r1,16
+	clrldi	%r8,%r0,56
+	clrldi	%r9,%r1,56
+	mullw	%r8,%r8,%r9
+	rotldi	%r2,%r2,16
+	rldimi	%r2,%r8,0,48
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vmulesh:
+	li	%r11,2
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+	srdi	%r0,%r0,16
+	srdi	%r1,%r1,16
+2:	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	extsh	%r8,%r0
+	extsh	%r9,%r1
+	mullw	%r8,%r8,%r9
+	rotldi	%r2,%r2,32
+	rldimi	%r2,%r8,0,32
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vmulosh:
+	li	%r11,2
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	extsh	%r8,%r0
+	extsh	%r9,%r1
+	mullw	%r8,%r8,%r9
+	rotldi	%r2,%r2,32
+	rldimi	%r2,%r8,0,32
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vmuleuh:
+	li	%r11,2
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+	srdi	%r0,%r0,16
+	srdi	%r1,%r1,16
+2:	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	clrldi	%r8,%r0,48
+	clrldi	%r9,%r1,48
+	mullw	%r8,%r8,%r9
+	rotldi	%r2,%r2,32
+	rldimi	%r2,%r8,0,32
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+	li	%r11,4
+
+do_vmulouh:
+	li	%r11,2
+1:	mfrin	0,4
+	mfrin	1,5
+	mtctr	%r11
+2:	rotldi	%r0,%r0,32
+	rotldi	%r1,%r1,32
+	clrldi	%r8,%r0,48
+	clrldi	%r9,%r1,48
+	mullw	%r8,%r8,%r9
+	rotldi	%r2,%r2,32
+	rldimi	%r2,%r8,0,32
+	bdnz	2b
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vmulesw:
+1:	mfrin	0,4
+	mfrin	1,5
+	srdi	%r0,%r0,32
+	srdi	%r1,%r1,32
+	mullw	%r2,%r0,%r1
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vmulosw:
+1:	mfrin	0,4
+	mfrin	1,5
+	mullw	%r2,%r0,%r1
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vmuleuw:
+1:	mfrin	0,4
+	mfrin	1,5
+	srdi	%r0,%r0,32
+	srdi	%r1,%r1,32
+	mulld	%r2,%r0,%r1
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vmulouw:
+1:	mfrin	0,4
+	mfrin	1,5
+	clrldi	%r0,%r0,32
+	clrldi	%r1,%r1,32
+	mulld	%r2,%r0,%r1
+	mtrin	2,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vmulesd:
+	mfrin	0,4
+	mfrin	1,5
+	mulhd	%r2,%r0,%r1
+	mulld	%r3,%r0,%r1
+	mtrin	2,6
+	ori	%r6,%r6,LO
+	mtrin	3,6
+	b	return
+
+do_vmulosd:
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	mfrin	0,4
+	mfrin	1,5
+	mulhd	%r2,%r0,%r1
+	mulld	%r3,%r0,%r1
+	mtrin	2,6
+	ori	%r6,%r6,LO
+	mtrin	3,6
+	b	return
+
+do_vmuleud:
+	mfrin	0,4
+	mfrin	1,5
+	mulhdu	%r2,%r0,%r1
+	mulld	%r3,%r0,%r1
+	mtrin	2,6
+	ori	%r6,%r6,LO
+	mtrin	3,6
+	b	return
+
+do_vmuloud:
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	mfrin	0,4
+	mfrin	1,5
+	mulhdu	%r2,%r0,%r1
+	mulld	%r3,%r0,%r1
+	mtrin	2,6
+	ori	%r6,%r6,LO
+	mtrin	3,6
 	b	return
 
 do_vextsb2w:

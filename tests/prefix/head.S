@@ -265,3 +265,17 @@ test_pstq:
 	pstq	%r4,qvar(0)
 	li	%r3,0
 	blr
+
+	.globl	test_pill_1
+test_pill_1:
+	.long	0x04801234	# plwa with bit 8 (BE) of prefix set
+	.long	0xa456789a
+	li	%r3,0
+	blr
+
+	.globl	test_pill_2
+test_pill_2:
+	.long	0x0601fedc
+	.long	0x34ba9876
+	li	%r3,0
+	blr

@@ -16,6 +16,7 @@
 #define SRR1	27
 #define PID	48
 #define PTCR	464
+#define HEIR	339
 
 extern long trapit(long arg, long (*func)(long));
 extern long test_paddi(long arg);
@@ -35,6 +36,8 @@ extern long test_pstw(long arg);
 extern long test_plfd(long arg);
 extern long test_plq(long arg);
 extern long test_pstq(long arg);
+extern long test_pill_1(long arg);
+extern long test_pill_2(long arg);
 
 static inline unsigned long mfspr(int sprnum)
 {
@@ -218,6 +221,28 @@ long int prefix_test_4(void)
 	return 0;
 }
 
+/* test setting of HEIR on illegal prefixed instruction */
+long int prefix_test_5(void)
+{
+	long int ret;
+
+	ret = trapit(0, test_pill_1);
+	if (ret != 0xe40)
+		return ret | 0x10000;
+	if (mfspr(HEIR) != 0x04801234a456789aul) {
+		print_hex(mfspr(HEIR), 16, " ");
+		return 1;
+	}
+	ret = trapit(0, test_pill_2);
+	if (ret != 0xe40)
+		return ret | 0x10000;
+	if (mfspr(HEIR) != 0x0601fedc34ba9876ul) {
+		print_hex(mfspr(HEIR), 16, " ");
+		return 2;
+	}
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, long int (*test)(void))
@@ -246,6 +271,7 @@ int main(void)
 	do_test(2, prefix_test_2);
 	do_test(3, prefix_test_3);
 	do_test(4, prefix_test_4);
+	do_test(5, prefix_test_5);
 
 	return fail;
 }

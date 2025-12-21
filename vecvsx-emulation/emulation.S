@@ -585,10 +585,10 @@ vcol13:
 	.long	0
 	.long	0
 	.long	0
-	.long	0		# row 8
-	.long	0
-	.long	0
-	.long	0
+	.long	do_vextractub - vcol13		# row 8
+	.long	do_vextractuh - vcol13
+	.long	do_vextractuw - vcol13
+	.long	do_vextractd - vcol13
 	.long	0		# row 12
 	.long	0
 	.long	0
@@ -4825,6 +4825,77 @@ do_vextsd2q:
 	neg	%r0,%r0
 	mtrin	0,6
 	ori	%r6,%r6,LO
+	mtrin	1,6
+	b	return
+
+do_vextractub:
+	rlwimi	%r5,%r4,LOBIT-3,LO	# put bit 3 of index into r5
+	rlwinm	%r2,%r4,3,0x38		# shift count from bits 0-2
+	mfrin	1,5
+	sld	%r1,%r1,%r2		# target byte to MSB
+	srdi	%r1,%r1,56		# move it to LSB
+	mtrin	1,6
+	li	%r0,0
+	addi	%r6,%r6,LO
+	mtrin	0,6
+	b	return
+
+do_vextractuh:
+	rlwimi	%r5,%r4,LOBIT-3,LO	# put bit 3 of index into r5
+	mfrin	0,5			# fetch both dwords of VRB
+	xori	%r5,%r5,LO
+	mfrin	1,5
+	rlwinm	%r2,%r4,3,0x38		# shift count from bits 0-2
+	sld	%r0,%r0,%r2
+	rotld	%r1,%r1,%r2
+	li	%r3,1			# mask for bits from r0
+	sld	%r3,%r3,%r2
+	neg	%r3,%r3
+	andc	%r1,%r1,%r3
+	or	%r0,%r0,%r1
+	srdi	%r0,%r0,48		# move bytes 0:1 to right end
+	mtrin	0,6
+	li	%r1,0
+	addi	%r6,%r6,LO
+	mtrin	1,6
+	b	return
+
+do_vextractuw:
+	rlwimi	%r5,%r4,LOBIT-3,LO	# put bit 3 of index into r5
+	mfrin	0,5			# fetch both dwords of VRB
+	xori	%r5,%r5,LO
+	mfrin	1,5
+	rlwinm	%r2,%r4,3,0x38		# shift count from bits 0-2
+	sld	%r0,%r0,%r2
+	rotld	%r1,%r1,%r2
+	li	%r3,1			# mask for bits from r0
+	sld	%r3,%r3,%r2
+	neg	%r3,%r3
+	andc	%r1,%r1,%r3
+	or	%r0,%r0,%r1
+	srdi	%r0,%r0,32		# move bytes 0:3 to right end
+	mtrin	0,6
+	li	%r1,0
+	addi	%r6,%r6,LO
+	mtrin	1,6
+	b	return
+
+do_vextractd:
+	rlwimi	%r5,%r4,LOBIT-3,LO	# put bit 3 of index into r5
+	mfrin	0,5			# fetch both dwords of VRB
+	xori	%r5,%r5,LO
+	mfrin	1,5
+	rlwinm	%r2,%r4,3,0x38		# shift count from bits 0-2
+	sld	%r0,%r0,%r2
+	rotld	%r1,%r1,%r2
+	li	%r3,1			# mask for bits from r0
+	sld	%r3,%r3,%r2
+	neg	%r3,%r3
+	andc	%r1,%r1,%r3
+	or	%r0,%r0,%r1
+	mtrin	0,6
+	li	%r1,0
+	addi	%r6,%r6,LO
 	mtrin	1,6
 	b	return
 

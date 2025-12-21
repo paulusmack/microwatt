@@ -962,6 +962,69 @@ int vsx_test_7(void)
 	return 0;
 }
 
+unsigned long do_xxsplti(unsigned long which, unsigned long addr)
+{
+	asm(".machine \"power10\"");
+	switch (which) {
+	case 0:
+		asm("xxspltidp 43,0xbfe12345; stxv 43,0(%0)" : :
+		    "b" (addr) : "memory");
+		break;
+	case 1:
+		asm("xxspltiw 45,0xa9876543; stxv 45,0(%0)" : :
+		    "b" (addr) : "memory");
+		break;
+	case 2:
+		asm("xxsplti32dx 45,0,0x12345678; stxv 45,0(%0)" : :
+		    "b" (addr) : "memory");
+		break;
+	case 3:
+		asm("xxsplti32dx 45,1,0xaa55bb66; stxv 45,0(%0)" : :
+		    "b" (addr) : "memory");
+		break;
+	}
+	return 0;
+}
+
+/* test xxsplti{32dx,dp,w}* */
+int vsx_test_8(void)
+{
+	unsigned long data[2];
+	unsigned long ret;
+
+	enable_vec();
+	enable_vsx();
+	ret = callit(0, (unsigned long) &data, do_xxsplti);
+	if (ret)
+		return ret;
+	if (data[0] != 0xbffc2468a0000000ul || data[1] != 0xbffc2468a0000000ul) {
+		print_buf((unsigned char *)&data, 16, "result");
+		return 1;
+	}
+	ret = callit(1, (unsigned long) &data, do_xxsplti);
+	if (ret)
+		return ret;
+	if (data[0] != 0xa9876543a9876543ul || data[1] != 0xa9876543a9876543ul) {
+		print_buf((unsigned char *)&data, 16, "result");
+		return 2;
+	}
+	ret = callit(2, (unsigned long) &data, do_xxsplti);
+	if (ret)
+		return ret;
+	if (data[0] != 0x12345678a9876543ul || data[1] != 0x12345678a9876543ul) {
+		print_buf((unsigned char *)&data, 16, "result");
+		return 3;
+	}
+	ret = callit(3, (unsigned long) &data, do_xxsplti);
+	if (ret)
+		return ret;
+	if (data[0] != 0x12345678aa55bb66ul || data[1] != 0x12345678aa55bb66ul) {
+		print_buf((unsigned char *)&data, 16, "result");
+		return 4;
+	}
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -997,6 +1060,7 @@ int main(void)
 	do_test(5, vsx_test_5);
 	do_test(6, vsx_test_6);
 	do_test(7, vsx_test_7);
+	do_test(8, vsx_test_8);
 
 	return fail;
 }

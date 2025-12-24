@@ -108,6 +108,7 @@ architecture behave of core_debug is
     constant DBG_CORE_LOG_DATA       : std_ulogic_vector(3 downto 0) := "0111";
     constant DBG_CORE_LOG_TRIGGER    : std_ulogic_vector(3 downto 0) := "1000";
     constant DBG_CORE_LOG_MTRIGGER   : std_ulogic_vector(3 downto 0) := "1001";
+    constant DBG_CORE_LOG_MTR_MASK   : std_ulogic_vector(3 downto 0) := "1010";
 
     constant LOG_INDEX_BITS : natural := log2(LOG_LENGTH);
 
@@ -130,10 +131,12 @@ architecture behave of core_debug is
     signal log_dmi_data        : std_ulogic_vector(63 downto 0) := (others => '0');
     signal log_dmi_trigger     : std_ulogic_vector(63 downto 0) := (others => '0');
     signal log_mem_trigger     : std_ulogic_vector(63 downto 0) := (others => '0');
+    signal log_mem_mask        : std_ulogic_vector(63 downto 0) := (others => '0');
     signal do_log_trigger      : std_ulogic := '0';
     signal do_log_mtrigger     : std_ulogic := '0';
     signal trigger_was_log     : std_ulogic := '0';
     signal trigger_was_mem     : std_ulogic := '0';
+    signal log_mem_mask_nzero  : std_ulogic := '0';
     signal do_dmi_log_rd       : std_ulogic;
     signal dmi_read_log_data   : std_ulogic;
     signal dmi_read_log_data_1 : std_ulogic;
@@ -166,6 +169,7 @@ begin
         log_dmi_data    when DBG_CORE_LOG_DATA,
         log_dmi_trigger when DBG_CORE_LOG_TRIGGER,
         log_mem_trigger when DBG_CORE_LOG_MTRIGGER,
+        log_mem_mask    when DBG_CORE_LOG_MTR_MASK,
         (others => '0') when others;
 
     -- DMI writes
@@ -240,6 +244,9 @@ begin
                             log_dmi_trigger <= dmi_din;
                         elsif dmi_addr = DBG_CORE_LOG_MTRIGGER then
                             log_mem_trigger <= dmi_din;
+                        elsif dmi_addr = DBG_CORE_LOG_MTR_MASK then
+                            log_mem_mask <= dmi_din;
+                            log_mem_mask_nzero <= or (dmi_din);
                         end if;
                     else
                         report("DMI read from " & to_string(dmi_addr));
@@ -410,6 +417,7 @@ begin
         log_buffer: process(clk)
             variable b : integer;
             variable data : std_ulogic_vector(255 downto 0);
+            variable snoopdata : std_ulogic_vector(63 downto 0);
         begin
             if rising_edge(clk) then
                 if rst = '1' then
@@ -445,7 +453,19 @@ begin
                     wb_snoop_in.adr = log_mem_trigger(wishbone_addr_bits + wishbone_log2_width - 1
                                                       downto wishbone_log2_width) and
                     log_mem_trigger(0) = '1' then
-                    do_log_mtrigger <= '1';
+                    if log_mem_mask_nzero = '0' then
+                        do_log_mtrigger <= '1';
+                    else
+                        snoopdata := (others => '0');
+                        for j in 0 to 7 loop
+                            if wb_snoop_in.sel(j) = '1' then
+                                snoopdata(j*8 + 7 downto j*8) := wb_snoop_in.dat(j*8 + 7 downto j*8);
+                            end if;
+                        end loop;
+                        if (snoopdata and log_mem_mask) /= 64x"0" then
+                            do_log_mtrigger <= '1';
+                        end if;
+                    end if;
                 end if;
             end if;
         end process;

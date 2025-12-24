@@ -48,6 +48,7 @@ unsigned int core;
 #define DBG_LOG_DATA		(0x17 + (core << 4))
 #define DBG_LOG_TRIGGER		(0x18 + (core << 4))
 #define DBG_LOG_MTRIGGER	(0x19 + (core << 4))
+#define DBG_LOG_MTRIG_MASK	(0x1a + (core << 4))
 
 static bool debug;
 
@@ -754,7 +755,7 @@ static void ltrig_show(void)
 
 	check(dmi_read(DBG_LOG_TRIGGER, &trig), "reading LOG_TRIGGER");
 	if (trig & 1)
-		printf("log stop trigger at %" PRIx64, trig & ~3);
+		printf("log stop trigger at %016" PRIx64, trig & ~3);
 	else
 		printf("log stop trigger disabled");
 	printf(", %striggered\n", (trig & 2? "": "not "));
@@ -773,11 +774,15 @@ static void ltrig_set(uint64_t addr)
 static void mtrig_show(void)
 {
 	uint64_t trig;
+	uint64_t mask;
 
 	check(dmi_read(DBG_LOG_MTRIGGER, &trig), "reading LOG_MTRIGGER");
-	if (trig & 1)
-		printf("log memory stop trigger at %" PRIx64, trig & ~3);
-	else
+	check(dmi_read(DBG_LOG_MTRIG_MASK, &mask), "reading LOG_MTRIG_MASK");
+	if (trig & 1) {
+		printf("log memory stop trigger at %016" PRIx64, trig & ~3);
+		if (mask)
+			printf(", mask %016" PRIx64, mask);
+	} else
 		printf("log memory stop trigger disabled");
 	printf(", %striggered\n", (trig & 2? "": "not "));
 }
@@ -790,6 +795,11 @@ static void mtrig_off(void)
 static void mtrig_set(uint64_t addr)
 {
 	check(dmi_write(DBG_LOG_MTRIGGER, (addr & ~(uint64_t)2) | 1), "writing LOG_MTRIGGER");
+}
+
+static void mmask_set(uint64_t mask)
+{
+	check(dmi_write(DBG_LOG_MTRIG_MASK, mask), "writing LOG_MTRIGGER");
 }
 
 static void usage(const char *cmd)
@@ -1014,6 +1024,17 @@ int main(int argc, char *argv[])
 			else {
 				addr = strtoul(argv[i], NULL, 16);
 				mtrig_set(addr);
+			}
+		} else if (strcmp(argv[i], "mmask") == 0) {
+			uint64_t mask;
+
+			if ((i+1) >= argc)
+				mtrig_show();
+			else if (strcmp(argv[++i], "off") == 0)
+				mmask_set(0);
+			else {
+				mask = strtoul(argv[i], NULL, 16);
+				mmask_set(mask);
 			}
 		} else {
 			fprintf(stderr, "Unknown command %s\n", argv[i]);

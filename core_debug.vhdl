@@ -34,6 +34,7 @@ entity core_debug is
         nia             : in std_ulogic_vector(63 downto 0);
         msr             : in std_ulogic_vector(63 downto 0);
         wb_snoop_in     : in wishbone_master_out := wishbone_master_out_init;
+        wb_snoopr_in    : in wishbone_slave_out := wishbone_slave_out_init;
 
         -- GPR/FPR/VSR register read port
         dbg_gpr_req     : out std_ulogic;
@@ -61,7 +62,8 @@ entity core_debug is
         log_write_addr  : out std_ulogic_vector(31 downto 0);
 
         -- Misc
-        terminated_out  : out std_ulogic
+        terminated_out  : out std_ulogic;
+        wb_arb_debug : std_ulogic_vector(2 downto 0)
         );
 end core_debug;
 
@@ -394,16 +396,26 @@ begin
         attribute ram_decomp : string;
         attribute ram_decomp of log_array : signal is "power";
 
+        signal snoop_dbg_reg : std_ulogic_vector(9 downto 0);
+
     begin
         -- Use MSB of read addresses to stop the logging
         log_wr_enable <= not (log_read_addr(31) or log_dmi_addr(31) or log_dmi_trigger(1) or log_mem_trigger(1));
 
         log_ram: process(clk)
+            variable ldat : std_ulogic_vector(255 downto 0);
         begin
             if rising_edge(clk) then
                 if log_wr_enable = '1' then
                     assert not is_X(log_wr_ptr);
-                    log_array(to_integer(log_wr_ptr)) <= log_data;
+                    ldat := log_data;
+                    ldat(63) := snoop_dbg_reg(9); -- we
+                    ldat(44 downto 43) := snoop_dbg_reg(8 downto 7); -- adr hi
+                    ldat(62 downto 60) := snoop_dbg_reg(6 downto 4); -- adr lo
+                    ldat(59 downto 57) := snoop_dbg_reg(3 downto 1); -- stb, cyc, stall
+                    ldat(150) := snoop_dbg_reg(0); -- ack
+                    ldat(138 downto 136) := wb_arb_debug;
+                    log_array(to_integer(log_wr_ptr)) <= ldat;
                 end if;
                 if is_X(log_rd_ptr_latched) then
                     log_rd <= (others => 'X');
@@ -467,6 +479,10 @@ begin
                         end if;
                     end if;
                 end if;
+                snoop_dbg_reg <= wb_snoopr_in.ack &
+                                 wb_snoop_in.adr(4 downto 0) &
+                                 wb_snoop_in.stb & wb_snoop_in.cyc & wb_snoopr_in.stall &
+                                 wb_snoop_in.we;
             end if;
         end process;
         log_write_addr(LOG_INDEX_BITS - 1 downto 0) <= std_ulogic_vector(log_wr_ptr);

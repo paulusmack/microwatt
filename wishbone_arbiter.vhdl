@@ -1,5 +1,6 @@
 library ieee;
 use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 library work;
 use work.wishbone_types.all;
@@ -15,7 +16,9 @@ entity wishbone_arbiter is
 	  wb_masters_out : out wishbone_slave_out_vector(0 to NUM_MASTERS-1);
 
 	  wb_slave_out  : out wishbone_master_out;
-	  wb_slave_in   : in wishbone_slave_out
+	  wb_slave_in   : in wishbone_slave_out;
+
+          dbg_out : out std_ulogic_vector(2 downto 0)
 	  );
 end wishbone_arbiter;
 
@@ -71,4 +74,6 @@ begin
 	    end if;
 	end if;
     end process;
+
+    dbg_out <= std_ulogic_vector(to_unsigned(selected, 3));
 end behave;

@@ -46,6 +46,7 @@ entity core is
         wishbone_data_out : out wishbone_master_out;
 
         wb_snoop_in     : in wishbone_master_out;
+        wb_snoopr_in    : in wishbone_slave_out;
 
 	dmi_addr	: in std_ulogic_vector(3 downto 0);
 	dmi_din	        : in std_ulogic_vector(63 downto 0);
@@ -60,7 +61,9 @@ entity core is
         msg_out         : out std_ulogic_vector(NCPUS-1 downto 0);
 
         run_out          : out std_ulogic;
-	terminated_out   : out std_logic
+	terminated_out   : out std_logic;
+
+        wb_arb_debug : std_ulogic_vector(2 downto 0)
         );
 end core;
 
@@ -137,6 +140,8 @@ architecture behave of core is
     signal complete: instr_tag_t;
     signal terminate: std_ulogic;
     signal core_rst: std_ulogic;
+
+    signal wb_snoop : wishbone_master_out;
 
     -- Delayed/Latched resets and alt_reset
     signal rst_fetch1  : std_ulogic;
@@ -216,6 +221,18 @@ begin
 
     core_rst <= dbg_core_rst or rst;
 
+    -- Snoop bus going to caches.
+    -- Gate stb with stall so the caches don't see the stalled strobes.
+    -- That way if the caches see a strobe when their wishbone is stalled,
+    -- they know it is an access by another master.
+    process(all)
+    begin
+        wb_snoop <= wb_snoop_in;
+        if wb_snoopr_in.stall = '1' then
+            wb_snoop.stb <= '0';
+        end if;
+    end process;
+
     resets: process(clk)
     begin
         if rising_edge(clk) then
@@ -280,7 +297,7 @@ begin
 	    stall_out => icache_stall_out,
             wishbone_out => wishbone_insn_out,
             wishbone_in => wishbone_insn_in,
-            wb_snoop_in => wb_snoop_in,
+            wb_snoop_in => wb_snoop,
             events => icache_events,
             log_out => log_data(100 downto 43)
             );
@@ -511,7 +528,7 @@ begin
             stall_out => dcache_stall_out,
             wishbone_in => wishbone_data_in,
             wishbone_out => wishbone_data_out,
-            snoop_in => wb_snoop_in,
+            snoop_in => wb_snoop,
             events => dcache_events,
             log_out => log_data(170 downto 151)
             );
@@ -560,6 +577,7 @@ begin
 	    nia => fetch1_to_icache.nia,
             msr => ctrl_debug.msr,
             wb_snoop_in => wb_snoop_in,
+            wb_snoopr_in => wb_snoopr_in,
             dbg_gpr_req => dbg_gpr_req,
             dbg_gpr_ack => dbg_gpr_ack,
             dbg_gpr_addr => dbg_gpr_addr,
@@ -577,7 +595,8 @@ begin
             log_read_addr => log_rd_addr,
             log_read_data => log_rd_data,
             log_write_addr => log_wr_addr,
-	    terminated_out => terminated_out
+	    terminated_out => terminated_out,
+            wb_arb_debug => wb_arb_debug
 	    );
 
 end behave;

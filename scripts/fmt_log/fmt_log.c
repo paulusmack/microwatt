@@ -7,8 +7,8 @@ typedef unsigned long long u64;
 struct log_entry {
 	u64	nia_lo: 42;
 	u64	nia_hi: 1;
-	u64	ic_ra_valid: 1;
-	u64	ic_access_ok: 1;
+	u64	ic_ra_valid: 1;	// not used
+	u64	ic_access_ok: 1; // not used
 	u64	ic_is_miss: 1;
 	u64	ic_is_hit: 1;
 	u64	ic_way: 3;
@@ -16,7 +16,7 @@ struct log_entry {
 	u64	ic_part_nia: 4;
 	u64	ic_fetch_failed: 1;
 	u64	ic_stall_out: 1;
-	u64	ic_wb_stall: 1;
+	u64	ic_wb_stall: 1; // now from snoop bus
 	u64	ic_wb_cyc: 1;
 	u64	ic_wb_stb: 1;
 	u64	ic_wb_adr: 3;
@@ -133,25 +133,25 @@ int main(int ac, char **av)
 		full_nia[log.nia_lo & 0xf] = (log.nia_hi? 0xc000000000000000: 0) |
 			(log.nia_lo << 2);
 		if (lineno % 20 == 1) {
-			printf("        fetch1 NIA      icache                             decode1       decode2   execute1         loadstore  dcache       CR   GSPR\n");
-			printf("     ----------------   TAHW S -WB-- pN  ic --insn--    pN un op         pN byp    FR IIE MSR  WC   SD MM CE   SRTO DE -WB-- c ms reg val\n");
-			printf("                        LdMy t csnSa IA                 IA it            IA abc    le srx EPID em   tw rd mx   tAwp vr csnSa 0 k\n");
+			printf("        fetch1 NIA      icache                             decode1         decode2   execute1         loadstore  dcache        CR   GSPR\n");
+			printf("     ----------------   HW S --WB-- pW pN  ic --insn--     pN un op         pN byp    FR IIE MSR  WC   SD MM CE   SRTO DE -WB-- c ms reg val\n");
+			printf("                        My t McswSa aa IA                  IA it            IA abc    le srx EPID em   tw rd mx   tAwp vr csnSa 0 k\n");
 		}
 		printf("%4ld %c0000%.11llx %c ", lineno,
 		       (log.nia_hi? 'c': '0'),
 		       (unsigned long long)log.nia_lo << 2,
 		       FLAG(ic_stall_out, '|'));
-		printf("%c%c%c%d %c %c%c%d%c%c %.2llx ",
-		       FLGA(ic_ra_valid, ' ', 'T'),
-		       FLGA(ic_access_ok, ' ', 'X'),
+		printf("%c%d %c %x%c%c%c%c%c %.2x %.2llx ",
 		       FLGA(ic_is_hit, 'H', FLGA(ic_is_miss, 'M', ' ')),
 		       log.ic_way,
 		       FLAG(ic_state, 'W'),
+		       log.pad1,
 		       FLAG(ic_wb_cyc, 'c'),
 		       FLAG(ic_wb_stb, 's'),
-		       log.ic_wb_adr,
+		       FLGA(pad2, 'w', 'r'),
 		       FLAG(ic_wb_stall, 'S'),
 		       FLAG(ic_wb_ack, 'a'),
+		       (log.ic_wb_adr << 3) | (log.ic_ra_valid << 6) | (log.ic_access_ok << 7),
 		       PNIA(ic_part_nia));
 		if (log.ic_valid) {
 			if (log.ic_insn & (1ul << 35))

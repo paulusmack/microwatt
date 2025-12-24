@@ -173,11 +173,11 @@ architecture behaviour of soc is
     constant NUM_WB_MASTERS : positive := NCPUS * 2 + 2;
     signal wb_masters_out : wishbone_master_out_vector(0 to NUM_WB_MASTERS-1);
     signal wb_masters_in  : wishbone_slave_out_vector(0 to NUM_WB_MASTERS-1);
+    signal wb_arb_debug : std_ulogic_vector(2 downto 0);
 
     -- Wishbone master (output of arbiter):
     signal wb_master_in       : wishbone_slave_out;
     signal wb_master_out      : wishbone_master_out;
-    signal wb_snoop           : wishbone_master_out;
 
     -- Main "IO" bus, from main slave decoder to the latch
     signal wb_io_in     : wishbone_master_out;
@@ -405,7 +405,8 @@ begin
 	    wishbone_insn_out => wb_masters_out(i + NCPUS),
 	    wishbone_data_in => wb_masters_in(i),
 	    wishbone_data_out => wb_masters_out(i),
-            wb_snoop_in => wb_snoop,
+            wb_snoop_in => wb_master_out,
+            wb_snoopr_in => wb_master_in,
 	    dmi_addr => dmi_addr(3 downto 0),
 	    dmi_dout => dmi_core_dout(i),
 	    dmi_din => dmi_dout,
@@ -414,7 +415,8 @@ begin
 	    dmi_req => dmi_core_req(i),
 	    ext_irq => core_ext_irq(i),
             msg_out => msgs(i),
-            msg_in => msgin
+            msg_in => msgin,
+            wb_arb_debug => wb_arb_debug
 	    );
 
         process(all)
@@ -447,20 +449,9 @@ begin
 	    wb_masters_in => wb_masters_out,
 	    wb_masters_out => wb_masters_in,
 	    wb_slave_out => wb_master_out,
-	    wb_slave_in => wb_master_in
+	    wb_slave_in => wb_master_in,
+            dbg_out => wb_arb_debug
 	    );
-
-    -- Snoop bus going to caches.
-    -- Gate stb with stall so the caches don't see the stalled strobes.
-    -- That way if the caches see a strobe when their wishbone is stalled,
-    -- they know it is an access by another master.
-    process(all)
-    begin
-        wb_snoop <= wb_master_out;
-        if wb_master_in.stall = '1' then
-            wb_snoop.stb <= '0';
-        end if;
-    end process;
 
     -- Top level Wishbone slaves address decoder & mux
     --

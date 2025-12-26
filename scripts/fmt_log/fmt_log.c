@@ -111,6 +111,7 @@ int main(int ac, char **av)
 	const char *filename;
 	int i;
 	long int ncompl = 0;
+	int adr_v, dat_v;
 
 	if (ac != 1 && ac != 2) {
 		fprintf(stderr, "Usage: %s [filename]\n", av[0]);
@@ -133,32 +134,45 @@ int main(int ac, char **av)
 		full_nia[log.nia_lo & 0xf] = (log.nia_hi? 0xc000000000000000: 0) |
 			(log.nia_lo << 2);
 		if (lineno % 20 == 1) {
-			printf("        fetch1 NIA      icache                             decode1         decode2   execute1         loadstore  dcache        CR   GSPR\n");
-			printf("     ----------------   HW S --WB-- pW pN  ic --insn--     pN un op         pN byp    FR IIE MSR  WC   SD MM CE   SRTO DE -WB-- c ms reg val\n");
-			printf("                        My t McswSa aa IA                  IA it            IA abc    le srx EPID em   tw rd mx   tAwp vr csnSa 0 k\n");
+			printf("        fetch1 NIA                      icache                   decode1         decode2   execute1         loadstore  dcache        CR   GSPR\n");
+			printf("     ----------------     ---WB---      HW S pN  ic --insn--    pN un op         pN byp    FR IIE MSR  WC   SD MM CE   SRTO DE -WB-- c ms reg val data\n");
+			printf("                        McswSa address  My t IA                 IA it            IA abc    le srx EPID em   tw rd mx   tAwp vr csnSa 0 k\n");
 		}
 		printf("%4ld %c0000%.11llx %c ", lineno,
 		       (log.nia_hi? 'c': '0'),
 		       (unsigned long long)log.nia_lo << 2,
 		       FLAG(ic_stall_out, '|'));
-		printf("%c%d %c %x%c%c%c%c%c %.2x %.2llx ",
-		       FLGA(ic_is_hit, 'H', FLGA(ic_is_miss, 'M', ' ')),
-		       log.ic_way,
-		       FLAG(ic_state, 'W'),
+		printf("%x%c%c%c%c%c ",
 		       log.pad1,
 		       FLAG(ic_wb_cyc, 'c'),
 		       FLAG(ic_wb_stb, 's'),
 		       FLGA(pad2, 'w', 'r'),
 		       FLAG(ic_wb_stall, 'S'),
-		       FLAG(ic_wb_ack, 'a'),
-		       (log.ic_wb_adr << 3) | (log.ic_ra_valid << 6) | (log.ic_access_ok << 7),
+		       FLAG(ic_wb_ack, 'a'));
+		adr_v = log.ic_wb_cyc & log.ic_wb_stb & !log.ic_wb_stall;
+		dat_v = log.ic_wb_cyc & ((log.ic_wb_stb & !log.ic_wb_stall & log.pad2) |
+					 (log.ic_wb_ack & ~log.pad2));
+		if (adr_v)
+			printf("%.6x%.2x ",
+			       (unsigned)log.ic_insn & 0xffffffu,
+			       (log.ic_wb_adr << 3) | (log.ic_ra_valid << 6) | (log.ic_access_ok << 7));
+		else
+			printf("         ");
+		printf("%c%d %c %.2llx ",
+		       FLGA(ic_is_hit, 'H', FLGA(ic_is_miss, 'M', ' ')),
+		       log.ic_way,
+		       FLAG(ic_state, 'W'),
 		       PNIA(ic_part_nia));
 		if (log.ic_valid) {
 			if (log.ic_insn & (1ul << 35))
-				printf("ill %.8lx", log.ic_insn & 0xfffffffful);
+				printf("ill %.2lx", (log.ic_insn >> 24) & 0xfful);
 			else
-				printf("%3lu x%.7lx", (long)(log.ic_insn >> 26),
-				       (unsigned long)(log.ic_insn & 0x3ffffff));
+				printf("%3lu x%lx", (long)(log.ic_insn >> 26),
+				       (unsigned long)((log.ic_insn >> 24) & 0x3));
+			if (adr_v)
+				printf("------");
+			else
+				printf("%.6lx", (unsigned long)log.ic_insn & 0xfffffful);
 		} else if (log.ic_fetch_failed)
 			printf("    !!!!!!!!");
 		else
@@ -220,8 +234,17 @@ int main(int ac, char **av)
 			printf("%x>%.2x ", log.cr_wr_data, log.cr_wr_mask);
 		else
 			printf("     ");
-		if (log.reg_wr_enable)
-			printf("r%02d=%.16llx", log.reg_wr_reg, log.reg_wr_data);
+		if (log.reg_wr_enable) {
+			if (!dat_v)
+				printf("r%02d=%.16llx", log.reg_wr_reg, log.reg_wr_data);
+			else
+				printf("r%02d=?  ", log.reg_wr_reg);
+		}
+		if (dat_v) {
+			if (!log.reg_wr_enable)
+				printf("       ");
+			printf("%.16llx", log.reg_wr_data);
+		}
 		printf("\n");
 		++lineno;
 		if (log.ls_lo_valid || log.e1_valid)

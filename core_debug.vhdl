@@ -419,6 +419,8 @@ begin
         attribute ram_decomp of log_array : signal is "power";
 
         signal snoop_dbg_reg : std_ulogic_vector(9 downto 0);
+        signal snoop_dbg_dat : std_ulogic_vector(63 downto 0);
+        signal snoop_dbg_adr : std_ulogic_vector(23 downto 0);
 
     begin
         -- Use MSB of read addresses to stop the logging
@@ -437,6 +439,16 @@ begin
                     ldat(59 downto 57) := snoop_dbg_reg(3 downto 1); -- stb, cyc, stall
                     ldat(150) := snoop_dbg_reg(0); -- ack
                     ldat(138 downto 136) := wb_arb_debug;
+                    -- cyc & ((stb & ~stall & we) | (ack & ~we))
+                    if snoop_dbg_reg(2) = '1' and
+                        ((snoop_dbg_reg(3) = '1' and snoop_dbg_reg(1) = '0' and snoop_dbg_reg(9) = '1') or
+                         (snoop_dbg_reg(0) = '1' and snoop_dbg_reg(9) = '0')) then
+                        ldat(255 downto 192) := snoop_dbg_dat;
+                    end if;
+                    -- cyc & stb & ~stall
+                    if snoop_dbg_reg(2) = '1' and snoop_dbg_reg(3) = '1' and snoop_dbg_reg(1) = '0' then
+                        ldat(87 downto 64) := snoop_dbg_adr;
+                    end if;
                     log_array(to_integer(log_wr_ptr)) <= ldat;
                 end if;
                 if is_X(log_rd_ptr_latched) then
@@ -507,6 +519,12 @@ begin
                                  wb_snoop_in.adr(4 downto 0) &
                                  wb_snoop_in.stb & wb_snoop_in.cyc & wb_snoopr_in.stall &
                                  wb_snoop_in.we;
+                if wb_snoop_in.we = '1' then
+                    snoop_dbg_dat <= wb_snoop_in.dat;
+                else
+                    snoop_dbg_dat <= wb_snoopr_in.dat;
+                end if;
+                snoop_dbg_adr <= wb_snoop_in.adr(28 downto 5);
             end if;
         end process;
         log_write_addr(LOG_INDEX_BITS - 1 downto 0) <= std_ulogic_vector(log_wr_ptr);

@@ -87,6 +87,8 @@ architecture rtl of dcache is
     -- WAY_BITS is the number of bits to select a way
     -- Make sure this is at least 1, to avoid 0-element vectors
     constant WAY_BITS     : natural := maximum(log2(NUM_WAYS), 1);
+    -- log_2 of reservation granule size
+    constant GRANULE_BITS : natural := 7;
 
     -- Example of layout for 32 lines of 64 bytes:
     --
@@ -410,7 +412,7 @@ architecture rtl of dcache is
     --
     type reservation_t is record
         valid : std_ulogic;
-        addr  : std_ulogic_vector(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS);
+        addr  : std_ulogic_vector(REAL_ADDR_BITS - 1 downto GRANULE_BITS);
     end record;
 
     signal reservation : reservation_t;
@@ -918,7 +920,7 @@ begin
 
     -- Compare the previous cycle's snooped store address to the reservation
     kill_rsrv <= '1' when (snoop_valid = '1' and reservation.valid = '1' and
-                           snoop_paddr(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS) = reservation.addr)
+                           snoop_paddr(REAL_ADDR_BITS - 1 downto GRANULE_BITS) = reservation.addr)
                   else '0';
 
     snoop_tag_match : process(all)
@@ -1458,7 +1460,7 @@ begin
                 end if;
                 if req_go = '1' and access_ok = '1' and r0.req.load = '1' and
                     r0.req.reserve = '1' and r0.req.atomic_first = '1' then
-                    reservation.addr <= ra(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS);
+                    reservation.addr <= ra(REAL_ADDR_BITS - 1 downto GRANULE_BITS);
                     reservation.valid <= req_is_hit and not req_snoop_hit;
                 end if;
 
@@ -1839,7 +1841,7 @@ begin
 
                 when DO_STCX =>
                     if reservation.valid = '0' or kill_rsrv = '1' or
-                        r1.req.real_addr(REAL_ADDR_BITS - 1 downto LINE_OFF_BITS) /= reservation.addr then
+                        r1.req.real_addr(REAL_ADDR_BITS - 1 downto GRANULE_BITS) /= reservation.addr then
                         -- Wrong address, didn't have reservation, or lost reservation
                         -- Abandon the wishbone cycle and fail the stcx.
                         r1.stcx_fail <= '1';

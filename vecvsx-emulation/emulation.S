@@ -208,12 +208,17 @@ ext132:	cmpdi	%r4,8
 	b	do_xxspltiw
 
 illegal:
+	# save the instruction word in memory
+	mfspr	%r0,HEIR
+	pstw	%r0,ill_inst-.
 	# anything we don't recognize gets punted to e40
 	mtcr	%r31
 	li	%r0,0
 	mtspr	EMUC,%r0
 	isync
 	ba	0xe40
+ill_inst:
+	.long	0
 
 vec_unavail:
 	mtctr	%r30

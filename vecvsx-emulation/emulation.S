@@ -51,7 +51,33 @@ SAT	= 1
 NJ	= 0x10000
 
 	# FPSCR bits
-FPS_VE	= 0x80
+FPS_FX		= 0x80000000
+FPS_FEX 	= 0x40000000
+FPS_VX		= 0x20000000
+FPS_OX		= 0x10000000
+FPS_UX		= 0x08000000
+FPS_ZX		= 0x04000000
+FPS_XX		= 0x02000000
+FPS_VXSNAN	= 0x01000000
+FPS_VXISI	= 0x00800000
+FPS_VXIDI	= 0x00400000
+FPS_VXZDZ	= 0x00200000
+FPS_VXIMZ	= 0x00100000
+FPS_VXVC	= 0x00080000
+FPS_FR		= 0x00040000
+FPS_FI		= 0x00020000
+FPS_FPRF	= 0x0001f000
+FPS_VXSOFT	= 0x00000400
+FPS_VXSQRT	= 0x00000200
+FPS_VXCVI	= 0x00000100
+FPS_VE		= 0x00000080
+FPS_OE		= 0x00000040
+FPS_UE		= 0x00000020
+FPS_ZE		= 0x00000010
+FPS_XE		= 0x00000008
+FPS_RN		= 0x00000003
+FPS_ALLVX	= 0x01f80700		# OR of all FPS_VX*
+FPS_ALLX	= (FPS_ALLVX|FPS_OX|FPS_UX|FPS_ZX|FPS_XX)
 
 	.macro	mfrin rt,ra		# move from register indirect, (RA)=reg index
 	.long	0x58000000+(\rt<<21)+(\ra<<16)
@@ -126,57 +152,34 @@ po60:	rlwinm	%r1,%r8,32-2,0x1ff		# extract extended opcode/2
 	addi	%r4,%r4,VSR0
 	addi	%r5,%r5,VSR0
 	addi	%r6,%r6,VSR0
-	rlwinm	%r0,%r1,31,7			# column number/4
+	rlwinm	%r0,%r8,0,0x3c			# column number/2*4
 	rlwinm	%r3,%r8,32-6+2,0x7c		# row number * 4
-	cmpdi	%r0,6
+	cmpdi	%r0,48
 	bge	do_xxsel
-	cmpdi	%r0,0
-	beq	do_xcol0
-	cmpdi	%r0,2
-	beq	do_xcol8
-	cmpdi	%r0,3
-	beq	do_xcol12
-	cmpdi	%r0,5
-	beq	do_xcol20
-	b	illegal
-
-do_xcol8:
 	addpcis	%r9,0
-	addi	%r9,%r9,xcol8-.
-2:	lwzx	%r11,%r3,%r9
+	addi	%r9,%r9,op60_table-.
+	lwzx	%r11,%r9,%r0
 	cmpdi	%r11,0
 	beq	illegal
-	andi.	%r0,%r11,1
-	bne	1f
-	andis.	%r0,%r2,MSR_VSX@h
-	beq	vsx_unavail
-1:	add	%r11,%r11,%r9
-	mtctr	%r11
-	bctr
-
-do_xcol0:
-	addpcis	%r9,0
-	addi	%r9,%r9,xcol0-.
-	b	2b
-
-do_xcol12:
-	addpcis	%r9,0
-	addi	%r9,%r9,xcol12-.
-	b	2b
-
-do_xcol20:
-	cmpdi	%r1,475
-	bne	illegal
-	# XPND060-3
-	addpcis	%r9,0
-	addi	%r9,%r9,xpnd060_3-.
-	rlwinm	%r3,%r4,2,0x7c
-	lwzx	%r11,%r3,%r9
-	cmpdi	%r11,0
-	beq	illegal
-	andis.	%r0,%r2,MSR_VSX@h
-	beq	vsx_unavail
 	add	%r11,%r11,%r9
+	lwzx	%r12,%r11,%r3
+	cmpdi	%r12,0
+	beq	illegal
+	add	%r12,%r12,%r11
+	andi.	%r0,%r12,1
+	bne	2f
+	andis.	%r0,%r2,MSR_VSX@h
+	beq	vsx_unavail
+	mtctr	%r12
+	bctr
+2:	rlwinm	%r3,%r8,16+2,0x7c		# expanded opcode * 4
+	clrrdi	%r12,%r12,1
+	lwzx	%r11,%r3,%r12
+	cmpdi	%r11,0
+	beq	illegal
+	add	%r11,%r11,%r12
+	andis.	%r0,%r2,MSR_VSX@h
+	beq	vsx_unavail
 	mtctr	%r11
 	bctr
 
@@ -785,39 +788,19 @@ xpnd004_3:
 	.long	0
 	.long	0
 
-xpnd060_3:
-	.long	0		# row 0
+op60_table:
+	.long	xcol0 - op60_table	# column 0,1
+	.long	xcol0 - op60_table
 	.long	0
 	.long	0
+	.long	xcol8 - op60_table
+	.long	xcol8 - op60_table
+	.long	xcol12 - op60_table
+	.long	xcol12 - op60_table
+	.long	0			# column 16,17
 	.long	0
-	.long	0		# row 4
-	.long	0
-	.long	0
-	.long	do_xxbrh - xpnd060_3
-	.long	0		# row 8
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 12
-	.long	0
-	.long	0
-	.long	do_xxbrw - xpnd060_3
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 20
-	.long	0
-	.long	0
-	.long	do_xxbrd - xpnd060_3
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 30
-	.long	do_xxbrq - xpnd060_3
+	.long	xcol20 - op60_table
+	.long	xcol22 - op60_table
 
 xcol0:
 	.long	0		# row 0
@@ -828,14 +811,14 @@ xcol0:
 	.long	0
 	.long	0
 	.long	0
-	.long	0		# row 8
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 12
-	.long	0
-	.long	0
-	.long	0
+	.long	do_xvaddsp - xcol0		# row 8
+	.long	do_xvsubsp - xcol0
+	.long	do_xvmulsp - xcol0
+	.long	do_xvdivsp - xcol0
+	.long	do_xvadddp - xcol0		# row 12
+	.long	do_xvsubdp - xcol0
+	.long	do_xvmuldp - xcol0
+	.long	do_xvdivdp - xcol0
 	.long	do_xsmaxcdp - xcol0
 	.long	do_xsmincdp - xcol0
 	.long	0
@@ -920,6 +903,108 @@ xcol12:
 	.long	0
 	.long	0		# row 30
 	.long	0
+
+xcol20:
+	.long	0		# row 0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 4
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 8
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 12
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 30
+	.long	0
+
+xcol22:
+	.long	0		# row 0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 4
+	.long	0
+	.long	0
+	.long	0
+	.long	do_xvsqrtsp - xcol22		# row 8
+	.long	0
+	.long	0
+	.long	0
+	.long	do_xvsqrtdp - xcol22		# row 12
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	xpnd060_3 - xcol22 + 1
+	.long	0		# row 30
+	.long	0
+
+xpnd060_3:
+	.long	0		# row 0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 4
+	.long	0
+	.long	0
+	.long	do_xxbrh - xpnd060_3
+	.long	0		# row 8
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 12
+	.long	0
+	.long	0
+	.long	do_xxbrw - xpnd060_3
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	do_xxbrd - xpnd060_3
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 30
+	.long	do_xxbrq - xpnd060_3
 
 do_xxsplti32dx:
 	andi.	%r0,%r4,2
@@ -5693,3 +5778,303 @@ do_xsmaxcdp:
 	ble	%cr1,xsmm_finish
 	mr	%r0,%r2
 	b	xsmm_finish
+
+# common preliminary code for binary vector FP ops
+xvarith_prolog:
+	li	%r15,FPS_VE|FPS_OE|FPS_UE|FPS_ZE|FPS_XE	# exceptions that cause result suppression
+	# enable floating-point and VSX
+	mfmsr	%r8
+	ori	%r8,%r8,MSR_FP
+	oris	%r8,%r8,MSR_VSX@h
+	mtmsrd	%r8
+	# save a couple of FPRs and their VSR low halves
+	mffprd	%r24,%f0
+	mfvsrld	%r25,%vs0
+	mffprd	%r26,%f1
+	mfvsrld	%r27,%vs1
+	# get parameters
+	mfrin	12,4
+	mfrin	13,5
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	mfrin	16,4
+	mfrin	17,5
+	xori	%r4,%r4,LO
+	xori	%r5,%r5,LO
+	# save FPSCR
+	mffs	%f0
+	mffprd	%r28,%f0
+	lis	%r10,FPS_ALLX@h
+	ori	%r10,%r10,FPS_ALLX@l
+	and.	%r0,%r28,%r15		# check for enabled exceptions
+	beq+	1f
+	andc	%r0,%r28,%r10		# if so, clear all sticky exception flags
+	mtfprd	%f0,%r0
+	mtfsf	0xf4,%f0
+1:	blr
+
+# convert single-precision FP value in %r3 to double
+conv_spdp:
+	rldic	%r0,%r3,29,12		# extract mantissa
+	rlwinm.	%r1,%r3,9,0xff		# extract exponent
+	rldicr	%r3,%r3,32,0		# extract sign
+	beq	1f			# if 0 or denorm
+	or	%r3,%r3,%r0		# insert mantissa
+	cmpdi	%r1,0xff
+	beq	9f			# if infinity or NaN
+	addi	%r1,%r1,0x380
+	rldimi	%r3,%r1,52,1		# insert exponent
+	blr
+1:	cmpdi	%r0,0
+	beqlr				# if +/- zero, done
+	cntlzd	%r1,%r0			# otherwise, normalize
+	addi	%r1,%r1,-11
+	sld	%r0,%r0,%r1
+	or	%r3,%r3,%r0		# insert mantissa
+	li	%r2,1023-126
+	subf	%r1,%r1,%r2
+	rldimi	%r3,%r1,52,1		# insert exponent
+	blr
+9:	li	%r1,0x7ff
+	rldimi	%r3,%r1,52,1		# insert exponent
+	blr
+
+# convert double-precision FP value in %r3 to single
+conv_dpsp:
+	rldicl	%r0,%r3,12,53		# extract exponent
+	cmpdi	%r0,896
+	ble	2f			# if denorm or zero
+	rldimi	%r3,%r3,3,2
+	srdi	%r3,%r3,32
+	blr
+2:	# may have to denormalize
+	rldicl	%r1,%r3,35,41		# extract top 23 bits of mantissa
+	clrrdi	%r3,%r3,63		# isolate sign bit
+	srdi	%r3,%r3,32
+	cmpdi	%r0,874
+	bltlr				# if zero or practically zero
+	oris	%r1,%r1,(1<<23)@h	# set implied unit bit
+	li	%r2,897
+	subf	%r0,%r0,%r2
+	srd	%r1,%r1,%r0
+	or	%r3,%r3,%r1
+	blr
+
+do_xvaddsp:
+	mflr	%r23
+	bl	xvarith_prolog
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r12,%r12,32		# get next vector elements
+	rotldi	%r13,%r13,32
+	mr	%r3,%r12
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f1,%r3
+	fadds	%f0,%f0,%f1
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r4,LO
+	bne	xvarith_finish
+	ori	%r4,%r4,LO
+	mr	%r12,%r16
+	mr	%r13,%r17
+	mr	%r8,%r9
+	b	1b
+
+do_xvadddp:
+	mflr	%r23
+	bl	xvarith_prolog
+	mtfprd	%f0,%r12
+	mtfprd	%f1,%r13
+	fadd	%f0,%f0,%f1
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r16
+	mtfprd	%f1,%r17
+	fadd	%f0,%f0,%f1
+	mffprd	%r9,%f0
+	b	xvarith_finish
+
+do_xvdivsp:
+	mflr	%r23
+	bl	xvarith_prolog
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r12,%r12,32		# get next vector elements
+	rotldi	%r13,%r13,32
+	mr	%r3,%r12
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f1,%r3
+	fdivs	%f0,%f0,%f1
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r4,LO
+	bne	xvarith_finish
+	ori	%r4,%r4,LO
+	mr	%r12,%r16
+	mr	%r13,%r17
+	mr	%r8,%r9
+	b	1b
+
+do_xvdivdp:
+	mflr	%r23
+	bl	xvarith_prolog
+	mtfprd	%f0,%r12
+	mtfprd	%f1,%r13
+	fdiv	%f0,%f0,%f1
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r16
+	mtfprd	%f1,%r17
+	fdiv	%f0,%f0,%f1
+	mffprd	%r9,%f0
+	b	xvarith_finish
+
+do_xvmulsp:
+	mflr	%r23
+	bl	xvarith_prolog
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r12,%r12,32		# get next vector elements
+	rotldi	%r13,%r13,32
+	mr	%r3,%r12
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f1,%r3
+	fmuls	%f0,%f0,%f1
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r4,LO
+	bne	xvarith_finish
+	ori	%r4,%r4,LO
+	mr	%r12,%r16
+	mr	%r13,%r17
+	mr	%r8,%r9
+	b	1b
+
+do_xvmuldp:
+	mflr	%r23
+	bl	xvarith_prolog
+	mtfprd	%f0,%r12
+	mtfprd	%f1,%r13
+	fmul	%f0,%f0,%f1
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r16
+	mtfprd	%f1,%r17
+	fmul	%f0,%f0,%f1
+	mffprd	%r9,%f0
+	b	xvarith_finish
+
+do_xvsubsp:
+	mflr	%r23
+	bl	xvarith_prolog
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r12,%r12,32		# get next vector elements
+	rotldi	%r13,%r13,32
+	mr	%r3,%r12
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f1,%r3
+	fsubs	%f0,%f0,%f1
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r4,LO
+	bne	xvarith_finish
+	ori	%r4,%r4,LO
+	mr	%r12,%r16
+	mr	%r13,%r17
+	mr	%r8,%r9
+	b	1b
+
+do_xvsubdp:
+	mflr	%r23
+	bl	xvarith_prolog
+	mtfprd	%f0,%r12
+	mtfprd	%f1,%r13
+	fsub	%f0,%f0,%f1
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r16
+	mtfprd	%f1,%r17
+	fsub	%f0,%f0,%f1
+	mffprd	%r9,%f0
+	b	xvarith_finish
+
+do_xvsqrtsp:
+	mflr	%r23
+	bl	xvarith_prolog
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r13,%r13,32		# get next vector element
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	fsqrts	%f0,%f0
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r5,LO
+	bne	xvarith_finish
+	mr	%r13,%r17
+	ori	%r5,%r5,LO
+	mr	%r8,%r9
+	b	1b
+
+do_xvsqrtdp:
+	mflr	%r23
+	bl	xvarith_prolog
+	mtfprd	%f0,%r13
+	fsqrt	%f0,%f0
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r17
+	fsqrt	%f0,%f0
+	mffprd	%r9,%f0
+	b	xvarith_finish
+
+# result is in r8/r9, check for enabled exceptions
+# vector ops only affect exception flags in FPSCR, not FPRF/FR/FI
+xvarith_finish:
+	mffs	%f0
+	mffprd	%r1,%f0			# get current FPSCR
+	andc	%r0,%r1,%r28		# any exception flags newly set?
+	and.	%r0,%r0,%r10
+	beq	1f
+	or	%r28,%r28,%r0		# set them in saved FPSCR
+	oris	%r28,%r28,FPS_FX@h	# and also set FX
+1:	mtfprd	%f0,%r28		# restore FPSCR + new exception bits
+	mtfsf	0xff,%f0
+	# restore FPRs and low halves before writing results
+	mtvsrdd	%vs0,%r24,%r25
+	mtvsrdd	%vs1,%r26,%r27
+	and.	%r0,%r28,%r15		# test for enabled exception
+	beq+	4f
+	sldi	%r0,%r0,22		# move VE->VX, ZE->ZX etc.
+	and.	%r0,%r0,%r1		# enabled exception occurred?
+	bne	5f			# if so don't write result
+4:	mtrin	8,6
+	ori	%r6,%r6,LO
+	mtrin	9,6
+5:	mtlr	%r23
+	b	return

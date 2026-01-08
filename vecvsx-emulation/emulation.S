@@ -797,7 +797,7 @@ op60_table:
 	.long	xcol8 - op60_table
 	.long	xcol12 - op60_table
 	.long	xcol12 - op60_table
-	.long	0			# column 16,17
+	.long	xcol16 - op60_table			# column 16,17
 	.long	0
 	.long	xcol20 - op60_table
 	.long	xcol22 - op60_table
@@ -903,6 +903,40 @@ xcol12:
 	.long	0
 	.long	0		# row 30
 	.long	0
+
+xcol16:
+	.long	0		# row 0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 4
+	.long	0
+	.long	0
+	.long	0
+	.long	do_xvcvspuxws - xcol16		# row 8
+	.long	do_xvcvspsxws - xcol16
+	.long	do_xvcvuxwsp - xcol16
+	.long	do_xvcvsxwsp - xcol16
+	.long	do_xvcvdpuxws - xcol16		# row 12
+	.long	do_xvcvdpsxws - xcol16
+	.long	do_xvcvuxwdp - xcol16
+	.long	do_xvcvsxwdp - xcol16
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	0
+	.long	do_xvcvspuxds - xcol16
+	.long	do_xvcvspsxds - xcol16
+	.long	do_xvcvuxdsp - xcol16
+	.long	do_xvcvsxdsp - xcol16
+	.long	do_xvcvdpuxds - xcol16
+	.long	do_xvcvdpsxds - xcol16
+	.long	do_xvcvuxddp - xcol16		# row 30
+	.long	do_xvcvsxddp - xcol16
 
 xcol20:
 	.long	0		# row 0
@@ -5782,6 +5816,7 @@ do_xsmaxcdp:
 # common preliminary code for binary vector FP ops
 xvarith_prolog:
 	li	%r15,FPS_VE|FPS_OE|FPS_UE|FPS_ZE|FPS_XE	# exceptions that cause result suppression
+xvarith_prolog_xx:
 	# enable floating-point and VSX
 	mfmsr	%r8
 	ori	%r8,%r8,MSR_FP
@@ -6078,3 +6113,265 @@ xvarith_finish:
 	mtrin	9,6
 5:	mtlr	%r23
 	b	return
+
+do_xvcvdpsxds:
+	mflr	%r23
+	li	%r15,FPS_VE|FPS_XE
+	bl	xvarith_prolog_xx
+	mtfprd	%f0,%r13
+	fctidz	%f0,%f0
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r17
+	fctidz	%f0,%f0
+	mffprd	%r9,%f0
+	b	xvarith_finish
+
+do_xvcvdpsxws:
+	mflr	%r23
+	li	%r15,FPS_VE|FPS_XE
+	bl	xvarith_prolog_xx
+	mtfprd	%f0,%r13
+	fctiwz	%f0,%f0
+	mffprd	%r8,%f0
+	rldimi	%r8,%r8,32,0
+	mtfprd	%f0,%r17
+	fctiwz	%f0,%f0
+	mffprd	%r9,%f0
+	rldimi	%r9,%r9,32,0
+	b	xvarith_finish
+
+do_xvcvdpuxds:
+	mflr	%r23
+	li	%r15,FPS_VE|FPS_XE
+	bl	xvarith_prolog_xx
+	mtfprd	%f0,%r13
+	fctiduz	%f0,%f0
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r17
+	fctiduz	%f0,%f0
+	mffprd	%r9,%f0
+	b	xvarith_finish
+
+do_xvcvdpuxws:
+	mflr	%r23
+	li	%r15,FPS_VE|FPS_XE
+	bl	xvarith_prolog_xx
+	mtfprd	%f0,%r13
+	fctiwuz	%f0,%f0
+	mffprd	%r8,%f0
+	rldimi	%r8,%r8,32,0
+	mtfprd	%f0,%r17
+	fctiwuz	%f0,%f0
+	mffprd	%r9,%f0
+	rldimi	%r9,%r9,32,0
+	b	xvarith_finish
+
+do_xvcvspsxds:
+	mflr	%r23
+	li	%r15,FPS_VE|FPS_XE
+	bl	xvarith_prolog_xx
+	srdi	%r3,%r13,32
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	fctidz	%f0,%f0
+	mffprd	%r8,%f0
+	srdi	%r3,%r17,32
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	fctidz	%f0,%f0
+	mffprd	%r9,%f0
+	b	xvarith_finish
+
+do_xvcvspsxws:
+	mflr	%r23
+	li	%r15,FPS_VE|FPS_XE
+	bl	xvarith_prolog_xx
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r13,%r13,32		# get next vector element
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	fctiwz	%f0,%f0
+	mffprd	%r3,%f0
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r5,LO
+	bne	xvarith_finish
+	mr	%r13,%r17
+	ori	%r5,%r5,LO
+	mr	%r8,%r9
+	b	1b
+
+do_xvcvspuxds:
+	mflr	%r23
+	li	%r15,FPS_VE|FPS_XE
+	bl	xvarith_prolog_xx
+	srdi	%r3,%r13,32
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	fctiduz	%f0,%f0
+	mffprd	%r8,%f0
+	srdi	%r3,%r17,32
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	fctiduz	%f0,%f0
+	mffprd	%r9,%f0
+	b	xvarith_finish
+
+do_xvcvspuxws:
+	mflr	%r23
+	li	%r15,FPS_VE|FPS_XE
+	bl	xvarith_prolog_xx
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r13,%r13,32		# get next vector element
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	fctiwuz	%f0,%f0
+	mffprd	%r3,%f0
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r5,LO
+	bne	xvarith_finish
+	mr	%r13,%r17
+	ori	%r5,%r5,LO
+	mr	%r8,%r9
+	b	1b
+
+do_xvcvsxddp:
+	mflr	%r23
+	li	%r15,FPS_XE
+	bl	xvarith_prolog_xx
+	mtfprd	%f0,%r13
+	fcfid	%f0,%f0
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r17
+	fcfid	%f0,%f0
+	mffprd	%r9,%f0
+	b	xvarith_finish
+
+do_xvcvuxddp:
+	mflr	%r23
+	li	%r15,FPS_XE
+	bl	xvarith_prolog_xx
+	mtfprd	%f0,%r13
+	fcfidu	%f0,%f0
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r17
+	fcfidu	%f0,%f0
+	mffprd	%r9,%f0
+	b	xvarith_finish
+
+do_xvcvsxwdp:
+	mflr	%r23
+	li	%r15,0
+	bl	xvarith_prolog_xx
+	srdi	%r3,%r13,32
+	extsw	%r3,%r3
+	mtfprd	%f0,%r3
+	fcfid	%f0,%f0
+	mffprd	%r8,%f0
+	srdi	%r3,%r17,32
+	extsw	%r3,%r3
+	mtfprd	%f0,%r3
+	fcfid	%f0,%f0
+	mffprd	%r9,%f0
+	b	xvarith_finish
+
+do_xvcvuxwdp:
+	mflr	%r23
+	li	%r15,0
+	bl	xvarith_prolog_xx
+	srdi	%r3,%r13,32
+	mtfprd	%f0,%r3
+	fcfidu	%f0,%f0
+	mffprd	%r8,%f0
+	srdi	%r3,%r17,32
+	mtfprd	%f0,%r3
+	fcfidu	%f0,%f0
+	mffprd	%r9,%f0
+	b	xvarith_finish
+
+do_xvcvsxdsp:
+	mflr	%r23
+	li	%r15,FPS_XE
+	bl	xvarith_prolog_xx
+	mtfprd	%f0,%r13
+	fcfids	%f0,%f0
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	mr	%r8,%r3
+	rldimi	%r8,%r8,32,0
+	mtfprd	%f0,%r17
+	fcfids	%f0,%f0
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	mr	%r9,%r3
+	rldimi	%r9,%r9,32,0
+	b	xvarith_finish
+
+do_xvcvuxdsp:
+	mflr	%r23
+	li	%r15,FPS_XE
+	bl	xvarith_prolog_xx
+	mtfprd	%f0,%r13
+	fcfidus	%f0,%f0
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	mr	%r8,%r3
+	rldimi	%r8,%r8,32,0
+	mtfprd	%f0,%r17
+	fcfidus	%f0,%f0
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	mr	%r9,%r3
+	rldimi	%r9,%r9,32,0
+	b	xvarith_finish
+
+do_xvcvsxwsp:
+	mflr	%r23
+	li	%r15,FPS_XE
+	bl	xvarith_prolog_xx
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r13,%r13,32		# get next vector element
+	extsw	%r3,%r13
+	mtfprd	%f0,%r3
+	fcfids	%f0,%f0
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r5,LO
+	bne	xvarith_finish
+	mr	%r13,%r17
+	ori	%r5,%r5,LO
+	mr	%r8,%r9
+	b	1b
+
+do_xvcvuxwsp:
+	mflr	%r23
+	li	%r15,FPS_XE
+	bl	xvarith_prolog_xx
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r13,%r13,32		# get next vector element
+	clrldi	%r3,%r13,32
+	mtfprd	%f0,%r3
+	fcfidus	%f0,%f0
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r5,LO
+	bne	xvarith_finish
+	mr	%r13,%r17
+	ori	%r5,%r5,LO
+	mr	%r8,%r9
+	b	1b

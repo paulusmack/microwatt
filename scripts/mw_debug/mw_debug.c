@@ -49,6 +49,7 @@ unsigned int core;
 #define DBG_LOG_TRIGGER		(0x18 + (core << 4))
 #define DBG_LOG_MTRIGGER	(0x19 + (core << 4))
 #define DBG_LOG_MTRIG_MASK	(0x1a + (core << 4))
+#define DBG_LOG_TRG_COUNT	(0x1b + (core << 4))
 
 static bool debug;
 
@@ -802,6 +803,21 @@ static void mmask_set(uint64_t mask)
 	check(dmi_write(DBG_LOG_MTRIG_MASK, mask), "writing LOG_MTRIGGER");
 }
 
+static void trigc_show(void)
+{
+	uint64_t trigc;
+
+	check(dmi_read(DBG_LOG_TRG_COUNT, &trigc), "reading LOG_TRG_COUNT");
+	printf("trigc = %016" PRIx64 "\n", trigc);
+	printf("fetch addr trigger count = %d, memory addr trigger count = %d\n",
+	       (int)((trigc >> 16) & 0xffff), (int) trigc & 0xffff);
+}
+
+static void trigc_set(uint64_t trigc)
+{
+	check(dmi_write(DBG_LOG_TRG_COUNT, trigc), "writing LOG_TRG_COUNT");
+}
+
 static void usage(const char *cmd)
 {
 	fprintf(stderr, "Usage: %s -b <jtag|ecp5|sim> [-c core#] <command> <args>\n", cmd);
@@ -1035,6 +1051,15 @@ int main(int argc, char *argv[])
 			else {
 				mask = strtoul(argv[i], NULL, 16);
 				mmask_set(mask);
+			}
+		} else if (strcmp(argv[i], "trigc") == 0) {
+			uint64_t trigc;
+
+			if ((i+1) >= argc)
+				trigc_show();
+			else {
+				trigc = strtoul(argv[++i], NULL, 16);
+				trigc_set(trigc);
 			}
 		} else {
 			fprintf(stderr, "Unknown command %s\n", argv[i]);

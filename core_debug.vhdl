@@ -111,6 +111,7 @@ architecture behave of core_debug is
     constant DBG_CORE_LOG_TRIGGER    : std_ulogic_vector(3 downto 0) := "1000";
     constant DBG_CORE_LOG_MTRIGGER   : std_ulogic_vector(3 downto 0) := "1001";
     constant DBG_CORE_LOG_MTR_MASK   : std_ulogic_vector(3 downto 0) := "1010";
+    constant DBG_CORE_LOG_TRG_COUNT  : std_ulogic_vector(3 downto 0) := "1011";
 
     constant LOG_INDEX_BITS : natural := log2(LOG_LENGTH);
 
@@ -134,6 +135,8 @@ architecture behave of core_debug is
     signal log_dmi_trigger     : std_ulogic_vector(63 downto 0) := (others => '0');
     signal log_mem_trigger     : std_ulogic_vector(63 downto 0) := (others => '0');
     signal log_mem_mask        : std_ulogic_vector(63 downto 0) := (others => '0');
+    signal log_adr_tcount      : unsigned(15 downto 0) := (others => '0');
+    signal log_mem_tcount      : unsigned(15 downto 0) := (others => '0');
     signal do_log_trigger      : std_ulogic := '0';
     signal do_log_mtrigger     : std_ulogic := '0';
     signal trigger_was_log     : std_ulogic := '0';
@@ -172,10 +175,12 @@ begin
         log_dmi_trigger when DBG_CORE_LOG_TRIGGER,
         log_mem_trigger when DBG_CORE_LOG_MTRIGGER,
         log_mem_mask    when DBG_CORE_LOG_MTR_MASK,
+        32x"0" & std_ulogic_vector(log_adr_tcount) & std_ulogic_vector(log_mem_tcount) when DBG_CORE_LOG_TRG_COUNT,
         (others => '0') when others;
 
     -- DMI writes
     reg_write: process(clk)
+        variable triggered : std_ulogic;
     begin
         if rising_edge(clk) then
             -- Reset the 1-cycle "do" signals
@@ -193,7 +198,26 @@ begin
                 trigger_was_log <= '0';
                 trigger_was_mem <= '0';
             else
-                if do_log_trigger = '1' or do_log_mtrigger = '1' or log_trigger_delay /= 0 then
+                triggered := '0';
+                if log_dmi_trigger(1) = '0' and log_mem_trigger(1) = '0' then
+                    if do_log_trigger = '1' then
+                        if log_adr_tcount = to_unsigned(0, 16) then
+                            triggered := '1';
+                            trigger_was_log <= '1';
+                        else
+                            log_adr_tcount <= log_adr_tcount - 1;
+                        end if;
+                    end if;
+                    if do_log_mtrigger = '1' then
+                        if log_mem_tcount = to_unsigned(0, 16) then
+                            triggered := '1';
+                            trigger_was_mem <= '1';
+                        else
+                            log_mem_tcount <= log_mem_tcount - 1;
+                        end if;
+                    end if;
+                end if;
+                if triggered = '1' or log_trigger_delay /= 0 then
                     if log_trigger_delay = 255 or
                         (LOG_LENGTH < 1024 and log_trigger_delay = LOG_LENGTH / 4) then
                         log_dmi_trigger(1) <= trigger_was_log;
@@ -205,12 +229,7 @@ begin
                         log_trigger_delay <= log_trigger_delay + 1;
                     end if;
                 end if;
-                if do_log_trigger = '1' then
-                    trigger_was_log <= '1';
-                end if;
-                if do_log_mtrigger = '1' then
-                    trigger_was_mem <= '1';
-                end if;
+                
                 -- Edge detect on dmi_req for 1-shot pulses
                 dmi_req_1 <= dmi_req;
                 if dmi_req = '1' and dmi_req_1 = '0' then
@@ -249,6 +268,9 @@ begin
                         elsif dmi_addr = DBG_CORE_LOG_MTR_MASK then
                             log_mem_mask <= dmi_din;
                             log_mem_mask_nzero <= or (dmi_din);
+                        elsif dmi_addr = DBG_CORE_LOG_TRG_COUNT then
+                            log_adr_tcount <= unsigned(dmi_din(31 downto 16));
+                            log_mem_tcount <= unsigned(dmi_din(15 downto 0));
                         end if;
                     else
                         report("DMI read from " & to_string(dmi_addr));
@@ -457,6 +479,8 @@ begin
                 do_log_trigger <= '0';
                 if log_data(42) = log_dmi_trigger(63) and
                     log_data(41 downto 0) = log_dmi_trigger(43 downto 2) and
+                    -- these are icache stall and decode2 stall signals
+                    log_data(56) = '0' and log_data(117) = '0' and
                     log_dmi_trigger(0) = '1' then
                     do_log_trigger <= '1';
                 end if;

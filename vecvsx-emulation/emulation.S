@@ -845,14 +845,14 @@ xcol4:
 	.long	do_xsmaddmdp-xcol4
 	.long	do_xsmsubadp-xcol4
 	.long	do_xsmsubmdp-xcol4
-	.long	0		# row 8
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 12
-	.long	0
-	.long	0
-	.long	0
+	.long	do_xvmaddasp-xcol4		# row 8
+	.long	do_xvmaddmsp-xcol4
+	.long	do_xvmsubasp-xcol4
+	.long	do_xvmsubmsp-xcol4
+	.long	do_xvmaddadp-xcol4		# row 12
+	.long	do_xvmaddmdp-xcol4
+	.long	do_xvmsubadp-xcol4
+	.long	do_xvmsubmdp-xcol4
 	.long	do_xsnmaddasp-xcol4
 	.long	do_xsnmaddmsp-xcol4
 	.long	do_xsnmsubasp-xcol4
@@ -861,14 +861,14 @@ xcol4:
 	.long	do_xsnmaddmdp-xcol4
 	.long	do_xsnmsubadp-xcol4
 	.long	do_xsnmsubmdp-xcol4
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 30
-	.long	0
+	.long	do_xvnmaddasp-xcol4
+	.long	do_xvnmaddmsp-xcol4
+	.long	do_xvnmsubasp-xcol4
+	.long	do_xvnmsubmsp-xcol4
+	.long	do_xvnmaddadp-xcol4
+	.long	do_xvnmaddmdp-xcol4
+	.long	do_xvnmsubadp-xcol4		# row 30
+	.long	do_xvnmsubmdp-xcol4
 
 xcol8:
 	.long	do_xxsldwi - xcol8		# row 0
@@ -5883,10 +5883,23 @@ xvarith_prolog_xx:
 1:	blr
 
 # common preliminary code for 3-operand vector/scalar FP ops
+xv3arith_prolog_xany:
+	li	%r15,FPS_VE|FPS_OE|FPS_UE|FPS_ZE|FPS_XE
+	# get low halves of parameter regs
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	16,4
+	mfrin	17,5
+	mfrin	18,6
+	xori	%r4,%r4,LO
+	xori	%r5,%r5,LO
+	xori	%r6,%r6,LO
+	b	1f
 xs3arith_prolog:
 	li	%r15,FPS_VE		# exceptions that cause result suppression
 	# enable floating-point and VSX
-	mfmsr	%r8
+1:	mfmsr	%r8
 	ori	%r8,%r8,MSR_FP
 	oris	%r8,%r8,MSR_VSX@h
 	mtmsrd	%r8
@@ -6155,6 +6168,8 @@ do_xvsqrtdp:
 
 # result is in r8/r9, check for enabled exceptions
 # vector ops only affect exception flags in FPSCR, not FPRF/FR/FI
+xv3arith_finish:
+	mtvsrdd	%vs2,%r21,%r22
 xvarith_finish:
 	mffs	%f0
 	mffprd	%r1,%f0			# get current FPSCR
@@ -6610,3 +6625,380 @@ do_xsnmsubmsp:
 	mtfprd	%f1,%r14			# XT
 	mtfprd	%f2,%r13			# XB
 	b	1b
+
+do_xvmaddadp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r13			# XB
+	mtfprd	%f2,%r14			# XT
+	fmadd	%f0,%f0,%f1,%f2
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r16			# XA
+	mtfprd	%f1,%r17			# XB
+	mtfprd	%f2,%r18			# XT
+	fmadd	%f0,%f0,%f1,%f2
+	mffprd	%r9,%f0
+	b	xv3arith_finish
+
+do_xvmaddmdp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r14			# XT
+	mtfprd	%f2,%r13			# XB
+	fmadd	%f0,%f0,%f1,%f2
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r16			# XA
+	mtfprd	%f1,%r18			# XT
+	mtfprd	%f2,%r17			# XB
+	fmadd	%f0,%f0,%f1,%f2
+	mffprd	%r9,%f0
+	b	xv3arith_finish
+
+do_xvmaddasp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r12,%r12,32		# get next vector elements
+	rotldi	%r13,%r13,32
+	rotldi	%r14,%r14,32
+	mr	%r3,%r12
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f1,%r3
+	mr	%r3,%r14
+	bl	conv_spdp
+	mtfprd	%f2,%r3
+	fmadds	%f0,%f0,%f1,%f2
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r4,LO
+	bne	xv3arith_finish
+	ori	%r4,%r4,LO
+	mr	%r12,%r16
+	mr	%r13,%r17
+	mr	%r14,%r18
+	mr	%r8,%r9
+	b	1b
+
+do_xvmaddmsp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r12,%r12,32		# get next vector elements
+	rotldi	%r13,%r13,32
+	rotldi	%r14,%r14,32
+	mr	%r3,%r12
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	mr	%r3,%r14
+	bl	conv_spdp
+	mtfprd	%f1,%r3
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f2,%r3
+	fmadds	%f0,%f0,%f1,%f2
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r4,LO
+	bne	xv3arith_finish
+	ori	%r4,%r4,LO
+	mr	%r12,%r16
+	mr	%r13,%r17
+	mr	%r14,%r18
+	mr	%r8,%r9
+	b	1b
+
+do_xvmsubadp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	mtfprd	%f0,%r12
+	mtfprd	%f1,%r13
+	mtfprd	%f2,%r14
+	fmsub	%f0,%f0,%f1,%f2
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r16
+	mtfprd	%f1,%r17
+	mtfprd	%f2,%r18
+	fmsub	%f0,%f0,%f1,%f2
+	mffprd	%r9,%f0
+	b	xv3arith_finish
+
+do_xvmsubmdp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	mtfprd	%f0,%r12
+	mtfprd	%f1,%r14
+	mtfprd	%f2,%r13
+	fmsub	%f0,%f0,%f1,%f2
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r16
+	mtfprd	%f1,%r18
+	mtfprd	%f2,%r17
+	fmsub	%f0,%f0,%f1,%f2
+	mffprd	%r9,%f0
+	b	xv3arith_finish
+
+do_xvmsubasp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r12,%r12,32		# get next vector elements
+	rotldi	%r13,%r13,32
+	rotldi	%r14,%r14,32
+	mr	%r3,%r12
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f1,%r3
+	mr	%r3,%r14
+	bl	conv_spdp
+	mtfprd	%f2,%r3
+	fmsubs	%f0,%f0,%f1,%f2
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r4,LO
+	bne	xv3arith_finish
+	ori	%r4,%r4,LO
+	mr	%r12,%r16
+	mr	%r13,%r17
+	mr	%r14,%r18
+	mr	%r8,%r9
+	b	1b
+
+do_xvmsubmsp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r12,%r12,32		# get next vector elements
+	rotldi	%r13,%r13,32
+	rotldi	%r14,%r14,32
+	mr	%r3,%r12
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	mr	%r3,%r14
+	bl	conv_spdp
+	mtfprd	%f1,%r3
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f2,%r3
+	fmsubs	%f0,%f0,%f1,%f2
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r4,LO
+	bne	xv3arith_finish
+	ori	%r4,%r4,LO
+	mr	%r12,%r16
+	mr	%r13,%r17
+	mr	%r14,%r18
+	mr	%r8,%r9
+	b	1b
+
+do_xvnmaddadp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	mtfprd	%f0,%r12
+	mtfprd	%f1,%r13
+	mtfprd	%f2,%r14
+	fnmadd	%f0,%f0,%f1,%f2
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r16
+	mtfprd	%f1,%r17
+	mtfprd	%f2,%r18
+	fnmadd	%f0,%f0,%f1,%f2
+	mffprd	%r9,%f0
+	b	xv3arith_finish
+
+do_xvnmaddmdp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	mtfprd	%f0,%r12
+	mtfprd	%f1,%r14
+	mtfprd	%f2,%r13
+	fnmadd	%f0,%f0,%f1,%f2
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r16
+	mtfprd	%f1,%r18
+	mtfprd	%f2,%r17
+	fnmadd	%f0,%f0,%f1,%f2
+	mffprd	%r9,%f0
+	b	xv3arith_finish
+
+do_xvnmaddasp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r12,%r12,32		# get next vector elements
+	rotldi	%r13,%r13,32
+	rotldi	%r14,%r14,32
+	mr	%r3,%r12
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f1,%r3
+	mr	%r3,%r14
+	bl	conv_spdp
+	mtfprd	%f2,%r3
+	fnmadds	%f0,%f0,%f1,%f2
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r4,LO
+	bne	xv3arith_finish
+	ori	%r4,%r4,LO
+	mr	%r12,%r16
+	mr	%r13,%r17
+	mr	%r14,%r18
+	mr	%r8,%r9
+	b	1b
+
+do_xvnmaddmsp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r12,%r12,32		# get next vector elements
+	rotldi	%r13,%r13,32
+	rotldi	%r14,%r14,32
+	mr	%r3,%r12
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	mr	%r3,%r14
+	bl	conv_spdp
+	mtfprd	%f1,%r3
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f2,%r3
+	fnmadds	%f0,%f0,%f1,%f2
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r4,LO
+	bne	xv3arith_finish
+	ori	%r4,%r4,LO
+	mr	%r12,%r16
+	mr	%r13,%r17
+	mr	%r14,%r18
+	mr	%r8,%r9
+	b	1b
+
+do_xvnmsubadp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	mtfprd	%f0,%r12
+	mtfprd	%f1,%r13
+	mtfprd	%f2,%r14
+	fnmsub	%f0,%f0,%f1,%f2
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r16
+	mtfprd	%f1,%r17
+	mtfprd	%f2,%r18
+	fnmsub	%f0,%f0,%f1,%f2
+	mffprd	%r9,%f0
+	b	xv3arith_finish
+
+do_xvnmsubmdp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	mtfprd	%f0,%r12
+	mtfprd	%f1,%r14
+	mtfprd	%f2,%r13
+	fnmsub	%f0,%f0,%f1,%f2
+	mffprd	%r8,%f0
+	mtfprd	%f0,%r16
+	mtfprd	%f1,%r18
+	mtfprd	%f2,%r17
+	fnmsub	%f0,%f0,%f1,%f2
+	mffprd	%r9,%f0
+	b	xv3arith_finish
+
+do_xvnmsubasp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r12,%r12,32		# get next vector elements
+	rotldi	%r13,%r13,32
+	rotldi	%r14,%r14,32
+	mr	%r3,%r12
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f1,%r3
+	mr	%r3,%r14
+	bl	conv_spdp
+	mtfprd	%f2,%r3
+	fnmsubs	%f0,%f0,%f1,%f2
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r4,LO
+	bne	xv3arith_finish
+	ori	%r4,%r4,LO
+	mr	%r12,%r16
+	mr	%r13,%r17
+	mr	%r14,%r18
+	mr	%r8,%r9
+	b	1b
+
+do_xvnmsubmsp:
+	mflr	%r23
+	bl	xv3arith_prolog_xany
+	li	%r11,2
+1:	mtctr	%r11
+2:	rotldi	%r12,%r12,32		# get next vector elements
+	rotldi	%r13,%r13,32
+	rotldi	%r14,%r14,32
+	mr	%r3,%r12
+	bl	conv_spdp
+	mtfprd	%f0,%r3
+	mr	%r3,%r14
+	bl	conv_spdp
+	mtfprd	%f1,%r3
+	mr	%r3,%r13
+	bl	conv_spdp
+	mtfprd	%f2,%r3
+	fnmsubs	%f0,%f0,%f1,%f2
+	mffprd	%r3,%f0
+	bl	conv_dpsp
+	rotldi	%r9,%r9,32
+	rldimi	%r9,%r3,0,32
+	bdnz	2b
+	andi.	%r0,%r4,LO
+	bne	xv3arith_finish
+	ori	%r4,%r4,LO
+	mr	%r12,%r16
+	mr	%r13,%r17
+	mr	%r14,%r18
+	mr	%r8,%r9
+	b	1b
+

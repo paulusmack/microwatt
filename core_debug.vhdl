@@ -137,6 +137,7 @@ architecture behave of core_debug is
     signal log_mem_mask        : std_ulogic_vector(63 downto 0) := (others => '0');
     signal log_adr_tcount      : unsigned(15 downto 0) := (others => '0');
     signal log_mem_tcount      : unsigned(15 downto 0) := (others => '0');
+    signal log_ctrl            : std_ulogic_vector(15 downto 0) := (others => '0');
     signal do_log_trigger      : std_ulogic := '0';
     signal do_log_mtrigger     : std_ulogic := '0';
     signal trigger_was_log     : std_ulogic := '0';
@@ -175,7 +176,8 @@ begin
         log_dmi_trigger when DBG_CORE_LOG_TRIGGER,
         log_mem_trigger when DBG_CORE_LOG_MTRIGGER,
         log_mem_mask    when DBG_CORE_LOG_MTR_MASK,
-        32x"0" & std_ulogic_vector(log_adr_tcount) & std_ulogic_vector(log_mem_tcount) when DBG_CORE_LOG_TRG_COUNT,
+        16x"0" & log_ctrl & std_ulogic_vector(log_adr_tcount) &
+            std_ulogic_vector(log_mem_tcount) when DBG_CORE_LOG_TRG_COUNT,
         (others => '0') when others;
 
     -- DMI writes
@@ -269,6 +271,7 @@ begin
                             log_mem_mask <= dmi_din;
                             log_mem_mask_nzero <= or (dmi_din);
                         elsif dmi_addr = DBG_CORE_LOG_TRG_COUNT then
+                            log_ctrl <= dmi_din(47 downto 32);
                             log_adr_tcount <= unsigned(dmi_din(31 downto 16));
                             log_mem_tcount <= unsigned(dmi_din(15 downto 0));
                         end if;
@@ -439,15 +442,19 @@ begin
                     ldat(59 downto 57) := snoop_dbg_reg(3 downto 1); -- stb, cyc, stall
                     ldat(150) := snoop_dbg_reg(0); -- ack
                     ldat(138 downto 136) := wb_arb_debug;
+                    ldat(118) := '0';
                     -- cyc & ((stb & ~stall & we) | (ack & ~we))
-                    if snoop_dbg_reg(2) = '1' and
+                    if (log_ctrl(0) = '1' or log_data(191) = '0') and snoop_dbg_reg(2) = '1' and
                         ((snoop_dbg_reg(3) = '1' and snoop_dbg_reg(1) = '0' and snoop_dbg_reg(9) = '1') or
                          (snoop_dbg_reg(0) = '1' and snoop_dbg_reg(9) = '0')) then
                         ldat(255 downto 192) := snoop_dbg_dat;
+                        ldat(118) := '1';
                     end if;
                     -- cyc & stb & ~stall
-                    if snoop_dbg_reg(2) = '1' and snoop_dbg_reg(3) = '1' and snoop_dbg_reg(1) = '0' then
+                    if (log_ctrl(0) = '1' or log_data(100) = '0') and snoop_dbg_reg(2) = '1' and
+                        snoop_dbg_reg(3) = '1' and snoop_dbg_reg(1) = '0' then
                         ldat(87 downto 64) := snoop_dbg_adr;
+                        ldat(139) := '1';
                     end if;
                     log_array(to_integer(log_wr_ptr)) <= ldat;
                 end if;

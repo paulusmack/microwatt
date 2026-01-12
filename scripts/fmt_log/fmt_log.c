@@ -32,7 +32,7 @@ struct log_entry {
 	u64	d2_bypass_b: 1;
 	u64	d2_bypass_c: 1;
 	u64	d2_stall_out: 1;
-	u64	d2_stopped_out: 1;
+	u64	wb_dat_v: 1;
 	u64	d2_valid: 1;
 	u64	d2_part_nia: 4;
 	u64	e1_flush_out: 1;
@@ -48,7 +48,8 @@ struct log_entry {
 	u64	e1_msr_ir: 1;
 	u64	e1_msr_pr: 1;
 	u64	e1_msr_ee: 1;
-	u64	pad1: 4;
+	u64	wb_master: 3;
+	u64	wb_adr_v: 1;
 	u64	ls_state: 3;
 	u64	ls_dw_done: 1;
 	u64	ls_min_done: 1;
@@ -111,7 +112,6 @@ int main(int ac, char **av)
 	const char *filename;
 	int i;
 	long int ncompl = 0;
-	int adr_v, dat_v;
 
 	if (ac != 1 && ac != 2) {
 		fprintf(stderr, "Usage: %s [filename]\n", av[0]);
@@ -143,16 +143,13 @@ int main(int ac, char **av)
 		       (unsigned long long)log.nia_lo << 2,
 		       FLAG(ic_stall_out, '|'));
 		printf("%x%c%c%c%c%c ",
-		       log.pad1,
+		       log.wb_master,
 		       FLAG(ic_wb_cyc, 'c'),
 		       FLAG(ic_wb_stb, 's'),
 		       FLGA(pad2, 'w', 'r'),
 		       FLAG(ic_wb_stall, 'S'),
 		       FLAG(ic_wb_ack, 'a'));
-		adr_v = log.ic_wb_cyc & log.ic_wb_stb & !log.ic_wb_stall;
-		dat_v = log.ic_wb_cyc & ((log.ic_wb_stb & !log.ic_wb_stall & log.pad2) |
-					 (log.ic_wb_ack & ~log.pad2));
-		if (adr_v)
+		if (log.wb_adr_v)
 			printf("%.6x%.2x ",
 			       (unsigned)log.ic_insn & 0xffffffu,
 			       (log.ic_wb_adr << 3) | (log.ic_ra_valid << 6) | (log.ic_access_ok << 7));
@@ -169,7 +166,7 @@ int main(int ac, char **av)
 			else
 				printf("%3lu x%lx", (long)(log.ic_insn >> 26),
 				       (unsigned long)((log.ic_insn >> 24) & 0x3));
-			if (adr_v)
+			if (log.wb_adr_v)
 				printf("------");
 			else
 				printf("%.6lx", (unsigned long)log.ic_insn & 0xfffffful);
@@ -235,12 +232,12 @@ int main(int ac, char **av)
 		else
 			printf("     ");
 		if (log.reg_wr_enable) {
-			if (!dat_v)
+			if (!log.wb_dat_v)
 				printf("r%02d=%.16llx", log.reg_wr_reg, log.reg_wr_data);
 			else
 				printf("r%02d=?  ", log.reg_wr_reg);
 		}
-		if (dat_v) {
+		if (log.wb_dat_v) {
 			if (!log.reg_wr_enable)
 				printf("       ");
 			printf("%.16llx", log.reg_wr_data);

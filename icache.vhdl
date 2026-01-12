@@ -63,7 +63,7 @@ entity icache is
         wb_snoop_in  : in wishbone_master_out := wishbone_master_out_init;
 
         events       : out IcacheEventType;
-        log_out      : out std_ulogic_vector(57 downto 0)
+        log_out      : out std_ulogic_vector(55 downto 0)
         );
 end entity icache;
 
@@ -830,7 +830,7 @@ begin
 
     icache_log: if LOG_LENGTH > 0 generate
         -- Output data to logger
-        signal log_data    : std_ulogic_vector(57 downto 0);
+        signal log_data    : std_ulogic_vector(55 downto 0);
     begin
         data_log: process(clk)
             variable lway: way_sig_t;
@@ -844,18 +844,13 @@ begin
                 end if;
                 log_data <= i_out.valid &
                             log_insn &
-                            wishbone_in.ack &
-                            r.wb.adr(2 downto 0) &
-                            r.wb.stb & r.wb.cyc &
-                            wishbone_in.stall &
+                            "0000000" &
                             stall_out &
                             r.fetch_failed &
                             r.hit_nia(5 downto 2) &
                             wstate &
                             std_ulogic_vector(resize(lway, 3)) &
-                            req_is_hit & req_is_miss &
-                            '1' & -- was access_ok
-                            '1';  -- was ra_valid
+                            req_is_hit & req_is_miss;
             end if;
         end process;
         log_out <= log_data;

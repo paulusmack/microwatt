@@ -191,7 +191,7 @@ architecture behave of core is
     signal dbg_core_is_stopped: std_ulogic;
 
     -- Logging signals
-    signal log_data    : std_ulogic_vector(255 downto 0);
+    signal log_data    : std_ulogic_vector(255 downto 0) := (others => '0');
     signal log_rd_addr : std_ulogic_vector(31 downto 0);
     signal log_wr_addr : std_ulogic_vector(31 downto 0);
     signal log_rd_data : std_ulogic_vector(63 downto 0);
@@ -299,7 +299,7 @@ begin
             wishbone_in => wishbone_insn_in,
             wb_snoop_in => wb_snoop,
             events => icache_events,
-            log_out => log_data(100 downto 43)
+            log_out => log_data(100 downto 45)
             );
 
     icache_stall_in <= decode1_busy;

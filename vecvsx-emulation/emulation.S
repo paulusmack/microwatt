@@ -791,8 +791,8 @@ xpnd004_3:
 op60_table:
 	.long	xcol0 - op60_table	# column 0,1
 	.long	xcol0 - op60_table
-	.long	0
-	.long	0
+	.long	xcol4 - op60_table
+	.long	xcol4 - op60_table
 	.long	xcol8 - op60_table
 	.long	xcol8 - op60_table
 	.long	xcol12 - op60_table
@@ -827,6 +827,40 @@ xcol0:
 	.long	0
 	.long	0
 	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 30
+	.long	0
+
+xcol4:
+	.long	do_xsmaddasp-xcol4		# row 0
+	.long	do_xsmaddmsp-xcol4
+	.long	do_xsmsubasp-xcol4
+	.long	do_xsmsubmsp-xcol4
+	.long	do_xsmaddadp-xcol4		# row 4
+	.long	do_xsmaddmdp-xcol4
+	.long	do_xsmsubadp-xcol4
+	.long	do_xsmsubmdp-xcol4
+	.long	0		# row 8
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 12
+	.long	0
+	.long	0
+	.long	0
+	.long	do_xsnmaddasp-xcol4
+	.long	do_xsnmaddmsp-xcol4
+	.long	do_xsnmsubasp-xcol4
+	.long	do_xsnmsubmsp-xcol4
+	.long	do_xsnmaddadp-xcol4		# row 20
+	.long	do_xsnmaddmdp-xcol4
+	.long	do_xsnmsubadp-xcol4
+	.long	do_xsnmsubmdp-xcol4
 	.long	0
 	.long	0
 	.long	0
@@ -5848,6 +5882,37 @@ xvarith_prolog_xx:
 	mtfsf	0xf4,%f0
 1:	blr
 
+# common preliminary code for 3-operand vector/scalar FP ops
+xs3arith_prolog:
+	li	%r15,FPS_VE		# exceptions that cause result suppression
+	# enable floating-point and VSX
+	mfmsr	%r8
+	ori	%r8,%r8,MSR_FP
+	oris	%r8,%r8,MSR_VSX@h
+	mtmsrd	%r8
+	# save three FPRs and their VSR low halves
+	mffprd	%r24,%f0
+	mfvsrld	%r25,%vs0
+	mffprd	%r26,%f1
+	mfvsrld	%r27,%vs1
+	mffprd	%r21,%f2
+	mfvsrld	%r22,%vs2
+	# get parameters
+	mfrin	12,4
+	mfrin	13,5
+	mfrin	14,6
+	# save FPSCR
+	mffs	%f0
+	mffprd	%r28,%f0
+	lis	%r10,FPS_ALLX@h
+	ori	%r10,%r10,FPS_ALLX@l
+	and.	%r0,%r28,%r15		# check for enabled invalid exception
+	beq+	1f
+	andc	%r0,%r28,%r10		# if so, clear all sticky exception flags
+	mtfprd	%f0,%r0
+	mtfsf	0xf4,%f0
+1:	blr
+
 # convert single-precision FP value in %r3 to double
 conv_spdp:
 	rldic	%r0,%r3,29,12		# extract mantissa
@@ -6114,6 +6179,40 @@ xvarith_finish:
 5:	mtlr	%r23
 	b	return
 
+# Like xvarith_finish, except scalar ops do update fprf/fr/fi.
+# FPSCR is correct, except that we may need to put back
+# exception bits if we cleared them earlier.
+# Write back result if no enabled invalid operation exception occurred.
+xs3arith_finish:
+	mffprd	%r8,%f0
+	li	%r9,0
+	mtvsrdd	%vs2,%r21,%r22
+	and.	%r3,%r28,%r15		# test for enabled relevant exception
+	beq+	3f			# if none, then FPSCR is correct
+	mffs	%f0
+	mffprd	%r1,%f0			# get current FPSCR
+	andc	%r0,%r1,%r28		# any exception flags newly set?
+	and.	%r0,%r0,%r10
+	setbc	%r0,EQ			# if none, clear FX
+	sldi	%r0,%r0,31
+	andc	%r1,%r1,%r0
+	oris	%r10,%r10,FPS_FX@h
+	and	%r2,%r28,%r10		# get saved exception flags and FX
+	or	%r1,%r1,%r2
+	mtfprd	%f0,%r1			# set them in FPSCR
+	mtfsf	0xff,%f0
+	sldi	%r0,%r3,22		# move VE->VX
+	and.	%r0,%r0,%r1		# see if VX is set
+	# restore FPRs and low halves before writing results
+3:	mtvsrdd	%vs0,%r24,%r25
+	mtvsrdd	%vs1,%r26,%r27
+	bne	5f			# don't write result if enabled exception
+4:	mtrin	8,6
+	ori	%r6,%r6,LO
+	mtrin	9,6
+5:	mtlr	%r23
+	b	return
+
 do_xvcvdpsxds:
 	mflr	%r23
 	li	%r15,FPS_VE|FPS_XE
@@ -6374,4 +6473,140 @@ do_xvcvuxwsp:
 	mr	%r13,%r17
 	ori	%r5,%r5,LO
 	mr	%r8,%r9
+	b	1b
+
+do_xsmaddadp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r13			# XB
+	mtfprd	%f2,%r14			# XT
+1:	fmadd	%f0,%f0,%f1,%f2
+	b	xs3arith_finish
+
+do_xsmaddmdp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r14			# XT
+	mtfprd	%f2,%r13			# XB
+	b	1b
+
+do_xsmaddasp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r13			# XB
+	mtfprd	%f2,%r14			# XT
+1:	fmadds	%f0,%f0,%f1,%f2
+	b	xs3arith_finish
+
+do_xsmaddmsp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r14			# XT
+	mtfprd	%f2,%r13			# XB
+	b	1b
+
+do_xsmsubadp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r13			# XB
+	mtfprd	%f2,%r14			# XT
+1:	fmsub	%f0,%f0,%f1,%f2
+	b	xs3arith_finish
+
+do_xsmsubmdp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r14			# XT
+	mtfprd	%f2,%r13			# XB
+	b	1b
+
+do_xsmsubasp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r13			# XB
+	mtfprd	%f2,%r14			# XT
+1:	fmsubs	%f0,%f0,%f1,%f2
+	b	xs3arith_finish
+
+do_xsmsubmsp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r14			# XT
+	mtfprd	%f2,%r13			# XB
+	b	1b
+
+do_xsnmaddadp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r13			# XB
+	mtfprd	%f2,%r14			# XT
+1:	fnmadd	%f0,%f0,%f1,%f2
+	b	xs3arith_finish
+
+do_xsnmaddmdp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r14			# XT
+	mtfprd	%f2,%r13			# XB
+	b	1b
+
+do_xsnmaddasp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r13			# XB
+	mtfprd	%f2,%r14			# XT
+1:	fnmadds	%f0,%f0,%f1,%f2
+	b	xs3arith_finish
+
+do_xsnmaddmsp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r14			# XT
+	mtfprd	%f2,%r13			# XB
+	b	1b
+
+do_xsnmsubadp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r13			# XB
+	mtfprd	%f2,%r14			# XT
+1:	fnmsub	%f0,%f0,%f1,%f2
+	b	xs3arith_finish
+
+do_xsnmsubmdp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r14			# XT
+	mtfprd	%f2,%r13			# XB
+	b	1b
+
+do_xsnmsubasp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r13			# XB
+	mtfprd	%f2,%r14			# XT
+1:	fnmsubs	%f0,%f0,%f1,%f2
+	b	xs3arith_finish
+
+do_xsnmsubmsp:
+	mflr	%r23
+	bl	xs3arith_prolog
+	mtfprd	%f0,%r12			# XA
+	mtfprd	%f1,%r14			# XT
+	mtfprd	%f2,%r13			# XB
 	b	1b

@@ -192,6 +192,7 @@ architecture behaviour of toplevel is
     signal run_outs : std_ulogic_vector(CPUS-1 downto 0);
     signal init_done : std_ulogic;
     signal init_err  : std_ulogic;
+    signal core_hung : std_ulogic_vector(CPUS-1 downto 0);
 
     -- Reset signals:
     signal soc_rst : std_ulogic;
@@ -331,6 +332,7 @@ begin
             sw_soc_reset      => sw_rst,
             run_out           => run_out,
             run_outs          => run_outs,
+            core_hang         => core_hung,
 
             -- UART signals
             uart0_txd         => uart_main_tx,
@@ -988,7 +990,7 @@ begin
         end if;
     end process;
 
-    led4 <= '0';
+    led4 <= or (core_hung);
     led5 <= disk_activity;
     led6 <= run_outs(1) when CPUS > 1 else '0';
     led7 <= run_outs(0);

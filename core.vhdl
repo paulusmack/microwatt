@@ -62,6 +62,7 @@ entity core is
 
         run_out          : out std_ulogic;
 	terminated_out   : out std_logic;
+        hang_out         : out std_ulogic;
 
         wb_arb_debug : std_ulogic_vector(2 downto 0)
         );
@@ -142,6 +143,9 @@ architecture behave of core is
     signal core_rst: std_ulogic;
 
     signal wb_snoop : wishbone_master_out;
+
+    signal core_hang: std_ulogic;
+    signal hang_timer : unsigned(7 downto 0);
 
     -- Delayed/Latched resets and alt_reset
     signal rst_fetch1  : std_ulogic;
@@ -596,7 +600,24 @@ begin
             log_read_data => log_rd_data,
             log_write_addr => log_wr_addr,
 	    terminated_out => terminated_out,
-            wb_arb_debug => wb_arb_debug
+            wb_arb_debug => wb_arb_debug,
+            core_hang => core_hang
 	    );
+
+    core_hang_timer: process(clk)
+    begin
+        if rising_edge(clk) then
+            if rst = '1' or complete.valid = '1' or ctrl_debug.wait_state = '1' then
+                core_hang <= '0';
+                hang_timer <= (others => '0');
+            elsif core_hang = '0' then
+                if hang_timer = x"ff" then
+                    core_hang <= '1';
+                end if;
+                hang_timer <= hang_timer + 1;
+            end if;
+        end if;
+    end process;
+    hang_out <= core_hang;
 
 end behave;

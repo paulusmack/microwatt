@@ -109,6 +109,7 @@ entity soc is
 
         run_out      : out std_ulogic;
         run_outs     : out std_ulogic_vector(NCPUS-1 downto 0);
+        core_hang    : out std_ulogic_vector(NCPUS-1 downto 0);
 
 	-- "Large" (64-bit) DRAM wishbone
 	wb_dram_in       : out wishbone_master_out;
@@ -285,6 +286,7 @@ architecture behaviour of soc is
     signal io_cycle_external  : std_ulogic;
 
     signal core_run_out       : std_ulogic_vector(NCPUS-1 downto 0);
+    signal core_hang_out      : std_ulogic_vector(NCPUS-1 downto 0);
 
     type msg_percpu_array is array(cpu_index_t) of std_ulogic_vector(NCPUS-1 downto 0);
     signal msgs               : msg_percpu_array;
@@ -400,6 +402,7 @@ begin
 	    rst => rst_core(i),
 	    alt_reset => alt_reset_d,
             run_out => core_run_out(i),
+            hang_out => core_hang_out(i),
             tb_ctrl => tb_ctrl,
 	    wishbone_insn_in => wb_masters_in(i + NCPUS),
 	    wishbone_insn_out => wb_masters_out(i + NCPUS),
@@ -433,6 +436,7 @@ begin
 
     run_out <= or (core_run_out);
     run_outs <= core_run_out and not do_core_reset;
+    core_hang <= core_hang_out;
 
     -- Wishbone bus master arbiter & mux
     wb_masters_out(2*NCPUS)     <= wishbone_widen_data(wishbone_dma_out);

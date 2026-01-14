@@ -63,6 +63,7 @@ entity core_debug is
 
         -- Misc
         terminated_out  : out std_ulogic;
+        core_hang       : in std_ulogic;
         wb_arb_debug : std_ulogic_vector(2 downto 0)
         );
 end core_debug;
@@ -176,7 +177,7 @@ begin
         log_dmi_trigger when DBG_CORE_LOG_TRIGGER,
         log_mem_trigger when DBG_CORE_LOG_MTRIGGER,
         log_mem_mask    when DBG_CORE_LOG_MTR_MASK,
-        16x"0" & log_ctrl & std_ulogic_vector(log_adr_tcount) &
+        15x"0" & core_hang & log_ctrl & std_ulogic_vector(log_adr_tcount) &
             std_ulogic_vector(log_mem_tcount) when DBG_CORE_LOG_TRG_COUNT,
         (others => '0') when others;
 
@@ -427,7 +428,8 @@ begin
 
     begin
         -- Use MSB of read addresses to stop the logging
-        log_wr_enable <= not (log_read_addr(31) or log_dmi_addr(31) or log_dmi_trigger(1) or log_mem_trigger(1));
+        log_wr_enable <= not (log_read_addr(31) or log_dmi_addr(31) or log_dmi_trigger(1) or
+                              log_mem_trigger(1) or core_hang);
 
         log_ram: process(clk)
             variable ldat : std_ulogic_vector(255 downto 0);

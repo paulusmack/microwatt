@@ -798,7 +798,7 @@ op60_table:
 	.long	xcol12 - op60_table
 	.long	xcol12 - op60_table
 	.long	xcol16 - op60_table			# column 16,17
-	.long	0
+	.long	xcol18 - op60_table
 	.long	xcol20 - op60_table
 	.long	xcol22 - op60_table
 
@@ -829,11 +829,11 @@ xcol0:
 	.long	0
 	.long	0
 	.long	0
+	.long	do_xvcpsgnsp - xcol0
 	.long	0
 	.long	0
 	.long	0
-	.long	0
-	.long	0		# row 30
+	.long	do_xvcpsgndp - xcol0		# row 30
 	.long	0
 
 xcol4:
@@ -971,6 +971,40 @@ xcol16:
 	.long	do_xvcvdpsxds - xcol16
 	.long	do_xvcvuxddp - xcol16		# row 30
 	.long	do_xvcvsxddp - xcol16
+
+xcol18:
+	.long	0		# row 0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 4
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 8
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 12
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	0		# row 20
+	.long	0
+	.long	0
+	.long	0
+	.long	0
+	.long	do_xvabssp - xcol18
+	.long	do_xvnabssp - xcol18
+	.long	do_xvnegsp - xcol18
+	.long	0
+	.long	do_xvabsdp - xcol18
+	.long	do_xvnabsdp - xcol18		# row 30
+	.long	do_xvnegdp - xcol18
 
 xcol20:
 	.long	0		# row 0
@@ -7002,3 +7036,118 @@ do_xvnmsubmsp:
 	mr	%r8,%r9
 	b	1b
 
+do_xvabsdp:
+	mfrin	0,5
+	clrldi	%r0,%r0,1
+	mtrin	0,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	0,5
+	clrldi	%r0,%r0,1
+	mtrin	0,6
+	b	return
+
+do_xvabssp:
+	li	%r1,1
+	sldi	%r1,%r1,31
+	rldimi	%r1,%r1,32,0
+	mfrin	0,5
+	andc	%r0,%r0,%r1
+	mtrin	0,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	0,5
+	andc	%r0,%r0,%r1
+	mtrin	0,6
+	b	return
+
+do_xvcpsgndp:
+	mfrin	0,4
+	mfrin	1,5
+	rotldi	%r0,%r0,1
+	rldimi	%r1,%r0,63,0
+	mtrin	1,6
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	0,4
+	mfrin	1,5
+	rotldi	%r0,%r0,1
+	rldimi	%r1,%r0,63,0
+	mtrin	1,6
+	b	return
+
+do_xvcpsgnsp:
+	li	%r2,1
+	sldi	%r2,%r2,31
+	rldimi	%r2,%r2,32,0
+	mfrin	0,4
+	mfrin	1,5
+	and	%r0,%r0,%r2
+	andc	%r1,%r1,%r2
+	or	%r0,%r0,%r1
+	mtrin	0,6
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	0,4
+	mfrin	1,5
+	and	%r0,%r0,%r2
+	andc	%r1,%r1,%r2
+	or	%r0,%r0,%r1
+	mtrin	0,6
+	b	return
+
+do_xvnabsdp:
+	li	%r1,1
+	sldi	%r1,%r1,63
+	mfrin	0,5
+	or	%r0,%r0,%r1
+	mtrin	0,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	0,5
+	or	%r0,%r0,%r1
+	mtrin	0,6
+	b	return
+
+do_xvnabssp:
+	li	%r1,1
+	sldi	%r1,%r1,31
+	rldimi	%r1,%r1,32,0
+	mfrin	0,5
+	or	%r0,%r0,%r1
+	mtrin	0,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	0,5
+	or	%r0,%r0,%r1
+	mtrin	0,6
+	b	return
+
+do_xvnegdp:
+	li	%r1,1
+	sldi	%r1,%r1,63
+	mfrin	0,5
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	0,5
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	b	return
+
+do_xvnegsp:
+	li	%r1,1
+	sldi	%r1,%r1,31
+	rldimi	%r1,%r1,32,0
+	mfrin	0,5
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	mfrin	0,5
+	xor	%r0,%r0,%r1
+	mtrin	0,6
+	b	return

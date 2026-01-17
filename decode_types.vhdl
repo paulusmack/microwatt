@@ -521,6 +521,12 @@ package decode_types is
         INSN_xscpsgndp,
         INSN_xsnabsdp,
         INSN_xsnegdp,
+        INSN_xsredp,
+        INSN_xsresp,
+        INSN_xsrsqrtedp,
+        INSN_xsrsqrtesp,
+        INSN_xstdivdp,
+        INSN_xstsqrtdp,
         INSN_xxland,
         INSN_xxlandc,
         INSN_xxlor,
@@ -1091,6 +1097,12 @@ package body decode_types is
             when INSN_xscpsgndp => return "111100";
             when INSN_xsnabsdp  => return "111100";
             when INSN_xsnegdp   => return "111100";
+            when INSN_xsredp    => return "111100";
+            when INSN_xsresp    => return "111100";
+            when INSN_xsrsqrtedp=> return "111100";
+            when INSN_xsrsqrtesp=> return "111100";
+            when INSN_xstdivdp  => return "111100";
+            when INSN_xstsqrtdp => return "111100";
             when INSN_xxland    => return "111100";
             when INSN_xxlandc   => return "111100";
             when INSN_xxlnand   => return "111100";

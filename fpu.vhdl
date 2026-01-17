@@ -64,7 +64,6 @@ architecture behaviour of fpu is
                      FMADD_0, FMADD_1, FMADD_2, FMADD_3,
                      FMADD_4, FMADD_5, FMADD_6,
                      DIV_2, DIV_3, DIV_4, DIV_5, DIV_6,
-                     FRE_1,
                      SQRT_ODD, RSQRT_1,
                      FTDIV_1,
                      SQRT_1, SQRT_2, SQRT_3, SQRT_4,
@@ -1749,16 +1748,17 @@ begin
                 re_set_result <= '1';
                 if r.b.exponent(0) = '1' then
                     v.state := SQRT_ODD;
-                elsif r.is_inverse = '0' then
-                    v.state := SQRT_1;
                 else
-                    v.state := RSQRT_1;
+                    v.state := SQRT_1;
                 end if;
 
             when DO_FRE =>
                 re_sel2 <= REXP2_B;
+                re_neg2 <= '1';
                 re_set_result <= '1';
-                v.state := FRE_1;
+                v.count := "00";
+                v.first := '1';
+                v.state := DIV_2;
 
             when DO_FMUL =>
                 -- fmul, fmadd, fmsub, fnmadd, fnmsub
@@ -2050,9 +2050,11 @@ begin
                 set_y := r.first;
                 pshift := '1';
                 f_to_multiply.valid <= r.first;
+                if r.first = '1' then
+                    v.count := r.count + 1;
+                end if;
                 if multiply_to_f.valid = '1' then
                     v.first := '1';
-                    v.count := r.count + 1;
                     v.state := DIV_3;
                 end if;
 
@@ -2062,9 +2064,15 @@ begin
                 msel_2 <= MUL2_P;
                 f_to_multiply.valid <= r.first;
                 pshift := '1';
+                if r.use_a = '0' then
+                    opsel_r <= RES_MULT;
+                end if;
+                rs_con2 <= RSCON2_1;
                 if multiply_to_f.valid = '1' then
                     v.first := '1';
-                    if r.count = 3 then
+                    if r.use_a = '0' then
+                        v.state := NORMALIZE;
+                    elsif r.count = 3 then
                         v.state := DIV_4;
                     else
                         v.state := DIV_2;
@@ -2111,17 +2119,6 @@ begin
                 end if;
                 v.state := FINISH;
 
-            when FRE_1 =>
-                re_sel1 <= REXP1_R;
-                re_neg1 <= '1';
-                re_set_result <= '1';
-                opsel_r <= RES_MISC;
-                set_r := '1';
-                misc_sel <= "101";
-                -- set shift to 1
-                rs_con2 <= RSCON2_1;
-                v.state := NORMALIZE;
-
             when FTDIV_1 =>
                 -- We go through this state up to two times; the first sees if
                 -- B.exponent is in the range [-1021,1020], and the second tests
@@ -2141,17 +2138,6 @@ begin
                 v.regsel := AIN_B;
                 v.state := RENORM_2;
 
-            when RSQRT_1 =>
-                opsel_r <= RES_MISC;
-                misc_sel <= "101";
-                set_r := '1';
-                re_sel1 <= REXP1_BHALF;
-                re_neg1 <= '1';
-                re_set_result <= '1';
-                -- set shift to 1
-                rs_con2 <= RSCON2_1;
-                v.state := NORMALIZE;
-
             when SQRT_1 =>
                 -- put invsqr[B] in R and compute P = invsqr[B] * B
                 -- also transfer B (in R) to A
@@ -2159,6 +2145,10 @@ begin
                 opsel_r <= RES_MISC;
                 misc_sel <= "101";
                 set_r := '1';
+                -- for frsqrte, put - bexp/2 into result_exp
+                re_sel1 <= REXP1_BHALF;
+                re_neg1 <= '1';
+                re_set_result <= r.is_inverse;
                 msel_1 <= MUL1_B;
                 msel_2 <= MUL2_LUT;
                 f_to_multiply.valid <= '1';
@@ -2210,7 +2200,11 @@ begin
                 msel_2 <= MUL2_P;
                 f_to_multiply.valid <= '1';
                 v.first := '1';
-                v.state := SQRT_6;
+                if r.is_inverse = '0' then
+                    v.state := SQRT_6;
+                else
+                    v.state := RSQRT_1;
+                end if;
 
             when SQRT_6 =>
                 -- pipeline in R = R * P
@@ -2311,6 +2305,16 @@ begin
                     v.x := not pcmpc_eq;
                 end if;
                 v.state := FINISH;
+
+            when RSQRT_1 =>
+                -- put multiply result in R
+                opsel_r <= RES_MULT;
+                set_r := '1';
+                -- set shift to 1
+                rs_con2 <= RSCON2_1;
+                if multiply_to_f.valid = '1' then
+                    v.state := NORMALIZE;
+                end if;
 
             when INT_SHIFT =>
                 -- r.shift = b.exponent - 52
@@ -3667,6 +3671,7 @@ begin
                     end if;
                 end loop;
             when CROP_FTDIV =>
+                cr_result(3) := '1';
                 if r.a.class = INFINITY or r.b.class = ZERO or r.b.class = INFINITY or
                     (r.b.class = FINITE and r.b.denorm = '1') then
                     cr_result(2) := '1';
@@ -3678,6 +3683,7 @@ begin
                     cr_result(1) := '1';
                 end if;
             when CROP_FTSQRT =>
+                cr_result(3) := '1';
                 if r.b.class = ZERO or r.b.class = INFINITY or
                     (r.b.class = FINITE and r.b.denorm = '1') then
                     cr_result(2) := '1';

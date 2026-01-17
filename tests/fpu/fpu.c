@@ -1274,17 +1274,19 @@ int fpu_test_17(void)
 
 struct recipvals {
 	unsigned long val;
-	unsigned long inv;
+	unsigned long inv_min;
+	unsigned long inv_max;
 } recipvals[] = {
-	{ 0x0000000000000000, 0x7ff0000000000000 },
-	{ 0xfff0000000000000, 0x8000000000000000 },
-	{ 0x3ff0000000000000, 0x3feff00400000000 },
-	{ 0xbff0000000000000, 0xbfeff00400000000 },
-	{ 0x4008000000000000, 0x3fd54e3800000000 },
-	{ 0xc03ffffffdffffbf, 0xbfa0040000000000 },
-	{ 0x0008100000000000, 0x7fdfb0c400000000 },
-	{ 0x0004080000000000, 0x7fefb0c400000000 },
-	{ 0x0002040000000000, 0x7ff0000000000000 },
+	{ 0x0000000000000000, 0x7ff0000000000000, 0x7ff0000000000000 },
+	{ 0xfff0000000000000, 0x8000000000000000, 0x8000000000000000 },
+	/* min/max bounds are +/- 2^-14 */
+	{ 0x3ff0000000000000, 0x3fefff8000000000, 0x3ff0004000000000 },
+	{ 0xbff0000000000000, 0xbfefff8000000000, 0xbff0004000000000 },
+	{ 0x4008000000000000, 0x3fd5550000000000, 0x3fd555aaaaaaaaaa },
+	{ 0xc03ffffffdffffbf, 0xbf9fff8001fff842, 0xbfa0004001000421 },
+	{ 0x0008100000000000, 0x7fdfc00000000000, 0x7fdfc0fe03f80fe0 },
+	{ 0x0004080000000000, 0x7fefc00000000000, 0x7fefc0fe03f80fe0 },
+	{ 0x0002040000000000, 0x7ff0000000000000, 0x7ff0000000000000 },
 };
 
 int test18(long arg)
@@ -1299,7 +1301,7 @@ int test18(long arg)
 		asm("lfd 6,0(%0); fre 7,6; stfd 7,0(%1)"
 		    : : "b" (&vp->val), "b" (&result) : "memory");
 		fpscr = get_fpscr();
-		if (result != vp->inv) {
+		if (result < vp->inv_min || result > vp->inv_max) {
 			print_hex(i, 2, " ");
 			print_hex(result, 16, " ");
 			return i + 1;
@@ -1414,24 +1416,25 @@ int fpu_test_20(void)
 
 struct isqrtvals {
 	unsigned long val;
-	unsigned long inv;
+	unsigned long inv_min;
+	unsigned long inv_max;
 } isqrtvals[] = {
-	{ 0x0000000000000000, 0x7ff0000000000000 },
-	{ 0x8000000000000000, 0xfff0000000000000 },
-	{ 0xfff0000000000000, 0x7ff8000000000000 },
-	{ 0x7ff0000000000000, 0x0000000000000000 },
-	{ 0xfff123456789abcd, 0xfff923456789abcd },
-	{ 0x3ff0000000000000, 0x3feff80000000000 },
-	{ 0x4000000000000000, 0x3fe69dc800000000 },
-	{ 0x4010000000000000, 0x3fdff80000000000 },
-	{ 0xbff0000000000000, 0x7ff8000000000000 },
-	{ 0x4008000000000000, 0x3fe2781800000000 },
-	{ 0x7fd0000000000000, 0x1ffff80000000000 },
-	{ 0x0008000000000000, 0x5fe69dc800000000 },
-	{ 0x0004000000000000, 0x5feff80000000000 },
-	{ 0x0002000000000000, 0x5ff69dc800000000 },
-	{ 0x0000000000000002, 0x61769dc800000000 },
-	{ 0x0000000000000001, 0x617ff80000000000 },
+	{ 0x0000000000000000, 0x7ff0000000000000, 0x7ff0000000000000 },
+	{ 0x8000000000000000, 0xfff0000000000000, 0xfff0000000000000 },
+	{ 0xfff0000000000000, 0x7ff8000000000000, 0x7ff8000000000000 },
+	{ 0x7ff0000000000000, 0x0000000000000000, 0x0000000000000000 },
+	{ 0xfff123456789abcd, 0xfff923456789abcd, 0xfff923456789abcd },
+	{ 0x3ff0000000000000, 0x3fefff8000000000, 0x3ff0004000000000 },
+	{ 0x4000000000000000, 0x3fe6a043e405a1cf, 0x3fe6a0f8e8f8d5c9 },
+	{ 0x4010000000000000, 0x3fdfff8000000000, 0x3fe0004000000000 },
+	{ 0x4008000000000000, 0x3fe2795d5ef31cdc, 0x3fe279f12c2d495e },
+	{ 0x7fd0000000000000, 0x1fffff8000000000, 0x2000004000000000 },
+	{ 0x0008000000000000, 0x5fe6a043e405a1cf, 0x5fe6a0f8e8f8d5c9 },
+	{ 0x0004000000000000, 0x5fefff8000000000, 0x5ff0004000000000 },
+	{ 0x0002000000000000, 0x5ff6a043e405a1cf, 0x5ff6a0f8e8f8d5c9 },
+	{ 0x0000000000000002, 0x6176a043e405a1cf, 0x6176a0f8e8f8d5c9 },
+	{ 0x0000000000000001, 0x617fff8000000000, 0x6180004000000000 },
+	{ 0xbff0000000000000, 0x7ff8000000000000, 0x7ff8000000000000 },
 };
 
 int test21(long arg)
@@ -1446,7 +1449,7 @@ int test21(long arg)
 		asm("lfd 6,0(%0); frsqrte 7,6; stfd 7,0(%1)"
 		    : : "b" (&vp->val), "b" (&result) : "memory");
 		fpscr = get_fpscr();
-		if (result != vp->inv) {
+		if (result < vp->inv_min || result > vp->inv_max) {
 			print_hex(i, 2, " ");
 			print_hex(result, 16, " ");
 			return i + 1;
@@ -1821,8 +1824,8 @@ int test26(long arg)
 	for (i = 0; i < sizeof(ftvals) / sizeof(ftvals[0]); ++i, ++vp) {
 		asm("lfd 5,0(%1); lfd 6,8(%1); ftdiv 5,5,6; ftsqrt 4,5; mfcr %0" :
 		    "=r" (cr) : "b" (&vp->val_a) : "cr4", "cr5");
-		if (((cr >> 8) & 0xf) != vp->cr_ftdiv ||
-		    ((cr >> 12) & 0x1f) != vp->cr_ftsqrt) {
+		if (((cr >> 8) & 0xf) != 8 + vp->cr_ftdiv ||
+		    ((cr >> 12) & 0x1f) != 8 + vp->cr_ftsqrt) {
 			print_hex(i, 2, " ");
 			print_hex(cr, 8, " ");
 			return i + 1;

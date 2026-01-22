@@ -364,13 +364,13 @@ vcol2:
 	.long	do_vminsh - vcol2
 	.long	do_vminsw - vcol2
 	.long	do_vminsd - vcol2
+	.long	do_vavgub - vcol2
+	.long	do_vavguh - vcol2
+	.long	do_vavguw - vcol2
 	.long	0
-	.long	0
-	.long	0
-	.long	0
-	.long	0		# row 20
-	.long	0
-	.long	0
+	.long	do_vavgsb - vcol2		# row 20
+	.long	do_vavgsh - vcol2
+	.long	do_vavgsw - vcol2
 	.long	0
 	.long	xpnd004_2 - vcol2 + 1
 	.long	xpnd004_3 - vcol2 + 1
@@ -1787,6 +1787,144 @@ do_vminud:
 	ori	%r6,%r6,LO
 	beq	1b
 	b	return
+
+do_vavgsb:
+	li	%r11,8
+1:	mfrin	2,4
+	mfrin	3,5
+	mtctr	%r11
+2:	rotldi	%r2,%r2,8
+	rotldi	%r3,%r3,8
+	rotldi	%r7,%r7,8
+	extsb	%r0,%r2
+	extsb	%r1,%r3
+	add	%r1,%r0,%r1
+	addi	%r1,%r1,1
+	srdi	%r1,%r1,1
+	rldimi	%r7,%r1,0,56
+	bdnz	2b
+	mtrin	7,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vavgub:
+	li	%r11,8
+1:	mfrin	2,4
+	mfrin	3,5
+	mtctr	%r11
+2:	rotldi	%r2,%r2,8
+	rotldi	%r3,%r3,8
+	rotldi	%r7,%r7,8
+	clrldi	%r0,%r2,56
+	clrldi	%r1,%r3,56
+	add	%r1,%r0,%r1
+	addi	%r1,%r1,1
+	srdi	%r1,%r1,1
+	rldimi	%r7,%r1,0,56
+	bdnz	2b
+	mtrin	7,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vavgsh:
+	li	%r11,4
+1:	mfrin	2,4
+	mfrin	3,5
+	mtctr	%r11
+2:	rotldi	%r2,%r2,16
+	rotldi	%r3,%r3,16
+	rotldi	%r7,%r7,16
+	extsh	%r0,%r2
+	extsh	%r1,%r3
+	add	%r1,%r0,%r1
+	addi	%r1,%r1,1
+	srdi	%r1,%r1,1
+	rldimi	%r7,%r1,0,48
+	bdnz	2b
+	mtrin	7,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vavguh:
+	li	%r11,4
+1:	mfrin	2,4
+	mfrin	3,5
+	mtctr	%r11
+2:	rotldi	%r2,%r2,16
+	rotldi	%r3,%r3,16
+	rotldi	%r7,%r7,16
+	clrldi	%r0,%r2,48
+	clrldi	%r1,%r3,48
+	add	%r1,%r0,%r1
+	addi	%r1,%r1,1
+	srdi	%r1,%r1,1
+	rldimi	%r7,%r1,0,48
+	bdnz	2b
+	mtrin	7,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vavgsw:
+	li	%r11,2
+1:	mfrin	2,4
+	mfrin	3,5
+	mtctr	%r11
+2:	rotldi	%r2,%r2,32
+	rotldi	%r3,%r3,32
+	rotldi	%r7,%r7,32
+	extsw	%r0,%r2
+	extsw	%r1,%r3
+	add	%r1,%r0,%r1
+	addi	%r1,%r1,1
+	srdi	%r1,%r1,1
+	rldimi	%r7,%r1,0,32
+	bdnz	2b
+	mtrin	7,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
+
+do_vavguw:
+	li	%r11,2
+1:	mfrin	2,4
+	mfrin	3,5
+	mtctr	%r11
+2:	rotldi	%r2,%r2,32
+	rotldi	%r3,%r3,32
+	rotldi	%r7,%r7,32
+	clrldi	%r0,%r2,32
+	clrldi	%r1,%r3,32
+	add	%r1,%r0,%r1
+	addi	%r1,%r1,1
+	srdi	%r1,%r1,1
+	rldimi	%r7,%r1,0,32
+	bdnz	2b
+	mtrin	7,6
+	andi.	%r0,%r6,LO
+	bne	return
+	ori	%r4,%r4,LO
+	ori	%r5,%r5,LO
+	ori	%r6,%r6,LO
+	b	1b
 
 do_vrlb:
 1:	mfrin	0,4

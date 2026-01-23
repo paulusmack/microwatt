@@ -107,6 +107,7 @@ entity soc is
 
         run_out      : out std_ulogic;
         run_outs     : out std_ulogic_vector(NCPUS-1 downto 0);
+        core_modes   : out std_ulogic_vector(NCPUS*2 - 1 downto 0);
 
 	-- "Large" (64-bit) DRAM wishbone
 	wb_dram_in       : out wishbone_master_out;
@@ -406,7 +407,8 @@ begin
 	    dmi_req => dmi_core_req(i),
 	    ext_irq => core_ext_irq(i),
             msg_out => msgs(i),
-            msg_in => msgin
+            msg_in => msgin,
+            core_mode => core_modes(i*2 + 1 downto i*2)
 	    );
 
         process(all)

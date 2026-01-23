@@ -60,7 +60,7 @@ entity core is
         run_out          : out std_ulogic;
 	terminated_out   : out std_logic;
 
-        core_mode       : out std_ulogic_vector(1 downto 0)
+        core_mode       : out std_ulogic_vector(3 downto 0)
         );
 end core;
 
@@ -480,6 +480,7 @@ begin
             d_out => mmu_to_dcache,
             d_in => dcache_to_mmu,
             i_out => mmu_to_itlb,
+            busy_out => core_mode(2),
             ev => mmu_events
             );
 
@@ -505,6 +506,7 @@ begin
             wishbone_out => wishbone_data_out,
             snoop_in => wb_snoop_in,
             events => dcache_events,
+            busy_out => core_mode(3),
             log_out => log_data(170 downto 151)
             );
 

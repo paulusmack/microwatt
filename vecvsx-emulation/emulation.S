@@ -374,8 +374,8 @@ vcol2:
 	.long	0
 	.long	xpnd004_2 - vcol2 + 1
 	.long	xpnd004_3 - vcol2 + 1
-	.long	0
-	.long	0
+	.long	do_vshasigmaw - vcol2
+	.long	do_vshasigmad - vcol2
 	.long	do_vclzb - vcol2
 	.long	do_vclzh - vcol2
 	.long	do_vclzw - vcol2		# row 30
@@ -7599,4 +7599,77 @@ do_vncipherlast:
 	mtrin	8,6
 	addi	%r6,%r6,LO
 	mtrin	9,6
+	b	return
+
+do_vshasigmad:
+1:	mfrin	3,4		# get VRA
+	andi.	%r0,%r5,0x10	# test ST bit
+	bne	3f
+	andi.	%r0,%r5,0x08
+	bne	2f
+	rotldi	%r1,%r3,63	# s0 function, src >>> 1
+	rotldi	%r2,%r3,56	# src >>> 8
+	srdi	%r3,%r3,7	# src >> 7
+	b	7f
+2:	rotldi	%r1,%r3,45	# s1 function, src >>> 19
+	rotldi	%r2,%r3,3	# src >>> 61
+	srdi	%r3,%r3,6	# src >> 6
+	b	7f
+3:	andi.	%r0,%r5,0x10
+	bne	4f
+	rotldi	%r1,%r3,36	# S0 function, src >>> 28
+	rotldi	%r2,%r3,30	# src >>> 34
+	rotldi	%r3,%r3,25	# src >>> 39
+	b	7f
+4:	rotldi	%r1,%r3,50	# S1 function, src >>> 14
+	rotldi	%r2,%r3,46	# src >>> 18
+	rotldi	%r3,%r3,23	# src >>> 41
+7:	xor	%r3,%r3,%r1
+	xor	%r3,%r3,%r2
+	mtrin	3,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r6,%r6,LO
+	rlwimi	%r5,%r5,2,0x0c
+	beq	1b
+	b	return
+
+do_vshasigmaw:
+	li	%r11,2
+1:	mfrin	8,4		# get VRA
+	mtctr	%r11
+	srdi	%r3,%r8,32
+5:	andi.	%r0,%r5,0x10	# test ST bit
+	bne	3f
+	andi.	%r0,%r5,0x08
+	bne	2f
+	rotlwi	%r1,%r3,25	# s0 function, src >>> 7
+	rotlwi	%r2,%r3,14	# src >>> 18
+	srwi	%r3,%r3,3	# src >> 3
+	b	7f
+2:	rotlwi	%r1,%r3,15	# s1 function, src >>> 17
+	rotlwi	%r2,%r3,13	# src >>> 19
+	srwi	%r3,%r3,10	# src >> 10
+	b	7f
+3:	andi.	%r0,%r5,0x10
+	bne	4f
+	rotlwi	%r1,%r3,30	# S0 function, src >>> 2
+	rotlwi	%r2,%r3,19	# src >>> 13
+	rotlwi	%r3,%r3,10	# src >>> 22
+	b	7f
+4:	rotlwi	%r1,%r3,26	# S1 function, src >>> 6
+	rotlwi	%r2,%r3,21	# src >>> 11
+	rotlwi	%r3,%r3,7	# src >>> 25
+7:	xor	%r3,%r3,%r1
+	xor	%r3,%r3,%r2
+	rotldi	%r7,%r7,32
+	rldimi	%r7,%r3,0,32
+	mr	%r3,%r8
+	rlwimi	%r5,%r5,1,0x0e
+	bdnz	5b
+	mtrin	7,6
+	andi.	%r0,%r4,LO
+	ori	%r4,%r4,LO
+	ori	%r6,%r6,LO
+	beq	1b
 	b	return

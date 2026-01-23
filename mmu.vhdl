@@ -20,6 +20,7 @@ entity mmu is
         d_out : out MmuToDcacheType;
         d_in  : in DcacheToMmuType;
 
+        busy_out : out std_ulogic;
         i_out : out MmuToITLBType;
 
         ev    : out MMUEventType
@@ -1231,6 +1232,11 @@ begin
                     assert r.state = IDLE severity failure;
                 end if;
                 r <= rin;
+                if rin.state = IDLE then
+                    busy_out <= '0';
+                else
+                    busy_out <= '1';
+                end if;
             end if;
         end if;
     end process;

@@ -58,7 +58,9 @@ entity core is
         msg_out         : out std_ulogic_vector(NCPUS-1 downto 0);
 
         run_out          : out std_ulogic;
-	terminated_out   : out std_logic
+	terminated_out   : out std_logic;
+
+        core_mode       : out std_ulogic_vector(1 downto 0)
         );
 end core;
 
@@ -423,6 +425,8 @@ begin
             log_rd_data => log_rd_data,
             log_wr_addr => log_wr_addr
             );
+    core_mode(1) <= ctrl_debug.wait_state;
+    core_mode(0) <= ctrl_debug.msr(MSR_PR);
 
     with_fpu: if HAS_FPU generate
     begin

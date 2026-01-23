@@ -20,6 +20,7 @@ entity mmu is
         d_out : out MmuToDcacheType;
         d_in  : in DcacheToMmuType;
 
+        busy_out : out std_ulogic;
         i_out : out MmuToITLBType
         );
 end mmu;
@@ -114,6 +115,11 @@ begin
                         " addrsh=" & to_hstring(addrsh) & " mask=" & to_hstring(mask);
                 end if;
                 r <= rin;
+                if rin.state = IDLE then
+                    busy_out <= '0';
+                else
+                    busy_out <= '1';
+                end if;
             end if;
         end if;
     end process;

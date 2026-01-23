@@ -64,7 +64,7 @@ entity core is
 	terminated_out   : out std_logic;
         hang_out         : out std_ulogic;
 
-        core_mode    : out std_ulogic_vector(2 downto 0);
+        core_mode    : out std_ulogic_vector(4 downto 0);
         wb_arb_debug : in std_ulogic_vector(2 downto 0)
         );
 end core;
@@ -513,7 +513,8 @@ begin
             l_out => mmu_to_loadstore1,
             d_out => mmu_to_dcache,
             d_in => dcache_to_mmu,
-            i_out => mmu_to_itlb
+            i_out => mmu_to_itlb,
+            busy_out => core_mode(3)
             );
 
     dcache_0: entity work.dcache
@@ -538,6 +539,7 @@ begin
             wishbone_out => wishbone_data_out,
             snoop_in => wb_snoop,
             events => dcache_events,
+            busy_out => core_mode(4),
             log_out => log_data(170 downto 151)
             );
 

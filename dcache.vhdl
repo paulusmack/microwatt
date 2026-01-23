@@ -49,6 +49,7 @@ entity dcache is
 
         events       : out DcacheEventType;
 
+        busy_out     : out std_ulogic;
         log_out      : out std_ulogic_vector(19 downto 0)
         );
 end entity dcache;
@@ -1880,6 +1881,7 @@ begin
 	    end if;
 	end if;
     end process;
+    busy_out <= r1.full;
 
     dc_log: if LOG_LENGTH > 0 generate
         signal log_data : std_ulogic_vector(19 downto 0);

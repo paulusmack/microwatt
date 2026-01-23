@@ -272,6 +272,8 @@ architecture behaviour of toplevel is
     signal uart1_rxd : std_ulogic;
     signal uart1_txd : std_ulogic;
 
+    signal core_modes : std_ulogic_vector(CPUS * 3 - 1 downto 0);
+
     -- Fixup various memory sizes based on generics
     function get_bram_size return natural is
     begin
@@ -333,6 +335,7 @@ begin
             run_out           => run_out,
             run_outs          => run_outs,
             core_hang         => core_hung,
+            core_modes        => core_modes,
 
             -- UART signals
             uart0_txd         => uart_main_tx,
@@ -994,6 +997,12 @@ begin
     led5 <= disk_activity;
     led6 <= run_outs(1) when CPUS > 1 else '0';
     led7 <= run_outs(0);
+    led_r_pwm(2) <= (core_modes(5) and not core_modes(4)) when CPUS > 1 else '0';
+    led_r_pwm(3) <= (core_modes(2) and not core_modes(1));
+    led_g_pwm(2) <= (core_modes(3) and not core_modes(4)) when CPUS > 1 else '0';
+    led_g_pwm(3) <= (core_modes(0) and not core_modes(1));
+    led_b_pwm(2) <= (not core_modes(3) and not core_modes(4)) when CPUS > 1 else '0';
+    led_b_pwm(3) <= (not core_modes(0) and not core_modes(1));
 
     -- GPIO
     gpio_in(10) <= btn0;
@@ -1034,14 +1043,6 @@ begin
     led_b_pwm(1) <= gpio_out(0) and gpio_dir(0);
     led_g_pwm(1) <= gpio_out(1) and gpio_dir(1);
     led_r_pwm(1) <= gpio_out(2) and gpio_dir(2);
-
-    led_b_pwm(2) <= gpio_out(3) and gpio_dir(3);
-    led_g_pwm(2) <= gpio_out(4) and gpio_dir(4);
-    led_r_pwm(2) <= gpio_out(5) and gpio_dir(5);
-
-    led_b_pwm(3) <= gpio_out(6) and gpio_dir(6);
-    led_g_pwm(3) <= gpio_out(7) and gpio_dir(7);
-    led_r_pwm(3) <= gpio_out(8) and gpio_dir(8);
 
     shield_io9 <= gpio_out(9) when gpio_dir(9) = '1' else 'Z';
     shield_io30 <= gpio_out(18) when gpio_dir(18) = '1' else 'Z';

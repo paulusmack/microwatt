@@ -2426,6 +2426,9 @@ begin
                 ctrl_tmp.msr(MSR_RI) <= '0';
             end if;
             ctrl_tmp.emu_mode <= interrupt_in.emu_int;
+            if interrupt_in.emu_int = '1' then
+                ctrl_tmp.emu_user <= ctrl.msr(MSR_PR);
+            end if;
         end if;
 
         -- Don't bypass the result from mfspr to slow SPRs or PMU SPRs,

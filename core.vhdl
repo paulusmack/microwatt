@@ -459,7 +459,8 @@ begin
             );
     core_mode(2) <= ctrl_debug.emu_mode;
     core_mode(1) <= ctrl_debug.wait_state;
-    core_mode(0) <= ctrl_debug.msr(MSR_PR);
+    core_mode(0) <= ctrl_debug.emu_user when ctrl_debug.emu_mode = '1'
+                    else ctrl_debug.msr(MSR_PR);
 
     with_fpu: if HAS_FPU generate
     begin

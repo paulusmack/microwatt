@@ -320,6 +320,7 @@ package common is
         wait_state: std_ulogic;
         run: std_ulogic;
         emu_mode: std_ulogic;
+        emu_user: std_ulogic;
 	dec: std_ulogic_vector(63 downto 0);
 	msr: std_ulogic_vector(63 downto 0);
         cfar: std_ulogic_vector(63 downto 0);
@@ -344,7 +345,7 @@ package common is
         lpcr_hvice: std_ulogic;
     end record;
     constant ctrl_t_init : ctrl_t :=
-        (wait_state => '0', run => '1', emu_mode => '0', xer_low => 18x"0",
+        (wait_state => '0', run => '1', emu_mode => '0', emu_user => '0', xer_low => 18x"0",
          fscr_ic => x"0", fscr_pref => '1', fscr_scv => '1', fscr_tar => '1', fscr_dscr => '1',
          dscr => (others => '0'),
          dexcr_pnh => aspect_bits_init, dexcr_pro => aspect_bits_init,

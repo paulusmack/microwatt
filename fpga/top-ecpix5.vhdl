@@ -217,6 +217,13 @@ architecture behaviour of toplevel is
     signal gpio_out    : std_ulogic_vector(NGPIO - 1 downto 0);
     signal gpio_dir    : std_ulogic_vector(NGPIO - 1 downto 0);
 
+    -- Status
+    signal init_done     : std_ulogic;
+    signal init_err      : std_ulogic;
+    signal run_out       : std_ulogic;
+    signal core_mode     : std_ulogic_vector(3 downto 0);
+    signal disk_activity : std_ulogic := '0';
+
     -- Fixup various memory sizes based on generics
     function get_bram_size return natural is
     begin
@@ -280,6 +287,8 @@ begin
             -- System signals
             system_clk        => system_clk,
             rst               => soc_rst,
+            run_out           => run_out,
+            core_modes        => core_mode,
 
             -- UART signals
             uart0_txd         => uart0_txd,
@@ -362,9 +371,8 @@ begin
         system_clk <= div2;
         system_clk_locked <= '1';
 
-        led8_r_n <= '1';
-        led8_g_n <= '1';
-        led8_b_n <= '1';
+        init_done <= '1';
+        init_err  <= '0';
 
     end generate;
 
@@ -445,10 +453,8 @@ begin
                 ddram_odt       => ddram_odt
                 );
 
-        -- active-low outputs to the LED
-        led8_b_n <= dram_init_done;
-        led8_r_n <= not dram_init_error;
-        led8_g_n <= not (dram_init_done and not dram_init_error);
+        init_done <= dram_init_done;
+        init_err  <= dram_init_error;
     end generate;
 
     has_liteeth : if USE_LITEETH generate
@@ -642,6 +648,21 @@ begin
             end if;
         end process;
 
+        -- Capture writes to the interrupt enable registers, and record
+        -- the state of the command-done interrupt enable bit to use
+        -- as an activity indicator.
+        process(system_clk)
+        begin
+            if rising_edge(system_clk) then
+                if soc_rst = '1' then
+                    disk_activity <= '0';
+                elsif wb_sdcard_adr(11 downto 0) = x"602" and wb_sdcard_cyc = '1' and
+                    wb_ext_io_in.stb = '1' and wb_ext_io_in.we = '1' then
+                    disk_activity <= wb_ext_io_in.dat(3);
+                end if;
+            end if;
+        end process;
+
     end generate;
 
     -- Mux WB response on the IO bus
@@ -655,14 +676,32 @@ begin
     pmod3_5 <= gpio_out(22) when gpio_dir(22) = '1' else 'Z';
     pmod3_6 <= gpio_out(23) when gpio_dir(23) = '1' else 'Z';
 
-    led5_r_n <= '1';
-    led5_g_n <= '1';
-    led5_b_n <= '1';
-    led6_r_n <= '1';
-    led6_g_n <= '1';
-    led6_b_n <= '1';
-    led7_r_n <= not soc_rst;
-    led7_g_n <= not system_clk_locked;
-    led7_b_n <= '1';
+    -- active-low outputs to the LEDs
+    status_led_colour : process(all)
+        variable rgb : std_ulogic_vector(2 downto 0);
+    begin
+        if soc_rst = '1' then
+            rgb := "111";
+        elsif system_clk_locked = '0' then
+            rgb := "110";
+        else
+            rgb := init_err &
+                   (init_done and not init_err and run_out) &
+                   (not init_done);
+        end if;
+        led8_r_n <= not rgb(2);
+        led8_g_n <= not rgb(1);
+        led8_b_n <= not rgb(0);
+    end process;
+
+    led5_r_n <= not '0';
+    led5_g_n <= not (core_mode(0) and not core_mode(1));
+    led5_b_n <= not (not core_mode(0) and not core_mode(1));
+    led6_r_n <= not disk_activity;
+    led6_g_n <= not disk_activity;
+    led6_b_n <= not disk_activity;
+    led7_r_n <= not core_mode(2);
+    led7_g_n <= not '0';
+    led7_b_n <= not core_mode(3);
 
 end architecture behaviour;

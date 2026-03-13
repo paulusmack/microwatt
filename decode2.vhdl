@@ -616,15 +616,28 @@ begin
             v.e.nia := d_in.nia;
             v.e.unit := unit;
             v.e.fac := d_in.decode.facility;
-            if v.e.fac = VEC and ((d_in.decode.output_reg_a = XT and d_in.insn(0) = '0') or
-                                  (d_in.decode.output_reg_a = XT3 and d_in.insn(3) = '0') or
-                                  (d_in.decode.input_reg_c = XS and d_in.insn(0) = '0')) then
-                -- Some VSX instructions test MSR[VEC] if the target is a VR but
-                -- MSR[VSX] if the target is in the FP half of the VSR registers.
-                -- They are marked with VEC in the decode table, but we change
-                -- it to VSX here if necessary.
-                v.e.fac := VSX;
-            end if;
+            case v.e.fac is
+                when FPU =>
+                    -- Some instructions have a source or destination which can either
+                    -- be a FPR or the high half of a VR, and test MSR[FP] or MSR[VEC]
+                    -- accordingly.  They are marked with FPU in the decode table,
+                    -- but we change it to VEC here if necessary.
+                    if d_in.insn(0) = '1' and
+                        (d_in.decode.output_reg_a = XT or d_in.decode.input_reg_c = XS) then
+                        v.e.fac := VEC;
+                    end if;
+                when VEC =>
+                    -- Some VSX instructions test MSR[VEC] if the target is a VR but
+                    -- MSR[VSX] if the target is in the FP half of the VSR registers.
+                    -- They are marked with VEC in the decode table, but we change
+                    -- it to VSX here if necessary.
+                    if (d_in.decode.output_reg_a = XT and d_in.insn(0) = '0') or
+                        (d_in.decode.output_reg_a = XT3 and d_in.insn(3) = '0') or
+                        (d_in.decode.input_reg_c = XS and d_in.insn(0) = '0') then
+                        v.e.fac := VSX;
+                    end if;
+                when others =>
+            end case;
             v.e.read_reg1 := d_in.reg_a;
             v.e.read_reg2 := d_in.reg_b;
             v.e.read_reg3 := d_in.reg_c;

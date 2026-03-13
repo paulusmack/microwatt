@@ -2079,6 +2079,8 @@ begin
         vv.vra_lo := e_in.lo_read_data1;
         vv.vrb_lo := e_in.lo_read_data2;
         vv.vrc_lo := e_in.lo_read_data3;
+        vv.is_32bit := e_in.is_32bit;
+        vv.is_signed := e_in.is_signed;
         vv.invert_a := e_in.invert_a;
         vv.invert_out := e_in.invert_out;
         vv.result_sel := e_in.result_sel;

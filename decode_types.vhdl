@@ -466,7 +466,17 @@ package decode_types is
         INSN_lxvrbx,
         INSN_lxvrdx, -- 440
         INSN_lxvrhx,
-        INSN_lxvrwx
+        INSN_lxvrwx,
+
+        INSN_mfvsrd,
+        INSN_mfvsrwz,
+        INSN_mfvsrld,
+
+        INSN_mtvsrd,
+        INSN_mtvsrwa,
+        INSN_mtvsrwz,
+        INSN_mtvsrws,
+        INSN_mtvsrdd -- 450
         );
 
     constant INSN_first_frs : insn_code := INSN_stfd;
@@ -809,6 +819,9 @@ package body decode_types is
             when INSN_mfmsr     => return "011111";
             when INSN_mfrin     => return "010110";
             when INSN_mfspr     => return "011111";
+            when INSN_mfvsrd    => return "011111";
+            when INSN_mfvsrwz   => return "011111";
+            when INSN_mfvsrld   => return "011111";
             when INSN_modud     => return "011111";
             when INSN_moduw     => return "011111";
             when INSN_modsd     => return "011111";
@@ -821,6 +834,11 @@ package body decode_types is
             when INSN_mtmsrd    => return "011111";
             when INSN_mtrin     => return "010110";
             when INSN_mtspr     => return "011111";
+            when INSN_mtvsrd    => return "011111";
+            when INSN_mtvsrwa   => return "011111";
+            when INSN_mtvsrwz   => return "011111";
+            when INSN_mtvsrws   => return "011111";
+            when INSN_mtvsrdd   => return "011111";
             when INSN_mulhd     => return "011111";
             when INSN_mulhdu    => return "011111";
             when INSN_mulhw     => return "011111";

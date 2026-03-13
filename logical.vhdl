@@ -155,8 +155,8 @@ begin
             when "111" =>       -- exts*
                 -- note datalen is a 1-hot encoding
 		negative := (datalen(0) and rs(7)) or
-			    (datalen(1) and rs(15)) or
-			    (datalen(2) and rs(31));
+                            (datalen(1) and rs(15)) or
+                            (datalen(2) and rs(31));
 		tmp := (others => negative);
 		if datalen(2) = '1' then
 		    tmp(31 downto 16) := rs(31 downto 16);

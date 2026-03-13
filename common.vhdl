@@ -992,6 +992,8 @@ package common is
         vra_lo           : std_ulogic_vector(63 downto 0);
         vrb_lo           : std_ulogic_vector(63 downto 0);
         vrc_lo           : std_ulogic_vector(63 downto 0);
+        is_32bit         : std_ulogic;
+        is_signed        : std_ulogic;
         invert_a         : std_ulogic;
         invert_out       : std_ulogic;
         result_sel       : result_sel_t;

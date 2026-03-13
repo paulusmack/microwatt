@@ -59,8 +59,45 @@ begin
     b_in <= e_in.vrb_hi & e_in.vrb_lo;
     c_in <= e_in.vrc_hi & e_in.vrc_lo;
     vec_valid <= e_in.valid;
-    vec_result <= (others => '0');
     vec_cr6 <= (others => '0');
+
+    vector_dp: process(all)
+        variable mtvsr_result : std_ulogic_vector(63 downto 0);
+        variable negative : std_ulogic;
+    begin
+        vec_result <= (others => '0');
+        case e_in.sub_select is
+            when "000" =>
+                -- mtvsr*
+                vec_result(127 downto 64) <= e_in.vra_hi;
+                vec_result(63 downto 0) <= e_in.vrb_hi;
+                if e_in.is_32bit = '1' then
+                    -- mtvsr{wa,wz,ws} - select the A input, truncated
+                    -- to 32 bits and possibly sign-extended or splatted
+                    -- abuse invert_out field of decode table to indicate splat.
+                    mtvsr_result := e_in.vra_hi;
+                    if e_in.invert_out = '1' then
+                        mtvsr_result(63 downto 32) := e_in.vra_hi(31 downto 0);
+                        vec_result(63 downto 0) <= mtvsr_result;
+                    else
+                        negative := e_in.is_signed and e_in.vra_hi(31);
+                        mtvsr_result(63 downto 32) := (others => negative);
+                    end if;
+                    vec_result(127 downto 64) <= mtvsr_result;
+                end if;
+            when "001" =>
+                -- mfvsr*; mfvsrld has invert_out = 1, mfvsrwz has is_32bit = 1
+                if e_in.invert_out = '1' then
+                    vec_result(127 downto 64) <= e_in.vrc_lo;
+                else
+                    vec_result(127 downto 64) <= e_in.vrc_hi;
+                end if;
+                if e_in.is_32bit = '1' then
+                    vec_result(127 downto 96) <= (others => '0');
+                end if;
+            when others =>
+        end case;
+    end process;
 
     vector_1r: process(clk)
     begin

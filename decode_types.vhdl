@@ -529,7 +529,7 @@ package decode_types is
 
     constant TOO_OFFSET : integer := 0;
 
-    type unit_t is (ALU, LDST, FPU);
+    type unit_t is (ALU, LDST, FPU, VSU);
     type facility_t is (NONE, FPU, VEC, VSX);
     type length_t is (NONE, is1B, is2B, is4B, is8B, i16B);
 

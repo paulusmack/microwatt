@@ -979,6 +979,61 @@ package common is
     constant DividerToExecute1Init : DividerToExecute1Type := (valid => '0', overflow => '0',
                                                                others => (others => '0'));
 
+    type Execute1ToVectorType is record
+        valid            : std_ulogic;
+        op               : insn_type_t;
+        instr_tag        : instr_tag_t;
+        insn             : std_ulogic_vector(31 downto 0);
+        write_reg        : gspr_index_t;
+        write_reg_enable : std_ulogic;
+        vra_hi           : std_ulogic_vector(63 downto 0);
+        vrb_hi           : std_ulogic_vector(63 downto 0);
+        vrc_hi           : std_ulogic_vector(63 downto 0);
+        vra_lo           : std_ulogic_vector(63 downto 0);
+        vrb_lo           : std_ulogic_vector(63 downto 0);
+        vrc_lo           : std_ulogic_vector(63 downto 0);
+        invert_a         : std_ulogic;
+        invert_out       : std_ulogic;
+        result_sel       : result_sel_t;
+        sub_select       : subresult_sel_t;
+        output_cr        : std_ulogic;
+        xerc             : xer_common_t;
+        stall            : std_ulogic;
+    end record;
+    constant Execute1ToVectorInit : Execute1ToVectorType :=
+        (op => OP_ILLEGAL, instr_tag => instr_tag_init,
+         insn => (others => '0'),
+         write_reg => (others => '0'),
+         vra_hi => (others => '0'), vra_lo => (others => '0'),
+         vrb_hi => (others => '0'), vrb_lo => (others => '0'),
+         vrc_hi => (others => '0'), vrc_lo => (others => '0'),
+         result_sel => ADD, sub_select => "000",
+         xerc => xerc_init,
+         others => '0');
+
+    type VectorToExecute1Type is record
+        busy    : std_ulogic;
+        v2stall : std_ulogic;
+    end record;
+    constant VectorToExecute1Init : VectorToExecute1Type := (others => '0');
+
+    type VectorToWritebackType is record
+        valid           : std_ulogic;
+        instr_tag       : instr_tag_t;
+        write_enable    : std_ulogic;
+        write_reg       : gspr_index_t;
+        write_data      : std_ulogic_vector(63 downto 0);
+        write_data_lo   : std_ulogic_vector(63 downto 0);
+        write_cr_enable : std_ulogic;
+        write_cr_mask   : std_ulogic_vector(7 downto 0);
+        write_cr_data   : std_ulogic_vector(31 downto 0);
+    end record;
+    constant VectorToWritebackInit : VectorToWritebackType :=
+        (instr_tag => instr_tag_init, write_reg => (others => '0'),
+         write_cr_mask => (others => '0'), write_cr_data => (others => '0'),
+         write_data => (others => '0'), write_data_lo => (others => '0'),
+         others => '0');
+
     type WritebackToFetch1Type is record
 	redirect: std_ulogic;
         virt_mode: std_ulogic;

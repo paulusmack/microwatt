@@ -32,6 +32,7 @@ entity execute1 is
 	e_in  : in Decode2ToExecute1Type;
         l_in  : in Loadstore1ToExecute1Type;
         fp_in : in FPUToExecute1Type;
+        v_in  : in VectorToExecute1Type;
 
 	ext_irq_in : std_ulogic;
         interrupt_in : WritebackToExecute1Type;
@@ -41,6 +42,7 @@ entity execute1 is
 	-- asynchronous
         l_out : out Execute1ToLoadstore1Type;
         fp_out : out Execute1ToFPUType;
+        v_out : out Execute1ToVectorType;
 
 	e_out : out Execute1ToWritebackType;
         bypass_data : out bypass_data_t;
@@ -690,7 +692,7 @@ begin
 
     -- N.B. the busy signal from each source includes the
     -- stage2 stall from that source in it.
-    busy_out <= l_in.busy or ex1.busy or fp_in.busy or ctrl.wait_state;
+    busy_out <= l_in.busy or ex1.busy or fp_in.busy or v_in.busy or ctrl.wait_state;
 
     valid_in <= e_in.valid and not (busy_out or flush_in or ex1.e.redirect or ex1.e.interrupt);
 
@@ -1745,6 +1747,7 @@ begin
 	variable irq_valid : std_ulogic;
 	variable exception : std_ulogic;
         variable fv : Execute1ToFPUType;
+        variable vv : Execute1ToVectorType;
         variable go : std_ulogic;
         variable bypass_valid : std_ulogic;
         variable is_scv : std_ulogic;
@@ -1772,6 +1775,7 @@ begin
 
         lv := Execute1ToLoadstore1Init;
         fv := Execute1ToFPUInit;
+        vv := Execute1ToVectorInit;
 
         x_to_multiply.valid <= '0';
         x_to_mult_32s.valid <= '0';
@@ -1847,7 +1851,8 @@ begin
             end if;
         end if;
 
-        v.no_instr_avail := not (e_in.valid or l_in.busy or ex1.busy or fp_in.busy);
+        v.no_instr_avail := not (e_in.valid or l_in.busy or ex1.busy or
+                                 fp_in.busy or v_in.busy);
 
         go := valid_in and not exception;
         v.instr_dispatch := go;
@@ -1888,6 +1893,9 @@ begin
             end if;
             if HAS_FPU and e_in.unit = FPU then
                 fv.valid := '1';
+            end if;
+            if HAS_VECVSX and e_in.unit = VSU then
+                vv.valid := '1';
             end if;
         end if;
         is_scv := go and actions.se.scv_trap;
@@ -1964,7 +1972,7 @@ begin
             v.xerc_valid := '1';
         end if;
 
-        if (ex1.busy or l_in.busy or fp_in.busy) = '0' then
+        if (ex1.busy or l_in.busy or fp_in.busy or v_in.busy) = '0' then
             v.e.interrupt := exception;
             v.e.is_scv := is_scv;
         end if;
@@ -2027,7 +2035,7 @@ begin
         lv.prefixed := e_in.prefixed;
         lv.repeat := e_in.repeat;
         lv.second := e_in.second;
-        lv.e2stall := fp_in.f2stall;
+        lv.e2stall := fp_in.f2stall or v_in.v2stall;
         lv.hashkey := ramspr_odd;
         if e_in.insn(7) = '0' then
             lv.hash_enable := dex(DEXCR_PHIE);
@@ -2057,7 +2065,27 @@ begin
         fv.m32b := not ex1.msr(MSR_SF);
         fv.oe := e_in.oe;
         fv.xerc := xerc_in;
-        fv.stall := l_in.l2stall;
+        fv.stall := l_in.l2stall or v_in.v2stall;
+
+        -- Outputs to vector unit
+        vv.op := e_in.insn_type;
+        vv.instr_tag := e_in.instr_tag;
+        vv.insn := e_in.insn;
+        vv.write_reg := e_in.write_reg;
+        vv.write_reg_enable := e_in.write_reg_enable;
+        vv.vra_hi := a_in;
+        vv.vrb_hi := b_in;
+        vv.vrc_hi := c_in;
+        vv.vra_lo := e_in.lo_read_data1;
+        vv.vrb_lo := e_in.lo_read_data2;
+        vv.vrc_lo := e_in.lo_read_data3;
+        vv.invert_a := e_in.invert_a;
+        vv.invert_out := e_in.invert_out;
+        vv.result_sel := e_in.result_sel;
+        vv.sub_select := e_in.sub_select;
+        vv.output_cr := e_in.output_cr;
+        vv.xerc := xerc_in;
+        vv.stall := l_in.l2stall or fp_in.f2stall;
 
 	-- Update registers
 	ex1in <= v;
@@ -2065,6 +2093,7 @@ begin
 	-- update outputs
         l_out <= lv;
         fp_out <= fv;
+        v_out <= vv;
         irq_valid_log <= irq_valid;
     end process;
 
@@ -2089,7 +2118,7 @@ begin
         assemble_xer(ex1.e.xerc, ctrl.xer_low) when SPRSEL_XER,
         64x"0" when others;
 
-    stage2_stall <= l_in.l2stall or fp_in.f2stall;
+    stage2_stall <= l_in.l2stall or fp_in.f2stall or v_in.v2stall;
 
     -- Second execute stage control
     execute2_1: process(all)

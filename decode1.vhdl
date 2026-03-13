@@ -76,7 +76,7 @@ architecture behaviour of decode1 is
 
     constant decode_rom : decoder_rom_t := (
         --                   unit   fac   internal      in1         in2  const        in3   out   res subres  CR   CR   inv  inv  cry   cry  ldst  BR   sgn  upd  rsrv 32b  sgn  rc    lk   priv sgl  rpt
-        --                                                op                                                  in   out   A   out  in    out  len        ext                                      pipe
+        --                                 op                                                                 in   out   A   out  in    out  len        ext                                      pipe
         INSN_illegal     =>  (ALU,  NONE, OP_ILLEGAL,   NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_fetch_fail  =>  (LDST, NONE, OP_FETCH_FAILED, CIA,     IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
 
@@ -264,6 +264,7 @@ architecture behaviour of decode1 is
         INSN_mfcr        =>  (ALU,  NONE, OP_COMPUTE,   NONE,       IMM, NONE,        NONE, RT,   MSC, "101", '1', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_mffs        =>  (FPU,  FPU,  OP_FP_MISC,   NONE,       FRB,  NONE,       NONE, FRT,  ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', '0', NONE),
         INSN_mfmsr       =>  (ALU,  NONE, OP_MFMSR,     NONE,       IMM, NONE,        NONE, RT,   MSC, "100", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', '1', NONE),
+        INSN_mfrin       =>  (ALU,  NONE, OP_MTFRIN,    RA,         IMM, NONE,        NONE, RT,   ADD, "110", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', '0', NONE),
         INSN_mfspr       =>  (ALU,  NONE, OP_MFSPR,     NONE,       IMM, NONE,        RS,   RT,   SPR, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_modsd       =>  (DVU,  NONE, OP_MOD,       RA,         RB,  NONE,        NONE, RT,   ADD, "101", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', NONE),
         INSN_modsw       =>  (DVU,  NONE, OP_MOD,       RA,         RB,  NONE,        NONE, RT,   ADD, "101", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '1', NONE, '0', '0', '0', NONE),
@@ -278,6 +279,7 @@ architecture behaviour of decode1 is
         INSN_mtfsfi      =>  (FPU,  FPU,  OP_FP_MISC,   NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', '0', NONE),
         INSN_mtmsr       =>  (ALU,  NONE, OP_MTMSRD,    NONE,       IMM, NONE,        RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '1', '0', NONE, '0', '1', '0', NONE),
         INSN_mtmsrd      =>  (ALU,  NONE, OP_MTMSRD,    NONE,       IMM, NONE,        RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', '0', NONE),
+        INSN_mtrin       =>  (ALU,  NONE, OP_MTFRIN,    RA,         IMM, NONE,        RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '1', '0', NONE),
         INSN_mtspr       =>  (ALU,  NONE, OP_MTSPR,     NONE,       IMM, NONE,        RS,   NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_mulhd       =>  (ALU,  NONE, OP_MUL_H64,   RA,         RB,  NONE,        NONE, RT,   ADD, "010", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', RC,   '0', '0', '0', NONE),
         INSN_mulhdu      =>  (ALU,  NONE, OP_MUL_H64,   RA,         RB,  NONE,        NONE, RT,   ADD, "010", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', '0', NONE),

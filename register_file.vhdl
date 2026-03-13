@@ -22,6 +22,9 @@ entity register_file is
 
         w_in          : in WritebackToRegisterFileType;
 
+        e_in          : in Execute1ToRegisterFileType;
+        e_out         : out RegisterFileToExecute1Type;
+
         dbg_gpr_req   : in std_ulogic;
         dbg_gpr_ack   : out std_ulogic;
         dbg_gpr_addr  : in gspr_index_t;
@@ -55,14 +58,21 @@ architecture behaviour of register_file is
     signal alt_data_2 : std_ulogic_vector(63 downto 0);
     signal alt_data_3 : std_ulogic_vector(63 downto 0);
     signal stall_r : std_ulogic;
+    signal indirect_ack : std_ulogic;
+    signal ind_lo : std_ulogic;
 
 begin
     -- synchronous reads and writes
     register_write_0: process(clk)
         variable a_addr, b_addr, c_addr : gspr_index_t;
         variable w_addr : gspr_index_t;
+        variable w_data : std_ulogic_vector(63 downto 0);
+        variable we : std_ulogic;
     begin
         if rising_edge(clk) then
+            indirect_ack <= '0';
+            dbg_gpr_done <= '0';
+            we := '0';
             w_addr := w_in.write_reg;
             a_addr := d1_in.reg_1_addr;
             b_addr := d1_in.reg_2_addr;
@@ -98,13 +108,17 @@ begin
                 addr_3_reg <= c_addr;
             end if;
 
-            -- Do debug reads to GPRs and FPRs using the B port when it is not in use
-            if dbg_gpr_req = '1' then
-                if stall = '1' or d1_in.read_2_enable = '0' then
+            -- Handle indirect register reads and debug reads using the B port
+            if stall = '1' or d1_in.read_2_enable = '0' then
+                if e_in.read_req = '1' and indirect_ack = '0' then
+                    b_addr := e_in.reg_addr(5 downto 0);
+                    indirect_ack <= '1';
+                elsif dbg_gpr_req = '1' then
                     b_addr := dbg_gpr_addr(5 downto 0);
                     dbg_gpr_done <= '1';
                 end if;
-            else
+            end if;
+            if dbg_gpr_req = '0' then
                 dbg_gpr_done <= '0';
             end if;
 
@@ -130,6 +144,7 @@ begin
 		data_3 <= registers(to_integer(unsigned(c_addr)));
 	    end if;
 
+            w_data := w_in.write_data;
             if w_in.write_enable = '1' then
                 if HAS_FPU and w_addr(5) = '1' then
                     report "Writing FPR " & to_hstring(w_addr(4 downto 0)) & " " & to_hstring(w_in.write_data);
@@ -137,7 +152,16 @@ begin
                     report "Writing GPR " & to_hstring(w_addr) & " " & to_hstring(w_in.write_data);
                 end if;
                 assert not(is_x(w_in.write_data)) and not(is_x(w_in.write_reg)) severity failure;
-                registers(to_integer(unsigned(w_addr))) <= w_in.write_data;
+                we := '1';
+            elsif e_in.write_req = '1' then
+                w_addr := e_in.reg_addr(5 downto 0);
+                w_data := e_in.write_data;
+                report "Indirect write GSPR " & to_hstring(w_addr) & " to " & to_hstring(w_data);
+                we := '1';
+                indirect_ack <= '1';
+            end if;
+            if we = '1' then
+                registers(to_integer(unsigned(w_addr))) <= w_data;
             end if;
 
         end if;
@@ -181,6 +205,9 @@ begin
         d_out.read1_data <= out_data_1;
         d_out.read2_data <= out_data_2;
         d_out.read3_data <= out_data_3;
+
+        e_out.read_data <= data_2;
+        e_out.ack <= indirect_ack;
     end process register_read_0;
 
     -- Latch read data and ack if dbg read requested and B port not busy

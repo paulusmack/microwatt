@@ -21,6 +21,7 @@ package decode_types is
 			 OP_SC,
 			 OP_SYNC, OP_TLBIE, OP_TRAP,
                          OP_WAIT,
+                         OP_MTFRIN,
                          OP_FETCH_FAILED
 			 );
 
@@ -162,8 +163,11 @@ package decode_types is
         INSN_pstq,
         INSN_pstd,
 
-        -- pad to 128 to simplify comparison logic
-        INSN_125, INSN_126, INSN_127,
+        INSN_mfrin,
+        INSN_mtrin,
+
+        -- pad to 128
+        INSN_127,
 
         -- The following instructions have an RB operand but don't access FPRs
         INSN_add,
@@ -281,7 +285,7 @@ package decode_types is
         INSN_tw, -- 240
         INSN_xor,
 
-        -- pad to 248 to simplify comparison logic
+        -- pad to 248
         INSN_242, INSN_243, INSN_244, INSN_245, INSN_246, INSN_247,
 
         -- The following instructions have a third input addressed by RC
@@ -289,7 +293,7 @@ package decode_types is
         INSN_maddhd,
         INSN_maddhdu,
 
-        -- pad to 256 to simplify comparison logic
+        -- pad to 256
         INSN_251,
         INSN_252, INSN_253, INSN_254, INSN_255,
 
@@ -298,7 +302,7 @@ package decode_types is
 
         -- Non-prefixed floating-point loads and stores that have a MLS:D
         -- prefixed form, and their corresponding prefixed instructions.
-        INSN_stfd, -- 256
+        INSN_stfd, -- 256, first FP instruction
         INSN_pstfd,
         INSN_stfs,
         INSN_pstfs,
@@ -682,6 +686,7 @@ package body decode_types is
             when INSN_mcrxrx    => return "011111";
             when INSN_mfcr      => return "011111";
             when INSN_mfmsr     => return "011111";
+            when INSN_mfrin     => return "010110";
             when INSN_mfspr     => return "011111";
             when INSN_modud     => return "011111";
             when INSN_moduw     => return "011111";
@@ -693,6 +698,7 @@ package body decode_types is
             when INSN_mtcrf     => return "011111";
             when INSN_mtmsr     => return "011111";
             when INSN_mtmsrd    => return "011111";
+            when INSN_mtrin     => return "010110";
             when INSN_mtspr     => return "011111";
             when INSN_mulhd     => return "011111";
             when INSN_mulhdu    => return "011111";

@@ -116,6 +116,9 @@ architecture behaviour of predecoder is
         2#000100_10000#                    =>  INSN_maddhd,
         2#000100_10001#                    =>  INSN_maddhdu,
         2#000100_10011#                    =>  INSN_maddld,
+        -- major opcode 22 (sandbox)
+        2#010110_00000#                    => INSN_mfrin,
+        2#010110_00001#                    => INSN_mtrin,
         -- major opcode 30
         2#011110_01000# to 2#011110_01001# =>  INSN_rldic,
         2#011110_01010# to 2#011110_01011# =>  INSN_rldic,

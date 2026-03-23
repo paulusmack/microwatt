@@ -91,7 +91,7 @@ const char *ops[64] =
 	"icbt   ", "fpcmp  ", "fparith", "fpmove ", "fpmisc ", "div    ", "dive   ", "mod    ",
 	"isync  ", "ld     ", "st     ", "mcrxrx ", "mfmsr  ", "mfspr  ", "msg    ", "mtcrf  ",
 	"mtmsr  ", "mtspr  ", "mull64 ", "mulh64 ", "mulh32 ", "rfid   ", "sc     ", "sync   ",
-	"tlbie  ", "trap   ", "wait   ", "mtfrin ", "ffail  ", "?45    ", "?46    ", "?47    ",
+	"tlbie  ", "trap   ", "wait   ", "vperm  ", "mtfrin ", "ffail  ", "?46    ", "?47    ",
 	"?48    ", "?49    ", "?50    ", "?51    ", "?52    ", "?53    ", "?54    ", "?55    ",
 	"?56    ", "?57    ", "?58    ", "?59    ", "?60    ", "?61    ", "?62    ", "?63    "
 };

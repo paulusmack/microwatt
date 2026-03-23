@@ -30,10 +30,15 @@ architecture behaviour of vector_unit is
         vra      : std_ulogic_vector(127 downto 0);
         vrb      : std_ulogic_vector(127 downto 0);
         vrc      : std_ulogic_vector(127 downto 0);
+
+        perm_counter : unsigned(1 downto 0);
+        wdat_valid : std_ulogic;
+        do_vperm : std_ulogic;
     end record;
     constant vec_stage1_init : vec_stage1_type :=
         (e => VectorToWritebackInit,
          vra => (others => '0'), vrb => (others => '0'), vrc => (others => '0'),
+         perm_counter => "00",
          others => '0');
 
     type vec_stage2_type is record
@@ -138,7 +143,13 @@ begin
         if rising_edge(clk) then
             if rst = '1' then
                 vs1 <= vec_stage1_init;
-            elsif e_in.stall = '0' then
+            elsif flush_in = '1' then
+                vs1.e.valid <= '0';
+                vs1.e.write_enable <= '0';
+                vs1.e.write_cr_enable <= '0';
+                vs1.busy <= '0';
+                vs1.do_vperm <= '0';
+            else
                 vs1 <= vs1in;
             end if;
         end if;
@@ -147,18 +158,54 @@ begin
     vector_1: process(all)
         variable v : vec_stage1_type;
     begin
-        v := vec_stage1_init;
-        v.e.valid := e_in.valid and not flush_in;
-        v.e.instr_tag := e_in.instr_tag;
+        v := vs1;
 
-        v.e.write_enable := v.e.valid and e_in.write_reg_enable;
-        v.e.write_reg := e_in.write_reg;
-        v.e.write_data := vec_result(127 downto 64);
-        v.e.write_data_lo := vec_result(63 downto 0);
+        if vs1.busy = '1' then
+            -- can only be vperm, at present
+            v.perm_counter := vs1.perm_counter + 1;
+            if vs1.perm_counter >= 2 then
+                v.busy := '0';
+                v.e.valid := '1';
+                v.e.write_enable := '1';
+            end if;
+            -- rotate vra/vrb right 64 bits
+            v.vra := vs1.vrb(63 downto 0) & vs1.vra(127 downto 64);
+            v.vrb := vs1.vra(63 downto 0) & vs1.vrb(127 downto 64);
 
-        v.e.write_cr_enable := v.e.valid and e_in.output_cr;
-        v.e.write_cr_mask := num_to_fxm(6);
-        v.e.write_cr_data := x"000000" & vec_cr6 & x"0";
+        elsif e_in.stall = '0' then
+            v := vec_stage1_init;
+            v.vra := a_in;
+            v.vrb := b_in;
+            v.vrc := c_in;
+            if e_in.invert_out = '1' then
+                v.vrc := not c_in;
+            end if;
+            v.e.valid := e_in.valid;
+            v.e.instr_tag := e_in.instr_tag;
+
+            v.e.write_enable := v.e.valid and e_in.write_reg_enable;
+            v.e.write_reg := e_in.write_reg;
+            v.e.write_data := vec_result(127 downto 64);
+            v.e.write_data_lo := vec_result(63 downto 0);
+
+            v.e.write_cr_enable := v.e.valid and e_in.output_cr;
+            v.e.write_cr_mask := num_to_fxm(6);
+            v.e.write_cr_data := x"000000" & vec_cr6 & x"0";
+
+            v.perm_counter := "00";
+            case e_in.op is
+                when OP_VPERM =>
+                    v.busy := e_in.valid;
+                    v.do_vperm := e_in.valid;
+                    v.e.valid := '0';
+                    v.e.write_enable := '0';
+                when others =>
+                    v.wdat_valid := e_in.valid;
+            end case;
+
+        else
+            v.do_vperm := '0';
+        end if;
 
         -- update state
         vs1in <= v;
@@ -167,7 +214,7 @@ begin
     vector_2r: process(clk)
     begin
         if rising_edge(clk) then
-            if rst = '1' then
+            if rst = '1' or flush_in = '1' then
                 vs2 <= vec_stage2_init;
             else
                 vs2 <= vs2in;
@@ -177,14 +224,42 @@ begin
 
     vector_2: process(all)
         variable v : vec_stage2_type;
+        variable j : integer;
     begin
-        v.e := vs1.e;
-        if e_in.stall = '1' or flush_in = '1' then
+        v.e.write_data := vs2.e.write_data;
+        v.e.write_data_lo := vs2.e.write_data_lo;
+
+        v.e.valid := vs1.e.valid;
+        v.e.instr_tag := vs1.e.instr_tag;
+        v.e.write_enable := vs1.e.write_enable;
+        v.e.write_reg := vs1.e.write_reg;
+        v.e.write_cr_enable := vs1.e.write_cr_enable;
+        v.e.write_cr_mask := vs1.e.write_cr_mask;
+        v.e.write_cr_data := vs1.e.write_cr_data;
+
+        if vs1.do_vperm = '1' then
+            -- vperm, vpermr
+            for i in 0 to 15 loop
+                if vs1.vrc(i*8 + 4 downto i*8 + 3) = std_ulogic_vector(vs1.perm_counter) then
+                    j := to_integer(unsigned(vs1.vrc(i*8 + 2 downto i*8))) * 8;
+                    if i < 8 then
+                        v.e.write_data_lo(i*8 + 7 downto i*8) := vs1.vrb(j + 7 downto j);
+                    else
+                        v.e.write_data((i-8)*8 + 7 downto (i-8)*8) := vs1.vrb(j + 7 downto j);
+                    end if;
+                end if;
+            end loop;
+
+        elsif vs1.wdat_valid = '1' then
+            v.e.write_data := vs1.e.write_data;
+            v.e.write_data_lo := vs1.e.write_data_lo;
+        end if;
+
+        if e_in.stall = '1' then
             v.e.valid := '0';
             v.e.write_enable := '0';
             v.e.write_cr_enable := '0';
         end if;
-
         vs2in <= v;
     end process;
 

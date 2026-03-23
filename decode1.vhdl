@@ -483,6 +483,8 @@ architecture behaviour of decode1 is
         INSN_vnor        =>  (VSU,  VEC,  OP_COMPUTE,   VRA,        VRB, NONE,        NONE, VRT,  LOG, "010", '0', '0', '1', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', NONE),
         INSN_vor         =>  (VSU,  VEC,  OP_COMPUTE,   VRA,        VRB, NONE,        NONE, VRT,  LOG, "010", '0', '0', '1', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '1', NONE, '0', '0', '0', NONE),
         INSN_vorc        =>  (VSU,  VEC,  OP_COMPUTE,   VRA,        VRB, NONE,        NONE, VRT,  LOG, "010", '0', '0', '1', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_vperm       =>  (VSU,  VEC,  OP_VPERM,     VRA,        VRB, NONE,        VRC,  VRT,  LOG, "000", '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_vpermr      =>  (VSU,  VEC,  OP_VPERM,     VRA,        VRB, NONE,        VRC,  VRT,  LOG, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_vxor        =>  (VSU,  VEC,  OP_COMPUTE,   VRA,        VRB, NONE,        NONE, VRT,  LOG, "011", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_wait        =>  (ALU,  NONE, OP_WAIT,      NONE,       IMM, NONE,        NONE, NONE, ADD, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '1', NONE),
         INSN_xor         =>  (ALU,  NONE, OP_COMPUTE,   NONE,       RB,  NONE,        RS,   RA,   LOG, "001", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', RC,   '0', '0', '0', NONE),

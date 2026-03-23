@@ -165,7 +165,7 @@ architecture behaviour of decode2 is
         return std_ulogic is
     begin
         case t is
-            when RS | RCR | FRS | FRC | VRS | XS | XSP =>
+            when RS | RCR | FRS | FRC | VRC | VRS | XS | XSP =>
                 return '1';
             when NONE =>
                 return '0';

@@ -379,15 +379,12 @@ package decode_types is
         INSN_mffs,
         INSN_mtfsf,
 
-        -- pad to 336
-        INSN_330, INSN_331, INSN_332, INSN_333, INSN_334, INSN_335,
-
         -- The following instructions access FRA, FRB (possibly) and FRC operands
-        INSN_fmul, -- 336
+        INSN_fmul,
         INSN_fmuls,
         INSN_fmadd,
         INSN_fmadds,
-        INSN_fmsub, -- 340
+        INSN_fmsub,
         INSN_fmsubs,
         INSN_fnmadd,
         INSN_fnmadds,
@@ -395,24 +392,17 @@ package decode_types is
         INSN_fnmsubs,
         INSN_fsel,
 
-        -- pad to 384 to simplify comparison logic
-        INSN_347, INSN_348, INSN_349, INSN_350, INSN_351,
-        INSN_352, INSN_353, INSN_354, INSN_355, INSN_356, INSN_357, INSN_358, INSN_359,
-        INSN_360, INSN_361, INSN_362, INSN_363, INSN_364, INSN_365, INSN_366, INSN_367,
-        INSN_368, INSN_369, INSN_370, INSN_371, INSN_372, INSN_373, INSN_374, INSN_375,
-        INSN_376, INSN_377, INSN_378, INSN_379, INSN_380, INSN_381, INSN_382, INSN_383,
-
         -- The following instructions access vector/VSX registers
         -- The vector/VSX loads are here so that all vector/VSX instructions
-        -- are >= INST_first_vrs.
-        INSN_stvx, -- 384
+        -- are >= INSN_first_vrs.
+        INSN_stvx,
         INSN_stvxl,
         INSN_stvebx,
         INSN_stvehx,
         INSN_stvewx,
 
         INSN_lvx,
-        INSN_lvxl, -- 390
+        INSN_lvxl,
         INSN_lvebx,
         INSN_lvehx,
         INSN_lvewx,
@@ -423,7 +413,7 @@ package decode_types is
         INSN_pstxssp,
         INSN_stxv_fp,
         INSN_pstxv_fp,
-        INSN_stxv_vec, -- 400
+        INSN_stxv_vec,
         INSN_pstxv_vec,
         INSN_stxsdx,
         INSN_stxsibx,
@@ -433,7 +423,7 @@ package decode_types is
         INSN_stxvb16x,
         INSN_stxvd2x,
         INSN_stxvh8x,
-        INSN_stxvw4x, -- 410
+        INSN_stxvw4x,
         INSN_stxvx,
         INSN_stxvl,
         INSN_stxvll,

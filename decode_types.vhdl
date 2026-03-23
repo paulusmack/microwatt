@@ -484,6 +484,8 @@ package decode_types is
         INSN_vnor,
         INSN_vxor,
         INSN_veqv,
+        INSN_vcmpequb,
+        INSN_vcmpneb,
         INSN_vgbbd,
         INSN_vperm,
         INSN_vpermr,
@@ -1073,6 +1075,8 @@ package body decode_types is
             when INSN_vnor      => return "000100";
             when INSN_vxor      => return "000100";
             when INSN_veqv      => return "000100";
+            when INSN_vcmpequb  => return "000100";
+            when INSN_vcmpneb   => return "000100";
             when INSN_vgbbd     => return "000100";
             when INSN_vperm     => return "000100";
             when INSN_vpermr    => return "000100";

@@ -226,11 +226,16 @@ architecture behaviour of decode2 is
         end case;
     end;
 
-    function decode_rc (t : rc_t; insn_in : std_ulogic_vector(31 downto 0)) return std_ulogic is
+    function decode_rc (t : rc_t; unit : unit_t; insn_in : std_ulogic_vector(31 downto 0))
+        return std_ulogic is
     begin
         case t is
             when RC | RCOE =>
-                return insn_rc(insn_in);
+                if unit = VSU then
+                    return insn_vecrc(insn_in);
+                else
+                    return insn_rc(insn_in);
+                end if;
             when ONE =>
                 return '1';
             when NONE =>
@@ -449,7 +454,7 @@ begin
 
             -- Work out whether XER SO/OV/OV32 bits are set
             -- or used by this instruction
-            v.e.rc := decode_rc(d_in.decode.rc, d_in.insn);
+            v.e.rc := decode_rc(d_in.decode.rc, unit, d_in.insn);
             v.e.output_xer := d_in.decode.output_carry;
             v.input_ov := d_in.decode.output_carry;
             v.output_ov := '0';

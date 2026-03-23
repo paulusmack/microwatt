@@ -57,7 +57,6 @@ architecture behaviour of vector_unit is
     signal a_in : std_ulogic_vector(127 downto 0);
     signal b_in : std_ulogic_vector(127 downto 0);
     signal c_in : std_ulogic_vector(127 downto 0);
-    signal vec_valid : std_ulogic;
     signal vec_result : std_ulogic_vector(127 downto 0);
     signal vec_cr6 : std_ulogic_vector(3 downto 0);
 
@@ -67,16 +66,35 @@ begin
     a_in <= e_in.vra_hi & e_in.vra_lo;
     b_in <= e_in.vrb_hi & e_in.vrb_lo;
     c_in <= e_in.vrc_hi & e_in.vrc_lo;
-    vec_valid <= e_in.valid;
-    vec_cr6 <= (others => '0');
 
     vector_dp: process(all)
         variable mtvsr_result : std_ulogic_vector(63 downto 0);
         variable negative : std_ulogic;
         variable a_inv, b_inv : std_ulogic_vector(127 downto 0);
         variable vlog_result : std_ulogic_vector(127 downto 0);
+        variable vcmp_eqb : std_ulogic_vector(15 downto 0);
+        variable vcmp_res : std_ulogic_vector(15 downto 0);
+        variable vcmp_crf : std_ulogic_vector(3 downto 0);
     begin
+        vcmp_eqb := (others => '0');
+        for i in 0 to 15 loop
+            if a_in(i*8 + 7 downto i*8) = b_in(i*8 + 7 downto i*8) then
+                vcmp_eqb(i) := '1';
+            end if;
+        end loop;
+        vcmp_res := (others => '0');
+        vcmp_crf := "1010";
+        for i in 0 to 15 loop
+            vcmp_res(i) := vcmp_eqb(i) xor e_in.invert_out;
+            if vcmp_res(i) = '0' then
+                vcmp_crf(3) := '0';
+            else
+                vcmp_crf(1) := '0';
+            end if;
+        end loop;
+
         vec_result <= (others => '0');
+        vec_cr6 <= (others => '0');
         case e_in.sub_select is
             when "000" =>
                 -- mtvsr*
@@ -138,6 +156,12 @@ begin
                 if e_in.insn(8) = '1' then
                     vec_result(63 downto 0) <= e_in.vrb_lo;
                 end if;
+            when "110" =>
+                -- vector comparison result
+                for i in 0 to 15 loop
+                    vec_result(i*8 + 7 downto i*8) <= (others => vcmp_res(i));
+                end loop;
+                vec_cr6 <= vcmp_crf;
             when others =>
         end case;
     end process;

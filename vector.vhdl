@@ -34,11 +34,15 @@ architecture behaviour of vector_unit is
         perm_counter : unsigned(1 downto 0);
         wdat_valid : std_ulogic;
         do_vperm : std_ulogic;
+
+        vgbbd_data : std_ulogic_vector(127 downto 0);
+        do_vgbbd   : std_ulogic;
     end record;
     constant vec_stage1_init : vec_stage1_type :=
         (e => VectorToWritebackInit,
          vra => (others => '0'), vrb => (others => '0'), vrc => (others => '0'),
          perm_counter => "00",
+         vgbbd_data => (others => '0'),
          others => '0');
 
     type vec_stage2_type is record
@@ -199,9 +203,21 @@ begin
                     v.do_vperm := e_in.valid;
                     v.e.valid := '0';
                     v.e.write_enable := '0';
+                when OP_COMPUTE =>
+                    v.wdat_valid := e_in.valid;
+                    if e_in.sub_select = "101" then
+                        v.do_vgbbd := '1';
+                    end if;
                 when others =>
                     v.wdat_valid := e_in.valid;
             end case;
+
+            for i in 0 to 7 loop
+                for j in 0 to 7 loop
+                    v.vgbbd_data(i*8 + j) := b_in(j*8 + i);
+                    v.vgbbd_data(i*8 + j + 64) := b_in(j*8 + i + 64);
+                end loop;
+            end loop;
 
         else
             v.do_vperm := '0';
@@ -251,8 +267,13 @@ begin
             end loop;
 
         elsif vs1.wdat_valid = '1' then
-            v.e.write_data := vs1.e.write_data;
-            v.e.write_data_lo := vs1.e.write_data_lo;
+            if vs1.do_vgbbd = '0' then
+                v.e.write_data := vs1.e.write_data;
+                v.e.write_data_lo := vs1.e.write_data_lo;
+            else
+                v.e.write_data := vs1.vgbbd_data(127 downto 64);
+                v.e.write_data_lo := vs1.vgbbd_data(63 downto 0);
+            end if;
         end if;
 
         if e_in.stall = '1' then

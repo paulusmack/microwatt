@@ -27,20 +27,20 @@ architecture behaviour of vector_unit is
     type vec_stage1_type is record
         e        : VectorToWritebackType;
         busy     : std_ulogic;
-        vra      : std_ulogic_vector(127 downto 0);
-        vrb      : std_ulogic_vector(127 downto 0);
-        vrc      : std_ulogic_vector(127 downto 0);
+        bits     : std_ulogic_vector(255 downto 0);
+        sel      : std_ulogic_vector(127 downto 0);
 
         perm_counter : unsigned(1 downto 0);
         wdat_valid : std_ulogic;
         do_vperm : std_ulogic;
+        is_vbpermq : std_ulogic;
 
         vgbbd_data : std_ulogic_vector(127 downto 0);
         do_vgbbd   : std_ulogic;
     end record;
     constant vec_stage1_init : vec_stage1_type :=
         (e => VectorToWritebackInit,
-         vra => (others => '0'), vrb => (others => '0'), vrc => (others => '0'),
+         bits => (others => '0'), sel => (others => '0'),
          perm_counter => "00",
          vgbbd_data => (others => '0'),
          others => '0');
@@ -116,6 +116,7 @@ begin
                 end if;
             when "001" =>
                 -- mfvsr*; mfvsrld has invert_out = 1, mfvsrwz has is_32bit = 1
+                -- also used to initialize write_data[_lo] to zero by vbpermq
                 if e_in.invert_out = '1' then
                     vec_result(127 downto 64) <= e_in.vrc_lo;
                 else
@@ -187,27 +188,21 @@ begin
         variable v : vec_stage1_type;
     begin
         v := vs1;
+        v.wdat_valid := '0';
 
         if vs1.busy = '1' then
-            -- can only be vperm, at present
+            -- can only be vperm or vbpermq, at present
             v.perm_counter := vs1.perm_counter + 1;
             if vs1.perm_counter >= 2 then
                 v.busy := '0';
                 v.e.valid := '1';
                 v.e.write_enable := '1';
             end if;
-            -- rotate vra/vrb right 64 bits
-            v.vra := vs1.vrb(63 downto 0) & vs1.vra(127 downto 64);
-            v.vrb := vs1.vra(63 downto 0) & vs1.vrb(127 downto 64);
+            -- rotate vs1.bits right 64 bits
+            v.bits := vs1.bits(63 downto 0) & vs1.bits(255 downto 64);
 
         elsif e_in.stall = '0' then
             v := vec_stage1_init;
-            v.vra := a_in;
-            v.vrb := b_in;
-            v.vrc := c_in;
-            if e_in.invert_out = '1' then
-                v.vrc := not c_in;
-            end if;
             v.e.valid := e_in.valid;
             v.e.instr_tag := e_in.instr_tag;
 
@@ -219,22 +214,36 @@ begin
             v.e.write_cr_enable := v.e.valid and e_in.output_cr;
             v.e.write_cr_mask := num_to_fxm(6);
             v.e.write_cr_data := x"000000" & vec_cr6 & x"0";
+            v.wdat_valid := e_in.valid;
 
-            v.perm_counter := "00";
             case e_in.op is
                 when OP_VPERM =>
                     v.busy := e_in.valid;
                     v.do_vperm := e_in.valid;
                     v.e.valid := '0';
                     v.e.write_enable := '0';
+                    -- abuse is_32bit flag to indicate vbpermq
+                    v.is_vbpermq := e_in.is_32bit;
                 when OP_COMPUTE =>
-                    v.wdat_valid := e_in.valid;
                     if e_in.sub_select = "101" then
                         v.do_vgbbd := '1';
                     end if;
                 when others =>
-                    v.wdat_valid := e_in.valid;
             end case;
+            if e_in.is_32bit = '1' then
+                -- vbpermq, data in VRA and select in VRB
+                v.bits := 128x"0" & a_in;
+                v.sel := not b_in;
+                v.perm_counter := "10";
+            else
+                -- vperm, data in VRA||VRB and select in VRC
+                v.bits := a_in & b_in;
+                v.sel := c_in(124 downto 0) & "000";
+                if e_in.invert_out = '1' then
+                    v.sel := not c_in(124 downto 0) & "000";
+                end if;
+                v.perm_counter := "00";
+            end if;
 
             for i in 0 to 7 loop
                 for j in 0 to 7 loop
@@ -265,6 +274,7 @@ begin
     vector_2: process(all)
         variable v : vec_stage2_type;
         variable j : integer;
+        variable b : std_ulogic_vector(7 downto 0);
     begin
         v.e.write_data := vs2.e.write_data;
         v.e.write_data_lo := vs2.e.write_data_lo;
@@ -276,28 +286,34 @@ begin
         v.e.write_cr_enable := vs1.e.write_cr_enable;
         v.e.write_cr_mask := vs1.e.write_cr_mask;
         v.e.write_cr_data := vs1.e.write_cr_data;
+        if vs1.wdat_valid = '1' then
+            v.e.write_data := vs1.e.write_data;
+            v.e.write_data_lo := vs1.e.write_data_lo;
+        end if;
 
         if vs1.do_vperm = '1' then
             -- vperm, vpermr
             for i in 0 to 15 loop
-                if vs1.vrc(i*8 + 4 downto i*8 + 3) = std_ulogic_vector(vs1.perm_counter) then
-                    j := to_integer(unsigned(vs1.vrc(i*8 + 2 downto i*8))) * 8;
-                    if i < 8 then
-                        v.e.write_data_lo(i*8 + 7 downto i*8) := vs1.vrb(j + 7 downto j);
+                if vs1.sel(i*8 + 7 downto i*8 + 6) = std_ulogic_vector(vs1.perm_counter) then
+                    j := to_integer(unsigned(vs1.sel(i*8 + 5 downto i*8 + 3))) * 8;
+                    b := vs1.bits(j + 7 downto j);
+                    if vs1.is_vbpermq = '1' then
+                        j := to_integer(unsigned(vs1.sel(i*8 + 2 downto i*8)));
+                        v.e.write_data(i) := b(j);
                     else
-                        v.e.write_data((i-8)*8 + 7 downto (i-8)*8) := vs1.vrb(j + 7 downto j);
+                        if i < 8 then
+                            v.e.write_data_lo(i*8 + 7 downto i*8) := b;
+                        else
+                            v.e.write_data((i-8)*8 + 7 downto (i-8)*8) := b;
+                        end if;
                     end if;
                 end if;
             end loop;
 
-        elsif vs1.wdat_valid = '1' then
-            if vs1.do_vgbbd = '0' then
-                v.e.write_data := vs1.e.write_data;
-                v.e.write_data_lo := vs1.e.write_data_lo;
-            else
-                v.e.write_data := vs1.vgbbd_data(127 downto 64);
-                v.e.write_data_lo := vs1.vgbbd_data(63 downto 0);
-            end if;
+        elsif vs1.do_vgbbd = '1' then
+            v.e.write_data := vs1.vgbbd_data(127 downto 64);
+            v.e.write_data_lo := vs1.vgbbd_data(63 downto 0);
+
         end if;
 
         if e_in.stall = '1' then

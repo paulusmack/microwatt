@@ -490,6 +490,9 @@ package decode_types is
         INSN_vgbbd,
         INSN_vperm,
         INSN_vpermr,
+        INSN_vspltisb,
+        INSN_vspltish,
+        INSN_vspltisw,
 
         -- VSX ops
         INSN_xsadddp,
@@ -575,7 +578,8 @@ package decode_types is
     type input_reg_a_t is (NONE, RA, RA_OR_ZERO, RA0_OR_CIA, CIA, FRA, VRA, XA);
     type input_reg_b_t is (IMM, RB, FRB, VRB, XB);
     type const_sel_t is   (NONE, CONST_UI, CONST_SI, CONST_SI_HI, CONST_UI_HI, CONST_LI, CONST_BD,
-                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI);
+                           CONST_DXHI4, CONST_DS, CONST_DQ, CONST_M1, CONST_SH, CONST_SH32, CONST_PSI,
+                           CONST_SIM5);
     type input_reg_c_t is (NONE, RS, RCR, FRC, FRS, VRC, VRS, XS, XSP);
     type output_reg_a_t is (NONE, RT, RA, FRT, VRT, XT, XT3, XT26, XTP);
     type rc_t is (NONE, ONE, RC, RCOE);
@@ -1082,6 +1086,9 @@ package body decode_types is
             when INSN_vgbbd     => return "000100";
             when INSN_vperm     => return "000100";
             when INSN_vpermr    => return "000100";
+            when INSN_vspltisb  => return "000100";
+            when INSN_vspltish  => return "000100";
+            when INSN_vspltisw  => return "000100";
             when INSN_xsrdpi    => return "111100";
             when INSN_xsrdpic   => return "111100";
             when INSN_xsrdpim   => return "111100";

@@ -1009,6 +1009,7 @@ package common is
         sub_select       : subresult_sel_t;
         output_cr        : std_ulogic;
         xerc             : xer_common_t;
+	length           : std_ulogic_vector(4 downto 0);
         stall            : std_ulogic;
     end record;
     constant Execute1ToVectorInit : Execute1ToVectorType :=
@@ -1019,7 +1020,7 @@ package common is
          vrb_hi => (others => '0'), vrb_lo => (others => '0'),
          vrc_hi => (others => '0'), vrc_lo => (others => '0'),
          result_sel => ADD, sub_select => "000",
-         xerc => xerc_init,
+         xerc => xerc_init, length => (others => '0'),
          others => '0');
 
     type VectorToExecute1Type is record

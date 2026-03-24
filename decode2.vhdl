@@ -137,6 +137,8 @@ architecture behaviour of decode2 is
                 ret := std_ulogic_vector(resize(signed(insn_dq(insn_in)) & "0000", 64));
             when CONST_DXHI4 =>
                 ret := std_ulogic_vector(resize(signed(insn_dx(insn_in)) & x"0004", 64));
+            when CONST_SIM5 =>
+                ret := std_ulogic_vector(resize(signed(insn_sim5(insn_in)), 64));
             when CONST_M1 =>
                 ret := x"FFFFFFFFFFFFFFFF";
             when CONST_SH =>

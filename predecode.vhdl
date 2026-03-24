@@ -727,6 +727,9 @@ architecture behaviour of predecoder is
         2#10000_0110# => (VA, VB, NR, INSN_vcmpequb),
         2#00000_0111# => (VA, VB, NR, INSN_vcmpneb),
         2#10000_0111# => (VA, VB, NR, INSN_vcmpneb),
+        2#01100_1100# => (NR, NR, NR, INSN_vspltisb),
+        2#01101_1100# => (NR, NR, NR, INSN_vspltish),
+        2#01110_1100# => (NR, NR, NR, INSN_vspltisw),
         2#10100_1100# => (NR, VB, NR, INSN_vgbbd),
         2#10101_1100# => (VA, VB, NR, INSN_vbpermq),
         others        => (NR, NR, NR, INSN_illegal)

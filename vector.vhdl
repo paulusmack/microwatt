@@ -72,9 +72,11 @@ begin
         variable negative : std_ulogic;
         variable a_inv, b_inv : std_ulogic_vector(127 downto 0);
         variable vlog_result : std_ulogic_vector(127 downto 0);
+        variable splti_result : std_ulogic_vector(127 downto 0);
         variable vcmp_eqb : std_ulogic_vector(15 downto 0);
         variable vcmp_res : std_ulogic_vector(15 downto 0);
         variable vcmp_crf : std_ulogic_vector(3 downto 0);
+        variable size_mask : unsigned(1 downto 0);
     begin
         vcmp_eqb := (others => '0');
         for i in 0 to 15 loop
@@ -163,6 +165,19 @@ begin
                     vec_result(i*8 + 7 downto i*8) <= (others => vcmp_res(i));
                 end loop;
                 vec_cr6 <= vcmp_crf;
+            when "111" =>
+                -- splat-immediate result
+                size_mask := unsigned(e_in.length(1 downto 0)) - 1;
+                for i in 0 to 15 loop
+                    -- we can always use either byte 0 or byte 1, since bytes
+                    -- 2 and 3 are the same as byte 1
+                    if (to_unsigned(i mod 4, 2) and size_mask) /= "00" then
+                        splti_result(i*8 + 7 downto i*8) := e_in.vrb_hi(15 downto 8);
+                    else
+                        splti_result(i*8 + 7 downto i*8) := e_in.vrb_hi(7 downto 0);
+                    end if;
+                end loop;
+                vec_result <= splti_result;
             when others =>
         end case;
     end process;

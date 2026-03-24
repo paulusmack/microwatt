@@ -2120,6 +2120,7 @@ begin
         vv.sub_select := e_in.sub_select;
         vv.output_cr := e_in.output_cr or e_in.rc;
         vv.xerc := xerc_in;
+        vv.length := e_in.data_len;
         vv.stall := l_in.l2stall or fp_in.f2stall;
 
 	-- Update registers

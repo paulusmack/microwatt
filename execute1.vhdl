@@ -2083,7 +2083,7 @@ begin
         vv.is_signed := e_in.is_signed;
         vv.invert_a := e_in.invert_a;
         vv.invert_out := e_in.invert_out;
-        vv.result_sel := e_in.result_sel;
+        vv.result_sel := e_in.vec_sel;
         vv.sub_select := e_in.sub_select;
         vv.output_cr := e_in.output_cr or e_in.rc;
         vv.xerc := xerc_in;

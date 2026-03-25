@@ -253,6 +253,8 @@ architecture behaviour of decode1 is
         INSN_lvebx       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, VRT,  ADD, "100", '0', '0', '0', '0', ZERO, '0', is1B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_lvehx       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, VRT,  ADD, "100", '0', '0', '0', '0', ZERO, '0', is2B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_lvewx       =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, VRT,  ADD, "100", '0', '0', '0', '0', ZERO, '0', is4B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_lvsl        =>  (VSU,  VEC,  OP_COMPUTE,   RA_OR_ZERO, RB,  NONE,        NONE, VRT,  MSC, "000", '0', '0', '0', '0', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
+        INSN_lvsr        =>  (VSU,  VEC,  OP_COMPUTE,   RA_OR_ZERO, RB,  NONE,        NONE, VRT,  MSC, "000", '0', '0', '0', '1', ZERO, '0', NONE, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_lvx         =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, VRT,  ADD, "100", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_lvxl        =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, RB,  NONE,        NONE, VRT,  ADD, "100", '0', '0', '0', '0', ZERO, '0', i16B, '0', '0', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),
         INSN_lwa         =>  (LDST, NONE, OP_LOAD,      RA_OR_ZERO, IMM, CONST_DS,    NONE, RT,   ADD, "000", '0', '0', '0', '0', ZERO, '0', is4B, '0', '1', '0', '0', '0', '0', NONE, '0', '0', '0', NONE),

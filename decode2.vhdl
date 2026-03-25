@@ -728,6 +728,18 @@ begin
                 d_in.decode.subresult(2) = '0' and d_in.insn(21) = '1' then
                 v.e.illegal_form := '1';
             end if;
+
+            -- Translate result_sel_t into vec_result_sel_t
+            case d_in.decode.result is
+                when ADD =>
+                    v.e.vec_sel := ADD;
+                when LOG =>
+                    v.e.vec_sel := LOG;
+                when MSC =>
+                    v.e.vec_sel := MSC;
+                when others =>
+                    v.e.vec_sel := NONE;
+            end case;
         end if;
 
         -- issue control

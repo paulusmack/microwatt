@@ -510,6 +510,7 @@ package common is
         br_pred : std_ulogic;
         result_sel : result_sel_t;                      -- select source of result
         sub_select : subresult_sel_t;                   -- sub-result selection
+        vec_sel : vec_result_sel_t;
         repeat : std_ulogic;                            -- set if instruction is cracked into two ops
         second : std_ulogic;                            -- set if this is the second op
         spr_select : spr_id;
@@ -550,7 +551,7 @@ package common is
          lo_read_data1 => (others => '0'), lo_read_data2 => (others => '0'), lo_read_data3 => (others => '0'),
          reg_valid1 => '0', reg_valid2 => '0', reg_valid3 => '0',
          cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
-         result_sel => ADD, sub_select => "000",
+         result_sel => ADD, sub_select => "000", vec_sel => ADD,
          repeat => '0', second => '0', spr_select => spr_id_init,
          spr_is_ram => '0',
          ramspr_even_rdaddr => (others => '0'), ramspr_odd_rdaddr => (others => '0'), ramspr_rd_odd => '0',
@@ -1012,7 +1013,7 @@ package common is
         is_signed        : std_ulogic;
         invert_a         : std_ulogic;
         invert_out       : std_ulogic;
-        result_sel       : result_sel_t;
+        result_sel       : vec_result_sel_t;
         sub_select       : subresult_sel_t;
         output_cr        : std_ulogic;
         xerc             : xer_common_t;

@@ -476,6 +476,8 @@ package decode_types is
         INSN_mtvsrdd,
 
         -- Vector ops
+        INSN_lvsl,
+        INSN_lvsr,
         INSN_vand,
         INSN_vandc,
         INSN_vnand,
@@ -608,6 +610,7 @@ package decode_types is
     type length_t is (NONE, is1B, is2B, is4B, is8B, i16B);
 
     type result_sel_t is (ADD, LOG, ROT, UN3, MCYC, SPR, UN6, MSC);
+    type vec_result_sel_t is (ADD, LOG, MSC, NONE);
     subtype subresult_sel_t is std_ulogic_vector(2 downto 0);
 
     type repeat_t is (NONE,      -- instruction is not repeated
@@ -857,6 +860,8 @@ package body decode_types is
             when INSN_lvebx     => return "011111";
             when INSN_lvehx     => return "011111";
             when INSN_lvewx     => return "011111";
+            when INSN_lvsl      => return "011111";
+            when INSN_lvsr      => return "011111";
             when INSN_lvx       => return "011111";
             when INSN_lvxl      => return "011111";
             when INSN_lwarx     => return "011111";

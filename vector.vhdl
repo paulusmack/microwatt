@@ -58,6 +58,8 @@ architecture behaviour of vector_unit is
     signal b_in : std_ulogic_vector(127 downto 0);
     signal c_in : std_ulogic_vector(127 downto 0);
     signal vec_result : std_ulogic_vector(127 downto 0);
+    signal vlog_result : std_ulogic_vector(127 downto 0);
+    signal vmisc_result : std_ulogic_vector(127 downto 0);
     signal vec_cr6 : std_ulogic_vector(3 downto 0);
 
 begin
@@ -71,12 +73,13 @@ begin
         variable mtvsr_result : std_ulogic_vector(63 downto 0);
         variable negative : std_ulogic;
         variable a_inv, b_inv : std_ulogic_vector(127 downto 0);
-        variable vlog_result : std_ulogic_vector(127 downto 0);
         variable splti_result : std_ulogic_vector(127 downto 0);
         variable vcmp_eqb : std_ulogic_vector(15 downto 0);
         variable vcmp_res : std_ulogic_vector(15 downto 0);
         variable vcmp_crf : std_ulogic_vector(3 downto 0);
         variable size_mask : unsigned(1 downto 0);
+        variable nib : unsigned(3 downto 0);
+        variable lvsum : unsigned(4 downto 0);
     begin
         vcmp_eqb := (others => '0');
         for i in 0 to 15 loop
@@ -95,13 +98,14 @@ begin
             end if;
         end loop;
 
-        vec_result <= (others => '0');
+        -- Logical and permutation operations, also some moves and splats
+        vlog_result <= (others => '0');
         vec_cr6 <= (others => '0');
         case e_in.sub_select is
             when "000" =>
                 -- mtvsr*
-                vec_result(127 downto 64) <= e_in.vra_hi;
-                vec_result(63 downto 0) <= e_in.vrb_hi;
+                vlog_result(127 downto 64) <= e_in.vra_hi;
+                vlog_result(63 downto 0) <= e_in.vrb_hi;
                 if e_in.is_32bit = '1' then
                     -- mtvsr{wa,wz,ws} - select the A input, truncated
                     -- to 32 bits and possibly sign-extended or splatted
@@ -109,23 +113,23 @@ begin
                     mtvsr_result := e_in.vra_hi;
                     if e_in.invert_out = '1' then
                         mtvsr_result(63 downto 32) := e_in.vra_hi(31 downto 0);
-                        vec_result(63 downto 0) <= mtvsr_result;
+                        vlog_result(63 downto 0) <= mtvsr_result;
                     else
                         negative := e_in.is_signed and e_in.vra_hi(31);
                         mtvsr_result(63 downto 32) := (others => negative);
                     end if;
-                    vec_result(127 downto 64) <= mtvsr_result;
+                    vlog_result(127 downto 64) <= mtvsr_result;
                 end if;
             when "001" =>
                 -- mfvsr*; mfvsrld has invert_out = 1, mfvsrwz has is_32bit = 1
                 -- also used to initialize write_data[_lo] to zero by vbpermq
                 if e_in.invert_out = '1' then
-                    vec_result(127 downto 64) <= e_in.vrc_lo;
+                    vlog_result(127 downto 64) <= e_in.vrc_lo;
                 else
-                    vec_result(127 downto 64) <= e_in.vrc_hi;
+                    vlog_result(127 downto 64) <= e_in.vrc_hi;
                 end if;
                 if e_in.is_32bit = '1' then
-                    vec_result(127 downto 96) <= (others => '0');
+                    vlog_result(127 downto 96) <= (others => '0');
                 end if;
             when "010" =>
                 -- vand[c], vor[c], etc.
@@ -138,31 +142,31 @@ begin
                 if e_in.is_signed = '1' then
                     b_inv := not b_in;
                 end if;
-                vlog_result := a_inv and b_inv;
-                if e_in.invert_out = '1' then
-                    vlog_result := not vlog_result;
+                if e_in.invert_out = '0' then
+                    vlog_result <= a_inv and b_inv;
+                else
+                    vlog_result <= not (a_inv and b_inv);
                 end if;
-                vec_result <= vlog_result;
             when "011" =>
                 -- vxor, veqv
                 a_inv := a_in;
                 if e_in.invert_a = '1' then
                     a_inv := not a_in;
                 end if;
-                vec_result <= a_inv xor b_in;
+                vlog_result <= a_inv xor b_in;
             when "100" =>
                 -- xxpermdi
-                vec_result <= e_in.vra_hi & e_in.vrb_hi;
+                vlog_result <= e_in.vra_hi & e_in.vrb_hi;
                 if e_in.insn(9) = '1' then
-                    vec_result(127 downto 64) <= e_in.vra_lo;
+                    vlog_result(127 downto 64) <= e_in.vra_lo;
                 end if;
                 if e_in.insn(8) = '1' then
-                    vec_result(63 downto 0) <= e_in.vrb_lo;
+                    vlog_result(63 downto 0) <= e_in.vrb_lo;
                 end if;
             when "110" =>
                 -- vector comparison result
                 for i in 0 to 15 loop
-                    vec_result(i*8 + 7 downto i*8) <= (others => vcmp_res(i));
+                    vlog_result(i*8 + 7 downto i*8) <= (others => vcmp_res(i));
                 end loop;
                 vec_cr6 <= vcmp_crf;
             when "111" =>
@@ -177,10 +181,32 @@ begin
                         splti_result(i*8 + 7 downto i*8) := e_in.vrb_hi(7 downto 0);
                     end if;
                 end loop;
-                vec_result <= splti_result;
+                vlog_result <= splti_result;
             when others =>
         end case;
+
+        -- Other miscellaneous operations
+        -- Just lvsl/lvsr so far
+        vmisc_result <= (others => '0');
+        nib := unsigned(e_in.vra_hi(3 downto 0)) + unsigned(e_in.vrb_hi(3 downto 0));
+        if e_in.invert_out = '0' then
+            -- lvsl
+            for i in 0 to 15 loop
+                lvsum := to_unsigned(15 - i, 5) + resize(nib, 5);
+                vmisc_result(i*8 + 4 downto i*8) <= std_ulogic_vector(lvsum);
+            end loop;
+        else
+            -- lvsr
+            for i in 0 to 15 loop
+                lvsum := to_unsigned(31 - i, 5) - resize(nib, 5);
+                vmisc_result(i*8 + 4 downto i*8) <= std_ulogic_vector(lvsum);
+            end loop;
+        end if;
     end process;
+
+    vec_result <= vlog_result when e_in.result_sel = LOG else
+                  vmisc_result when e_in.result_sel = MSC else
+                  (others => '0');
 
     vector_1r: process(clk)
     begin

@@ -431,6 +431,8 @@ architecture behaviour of predecoder is
         2#0_00000_00111#  => (RA, RB, NR,   INSN_lvebx),
         2#0_00001_00111#  => (RA, RB, NR,   INSN_lvehx),
         2#0_00010_00111#  => (RA, RB, NR,   INSN_lvewx),
+        2#0_00000_00110#  => (RA, RB, NR,   INSN_lvsl),
+        2#0_00001_00110#  => (RA, RB, NR,   INSN_lvsr),
         2#0_00011_00111#  => (RA, RB, NR,   INSN_lvx),
         2#0_01011_00111#  => (RA, RB, NR,   INSN_lvxl),
         2#0_00000_10100#  => (RA, RB, NR,   INSN_lwarx),

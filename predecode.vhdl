@@ -142,6 +142,7 @@ architecture behaviour of predecoder is
         2#011011_00000# to 2#011011_11111# => (NR, NR, RS,  INSN_xoris),      -- 27
         -- major opcode 4, columns 32 - 63
         2#000100_01011#                    => (VA, VB, VRC, INSN_vperm),
+        2#000100_01100#                    => (VA, VB, NR,  INSN_vsldoi),
         2#000100_10000#                    => (RA, RB, RC,  INSN_maddhd),
         2#000100_10001#                    => (RA, RB, RC,  INSN_maddhdu),
         2#000100_10011#                    => (RA, RB, RC,  INSN_maddld),

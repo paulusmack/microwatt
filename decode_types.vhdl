@@ -496,6 +496,7 @@ package decode_types is
         INSN_vgbbd,
         INSN_vperm,
         INSN_vpermr,
+        INSN_vsldoi,
         INSN_vspltisb,
         INSN_vspltish,
         INSN_vspltisw,
@@ -613,7 +614,7 @@ package decode_types is
     type facility_t is (NONE, FPU, VEC, VSX);
     type length_t is (NONE, is1B, is2B, is4B, is8B, i16B);
 
-    type result_sel_t is (ADD, LOG, ROT, UN3, MCYC, SPR, UN6, MSC);
+    type result_sel_t is (ADD, LOG, ROT, ZER, MCYC, SPR, UN6, MSC);
     type vec_result_sel_t is (ADD, LOG, MSC, NONE);
     subtype subresult_sel_t is std_ulogic_vector(2 downto 0);
 
@@ -1099,6 +1100,7 @@ package body decode_types is
             when INSN_vgbbd     => return "000100";
             when INSN_vperm     => return "000100";
             when INSN_vpermr    => return "000100";
+            when INSN_vsldoi    => return "000100";
             when INSN_vspltisb  => return "000100";
             when INSN_vspltish  => return "000100";
             when INSN_vspltisw  => return "000100";

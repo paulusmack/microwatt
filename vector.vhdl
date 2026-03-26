@@ -215,8 +215,14 @@ begin
 
         -- Other miscellaneous operations
         -- Just lvsl/lvsr so far
+        -- The lvsl machinery is also used to generate a permute
+        -- vector for vsldoi.
         vmisc_result <= (others => '0');
-        nib := unsigned(e_in.vra_hi(3 downto 0)) + unsigned(e_in.vrb_hi(3 downto 0));
+        if e_in.sub_select(1) = '0' then
+            nib := unsigned(e_in.vra_hi(3 downto 0)) + unsigned(e_in.vrb_hi(3 downto 0));
+        else
+            nib := unsigned(e_in.insn(9 downto 6));
+        end if;
         if e_in.invert_out = '0' then
             -- lvsl
             for i in 0 to 15 loop
@@ -291,19 +297,23 @@ begin
                 v.do_vperm := e_in.valid;
                 v.e.valid := '0';
                 v.e.write_enable := '0';
-                -- abuse is_32bit flag to indicate vbpermq
-                v.is_vbpermq := e_in.is_32bit;
+                v.is_vbpermq := e_in.sub_select(0);
             end if;
             if e_in.opv(OP_COMPUTE) = '1' then
                 if e_in.sub_select = "101" then
                     v.do_vgbbd := '1';
                 end if;
             end if;
-            if e_in.is_32bit = '1' then
+            if e_in.sub_select(0) = '1' then
                 -- vbpermq, data in VRA and select in VRB
                 v.bits := 128x"0" & a_in;
                 v.sel := not b_in;
                 v.perm_counter := "10";
+            elsif e_in.sub_select(1) = '1' then
+                -- vsldoi, data in VRA||VRB, select from shift count
+                v.bits := a_in & b_in;
+                v.sel := not vmisc_result(124 downto 0) & "000";
+                v.perm_counter := "00";
             else
                 -- vperm, data in VRA||VRB and select in VRC
                 v.bits := a_in & b_in;

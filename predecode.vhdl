@@ -717,6 +717,10 @@ architecture behaviour of predecoder is
     -- This is indexed by bits 10:6 and 3:0.
     type vector_predecode_rom_t is array(0 to 511) of predec_insn;
     constant vector_predecode_rom : vector_predecode_rom_t := (
+        2#00000_0000# => (VA, VB, NR, INSN_vaddubm),
+        2#00001_0000# => (VA, VB, NR, INSN_vadduhm),
+        2#00010_0000# => (VA, VB, NR, INSN_vadduwm),
+        2#00011_0000# => (VA, VB, NR, INSN_vaddudm),
         2#10000_0100# => (VA, VB, NR, INSN_vand),
         2#10001_0100# => (VA, VB, NR, INSN_vandc),
         2#10010_0100# => (VA, VB, NR, INSN_vor),

@@ -58,6 +58,7 @@ architecture behaviour of vector_unit is
     signal b_in : std_ulogic_vector(127 downto 0);
     signal c_in : std_ulogic_vector(127 downto 0);
     signal vec_result : std_ulogic_vector(127 downto 0);
+    signal vadd_result : std_ulogic_vector(127 downto 0);
     signal vlog_result : std_ulogic_vector(127 downto 0);
     signal vmisc_result : std_ulogic_vector(127 downto 0);
     signal vec_cr6 : std_ulogic_vector(3 downto 0);
@@ -77,9 +78,12 @@ begin
         variable vcmp_eqb : std_ulogic_vector(15 downto 0);
         variable vcmp_res : std_ulogic_vector(15 downto 0);
         variable vcmp_crf : std_ulogic_vector(3 downto 0);
-        variable size_mask : unsigned(1 downto 0);
+        variable size_mask : unsigned(2 downto 0);
         variable nib : unsigned(3 downto 0);
         variable lvsum : unsigned(4 downto 0);
+        variable a_ext_hi, a_ext_lo : unsigned(71 downto 0);
+        variable b_ext_hi, b_ext_lo : unsigned(71 downto 0);
+        variable sum_ext_hi, sum_ext_lo : unsigned(71 downto 0);
     begin
         vcmp_eqb := (others => '0');
         for i in 0 to 15 loop
@@ -96,6 +100,31 @@ begin
             else
                 vcmp_crf(1) := '0';
             end if;
+        end loop;
+
+        -- Segmented adder
+        size_mask := unsigned(e_in.length(2 downto 0)) - 1;
+        a_ext_hi := (others => '0');
+        a_ext_lo := (others => '0');
+        b_ext_hi := (others => '0');
+        b_ext_lo := (others => '0');
+        for i in 0 to 7 loop
+            a_ext_hi(i*9 + 7 downto i*9) := unsigned(e_in.vra_hi(i*8 + 7 downto i*8));
+            a_ext_lo(i*9 + 7 downto i*9) := unsigned(e_in.vra_lo(i*8 + 7 downto i*8));
+            b_ext_hi(i*9 + 7 downto i*9) := unsigned(e_in.vrb_hi(i*8 + 7 downto i*8));
+            b_ext_lo(i*9 + 7 downto i*9) := unsigned(e_in.vrb_lo(i*8 + 7 downto i*8));
+            -- set extra bits to propagate carries for 2, 4, 8-byte ops
+            if i > 0 and std_ulogic_vector((to_unsigned(i, 3) and size_mask)) /= "000" then
+                b_ext_hi(i*9 - 1) := '1';
+                b_ext_lo(i*9 - 1) := '1';
+            end if;
+        end loop;
+        sum_ext_hi := a_ext_hi + b_ext_hi;
+        sum_ext_lo := a_ext_lo + b_ext_lo;
+        vadd_result <= (others => '0');
+        for i in 0 to 7 loop
+            vadd_result(i*8 + 64 + 7 downto i*8 + 64) <= std_ulogic_vector(sum_ext_hi(i*9 + 7 downto i*9));
+            vadd_result(i*8 + 7 downto i*8) <= std_ulogic_vector(sum_ext_lo(i*9 + 7 downto i*9));
         end loop;
 
         -- Logical and permutation operations, also some moves and splats
@@ -171,11 +200,10 @@ begin
                 vec_cr6 <= vcmp_crf;
             when "111" =>
                 -- splat-immediate result
-                size_mask := unsigned(e_in.length(1 downto 0)) - 1;
                 for i in 0 to 15 loop
                     -- we can always use either byte 0 or byte 1, since bytes
                     -- 2 and 3 are the same as byte 1
-                    if (to_unsigned(i mod 4, 2) and size_mask) /= "00" then
+                    if std_ulogic_vector(to_unsigned(i mod 4, 3) and size_mask) /= "000" then
                         splti_result(i*8 + 7 downto i*8) := e_in.vrb_hi(15 downto 8);
                     else
                         splti_result(i*8 + 7 downto i*8) := e_in.vrb_hi(7 downto 0);
@@ -204,7 +232,8 @@ begin
         end if;
     end process;
 
-    vec_result <= vlog_result when e_in.result_sel = LOG else
+    vec_result <= vadd_result when e_in.result_sel = ADD else
+                  vlog_result when e_in.result_sel = LOG else
                   vmisc_result when e_in.result_sel = MSC else
                   (others => '0');
 

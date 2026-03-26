@@ -478,6 +478,10 @@ package decode_types is
         -- Vector ops
         INSN_lvsl,
         INSN_lvsr,
+        INSN_vaddubm,
+        INSN_vadduhm,
+        INSN_vadduwm,
+        INSN_vaddudm,
         INSN_vand,
         INSN_vandc,
         INSN_vnand,
@@ -1077,6 +1081,10 @@ package body decode_types is
             when INSN_pld       => return "000001";
             when INSN_pstq      => return "000001";
             when INSN_pstd      => return "000001";
+            when INSN_vaddubm   => return "000100";
+            when INSN_vadduhm   => return "000100";
+            when INSN_vadduwm   => return "000100";
+            when INSN_vaddudm   => return "000100";
             when INSN_vand      => return "000100";
             when INSN_vandc     => return "000100";
             when INSN_vnand     => return "000100";

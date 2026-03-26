@@ -20,7 +20,7 @@ package decode_types is
 			 OP_RFID,
 			 OP_SC,
 			 OP_SYNC, OP_TLBIE, OP_TRAP,
-                         OP_VPERM,
+                         OP_VMUL, OP_VPERM,
                          OP_WAIT,
                          OP_MTFRIN,
                          OP_FETCH_FAILED
@@ -482,6 +482,10 @@ package decode_types is
         INSN_vadduhm,
         INSN_vadduwm,
         INSN_vaddudm,
+        INSN_vmulesw,
+        INSN_vmulosw,
+        INSN_vmuleuw,
+        INSN_vmulouw,
         INSN_vand,
         INSN_vandc,
         INSN_vnand,
@@ -1086,6 +1090,10 @@ package body decode_types is
             when INSN_vadduhm   => return "000100";
             when INSN_vadduwm   => return "000100";
             when INSN_vaddudm   => return "000100";
+            when INSN_vmulesw   => return "000100";
+            when INSN_vmulosw   => return "000100";
+            when INSN_vmuleuw   => return "000100";
+            when INSN_vmulouw   => return "000100";
             when INSN_vand      => return "000100";
             when INSN_vandc     => return "000100";
             when INSN_vnand     => return "000100";

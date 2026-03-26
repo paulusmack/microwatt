@@ -34,6 +34,7 @@ architecture behaviour of vector_unit is
         wdat_valid : std_ulogic;
         do_vperm : std_ulogic;
         is_vbpermq : std_ulogic;
+        do_mult_32 : std_ulogic;
 
         vgbbd_data : std_ulogic_vector(127 downto 0);
         do_vgbbd   : std_ulogic;
@@ -63,7 +64,26 @@ architecture behaviour of vector_unit is
     signal vmisc_result : std_ulogic_vector(127 downto 0);
     signal vec_cr6 : std_ulogic_vector(3 downto 0);
 
+    signal mult_hi_in, mult_lo_in : MultiplyInputType;
+    signal mult_hi_out, mult_lo_out : MultiplyOutputType;
+
 begin
+
+    mult_hi_0: entity work.multiply_32s
+        port map (
+            clk => clk,
+            stall => e_in.stall,
+            m_in => mult_hi_in,
+            m_out => mult_hi_out
+            );
+
+    mult_lo_0: entity work.multiply_32s
+        port map (
+            clk => clk,
+            stall => e_in.stall,
+            m_in => mult_lo_in,
+            m_out => mult_lo_out
+            );
 
     -- Data path
     a_in <= e_in.vra_hi & e_in.vra_lo;
@@ -236,6 +256,25 @@ begin
                 vmisc_result(i*8 + 4 downto i*8) <= std_ulogic_vector(lvsum);
             end loop;
         end if;
+
+        -- Signals to 32-bit multipliers
+        if e_in.sub_select(0) = '0' then
+            mult_hi_in.data1 <= 32x"0" & e_in.vra_hi(63 downto 32);
+            mult_hi_in.data2 <= 32x"0" & e_in.vrb_hi(63 downto 32);
+            mult_lo_in.data1 <= 32x"0" & e_in.vra_lo(63 downto 32);
+            mult_lo_in.data2 <= 32x"0" & e_in.vrb_lo(63 downto 32);
+        else
+            mult_hi_in.data1 <= 32x"0" & e_in.vra_hi(31 downto 0);
+            mult_hi_in.data2 <= 32x"0" & e_in.vrb_hi(31 downto 0);
+            mult_lo_in.data1 <= 32x"0" & e_in.vra_lo(31 downto 0);
+            mult_lo_in.data2 <= 32x"0" & e_in.vrb_lo(31 downto 0);
+        end if;
+        mult_hi_in.is_signed <= e_in.is_signed;
+        mult_lo_in.is_signed <= e_in.is_signed;
+        mult_hi_in.subtract <= '0';
+        mult_lo_in.subtract <= '0';
+        mult_hi_in.addend <= (others => '0');
+        mult_lo_in.addend <= (others => '0');
     end process;
 
     vec_result <= vadd_result when e_in.result_sel = ADD else
@@ -265,6 +304,8 @@ begin
     begin
         v := vs1;
         v.wdat_valid := '0';
+        mult_hi_in.valid <= '0';
+        mult_lo_in.valid <= '0';
 
         if vs1.busy = '1' then
             -- can only be vperm or vbpermq, at present
@@ -304,6 +345,12 @@ begin
                     v.do_vgbbd := '1';
                 end if;
             end if;
+            if e_in.opv(OP_VMUL) = '1' then
+                mult_hi_in.valid <= e_in.valid;
+                mult_lo_in.valid <= e_in.valid;
+                v.do_mult_32 := e_in.valid;
+            end if;
+
             if e_in.sub_select(0) = '1' then
                 -- vbpermq, data in VRA and select in VRB
                 v.bits := 128x"0" & a_in;
@@ -393,6 +440,9 @@ begin
             v.e.write_data := vs1.vgbbd_data(127 downto 64);
             v.e.write_data_lo := vs1.vgbbd_data(63 downto 0);
 
+        elsif vs1.do_mult_32 = '1' then
+            v.e.write_data := mult_hi_out.result(63 downto 0);
+            v.e.write_data_lo := mult_lo_out.result(63 downto 0);
         end if;
 
         if e_in.stall = '1' then

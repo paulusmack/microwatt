@@ -504,6 +504,8 @@ package decode_types is
         INSN_vspltisb,
         INSN_vspltish,
         INSN_vspltisw,
+        INSN_vclzlsbb,
+        INSN_vctzlsbb,
 
         -- VSX ops
         INSN_xsadddp,
@@ -1118,6 +1120,8 @@ package body decode_types is
             when INSN_vspltisb  => return "000100";
             when INSN_vspltish  => return "000100";
             when INSN_vspltisw  => return "000100";
+            when INSN_vclzlsbb  => return "000100";
+            when INSN_vctzlsbb  => return "000100";
             when INSN_xsrdpi    => return "111100";
             when INSN_xsrdpic   => return "111100";
             when INSN_xsrdpim   => return "111100";

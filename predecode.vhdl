@@ -801,6 +801,16 @@ architecture behaviour of predecoder is
         others                         => (NR, NR, NR, INSN_illegal)
         );
 
+    -- Table for decoding expanded opcodes
+    -- At present only used for XPND004-2
+    -- Indexed by bits 20:16 of the instruction word
+    type xpnd_predecode_rom_t is array(0 to 31) of predec_insn;
+    constant xpnd_predecode_rom : xpnd_predecode_rom_t := (
+        2#00000#                       => (NR, VB, NR, INSN_vclzlsbb),
+        2#00001#                       => (NR, VB, NR, INSN_vctzlsbb),
+        others                         => (NR, NR, NR, INSN_illegal)
+        );
+
     constant IOUT_LEN : natural := ICODE_LEN + IMAGE_LEN;
 
     type predec_t is record
@@ -809,6 +819,7 @@ architecture behaviour of predecoder is
         row_predecode : predec_insn;
         vec_predecode : predec_insn;
         vsx_predecode : predec_insn;
+        xpn_predecode : predec_insn;
     end record;
 
     subtype index_t is integer range 0 to WIDTH-1;
@@ -842,6 +853,7 @@ begin
         variable vecaddr  : std_ulogic_vector(8 downto 0);
         variable vsxaddr  : std_ulogic_vector(8 downto 0);
         variable iword    : std_ulogic_vector(31 downto 0);
+        variable xpndaddr : std_ulogic_vector(4 downto 0);
     begin
         if rising_edge(clk) then
             if rst = '1' then
@@ -895,10 +907,14 @@ begin
                         -- vsx_predecode_rom is used for primary opcode 60
                         vsxaddr := iword(10 downto 6) & iword(5 downto 2);
 
+                        -- expanded opcode table used for XPND004-2 at present
+                        xpndaddr := iword(20 downto 16);
+
                         pred(i).maj_predecode <= major_predecode_rom(to_integer(unsigned(majaddr)));
                         pred(i).row_predecode <= row_predecode_rom(to_integer(unsigned(rowaddr)));
                         pred(i).vec_predecode <= vector_predecode_rom(to_integer(unsigned(vecaddr)));
                         pred(i).vsx_predecode <= vsx_predecode_rom(to_integer(unsigned(vsxaddr)));
+                        pred(i).xpn_predecode <= xpnd_predecode_rom(to_integer(unsigned(xpndaddr)));
                     end if;
                 end loop;
 
@@ -915,6 +931,7 @@ begin
         variable use_pref : std_ulogic;
         variable use_vec  : std_ulogic;
         variable use_vsx  : std_ulogic;
+        variable use_xpnd : std_ulogic;
         variable icode    : predec_insn;
         variable ovalid   : std_ulogic;
         variable suffix   : std_ulogic_vector(5 downto 0);
@@ -927,6 +944,7 @@ begin
             use_row := '0';
             use_vec := '0';
             use_vsx := '0';
+            use_xpnd := '0';
             illegal := '0';
             use_pref := '0';
             suffix := (others => '0');
@@ -981,7 +999,11 @@ begin
                     -- 64 columns indexed by bits 5..0; columns 32..63 are in major table
                     -- Columns 0..15 are in vector table, 16..31 are not currently decoded
                     if iword(5) = '0' then
-                        use_vec := '1';
+                        if iword(10 downto 0) = 11x"602" then
+                            use_xpnd := '1';
+                        else
+                            use_vec := '1';
+                        end if;
                         illegal := iword(4);
                     end if;
 
@@ -1039,6 +1061,8 @@ begin
                 icode := pred(i).vec_predecode;
             elsif use_vsx = '1' then
                 icode := pred(i).vsx_predecode;
+            elsif use_xpnd = '1' then
+                icode := pred(i).xpn_predecode;
             end if;
 
             -- Mark FP instructions as illegal if we don't have an FPU

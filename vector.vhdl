@@ -69,6 +69,7 @@ architecture behaviour of vector_unit is
     signal vlog_result : std_ulogic_vector(127 downto 0);
     signal vmisc_result : std_ulogic_vector(127 downto 0);
     signal vgbbd_result : std_ulogic_vector(127 downto 0);
+    signal lvs_vector : std_ulogic_vector(127 downto 0);
     signal vec_cr6 : std_ulogic_vector(3 downto 0);
 
     signal mult_hi_in, mult_lo_in : MultiplyInputType;
@@ -101,6 +102,8 @@ begin
         variable mtvsr_result : std_ulogic_vector(63 downto 0);
         variable negative : std_ulogic;
         variable a_inv, b_inv : std_ulogic_vector(127 downto 0);
+        variable lvs_result : std_ulogic_vector(127 downto 0);
+        variable vcz_result : std_ulogic_vector(127 downto 0);
         variable splti_result : std_ulogic_vector(127 downto 0);
         variable vcmp_eqb : std_ulogic_vector(15 downto 0);
         variable vcmp_res : std_ulogic_vector(15 downto 0);
@@ -111,6 +114,7 @@ begin
         variable a_ext_hi, a_ext_lo : unsigned(71 downto 0);
         variable b_ext_hi, b_ext_lo : unsigned(71 downto 0);
         variable sum_ext_hi, sum_ext_lo : unsigned(71 downto 0);
+        variable vcz_bits, vcz_onehot : std_ulogic_vector(15 downto 0);
     begin
         vcmp_eqb := (others => '0');
         for i in 0 to 15 loop
@@ -248,10 +252,9 @@ begin
         end loop;
 
         -- Other miscellaneous operations
-        -- Just lvsl/lvsr so far
         -- The lvsl machinery is also used to generate a permute
         -- vector for vsldoi.
-        vmisc_result <= (others => '0');
+        lvs_result := (others => '0');
         if e_in.sub_select(1) = '0' then
             nib := unsigned(e_in.vra_hi(3 downto 0)) + unsigned(e_in.vrb_hi(3 downto 0));
         else
@@ -261,14 +264,39 @@ begin
             -- lvsl
             for i in 0 to 15 loop
                 lvsum := to_unsigned(15 - i, 5) + resize(nib, 5);
-                vmisc_result(i*8 + 4 downto i*8) <= std_ulogic_vector(lvsum);
+                lvs_result(i*8 + 4 downto i*8) := std_ulogic_vector(lvsum);
             end loop;
         else
             -- lvsr
             for i in 0 to 15 loop
                 lvsum := to_unsigned(31 - i, 5) - resize(nib, 5);
-                vmisc_result(i*8 + 4 downto i*8) <= std_ulogic_vector(lvsum);
+                lvs_result(i*8 + 4 downto i*8) := std_ulogic_vector(lvsum);
             end loop;
+        end if;
+        lvs_vector <= lvs_result;
+
+        -- vclzlsbb and vctzlsbb
+        vcz_bits := (others => '0');
+        for i in 0 to 15 loop
+            vcz_bits(i) := b_in(i*8);
+        end loop;
+        if e_in.invert_a = '0' then
+            vcz_bits := bit_reverse(vcz_bits);
+        end if;
+        vcz_onehot := std_ulogic_vector(- signed(vcz_bits)) and vcz_bits;
+        vcz_result := (others => '0');
+        vcz_result(64+4) := not (or(vcz_onehot));
+        vcz_result(64+3) := or(vcz_onehot(15 downto 8));
+        vcz_result(64+2) := or(vcz_onehot(15 downto 12)) or or(vcz_onehot(7 downto 4));
+        vcz_result(64+1) := or(vcz_onehot(15 downto 14)) or or(vcz_onehot(11 downto 10)) or
+                            or(vcz_onehot(7 downto 6)) or or(vcz_onehot(3 downto 2));
+        vcz_result(64) := vcz_onehot(15) or vcz_onehot(13) or vcz_onehot(11) or vcz_onehot(9) or
+                          vcz_onehot(7) or vcz_onehot(5) or vcz_onehot(3) or vcz_onehot(1);
+
+        if e_in.sub_select(0) = '0' then
+            vmisc_result <= lvs_result;
+        else
+            vmisc_result <= vcz_result;
         end if;
 
         -- Signals to 32-bit multipliers
@@ -367,7 +395,7 @@ begin
             elsif e_in.sub_select(1) = '1' then
                 -- vsldoi, data in VRA||VRB, select from shift count
                 v.bits := a_in & b_in;
-                v.sel := not vmisc_result(124 downto 0) & "000";
+                v.sel := not lvs_vector(124 downto 0) & "000";
                 v.perm_counter := "00";
             else
                 -- vperm, data in VRA||VRB and select in VRC

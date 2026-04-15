@@ -503,6 +503,7 @@ package common is
 	is_signed: std_ulogic;
 	insn: std_ulogic_vector(31 downto 0);
 	data_len: std_ulogic_vector(4 downto 0);
+        lg_length : std_ulogic_vector(2 downto 0);
 	byte_reverse : std_ulogic;
 	sign_extend : std_ulogic;			-- do we need to sign extend?
 	update : std_ulogic;				-- is this an update instruction?
@@ -550,7 +551,7 @@ package common is
          read_data1 => (others => '0'), read_data2 => (others => '0'), read_data3 => (others => '0'),
          lo_read_data1 => (others => '0'), lo_read_data2 => (others => '0'), lo_read_data3 => (others => '0'),
          reg_valid1 => '0', reg_valid2 => '0', reg_valid3 => '0',
-         cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'),
+         cr => (others => '0'), insn => (others => '0'), data_len => (others => '0'), lg_length => "000",
          result_sel => ADD, sub_select => "000", vec_sel => ADD,
          repeat => '0', second => '0', spr_select => spr_id_init,
          spr_is_ram => '0',
@@ -1018,6 +1019,7 @@ package common is
         output_cr        : std_ulogic;
         xerc             : xer_common_t;
 	length           : std_ulogic_vector(4 downto 0);
+        lg_length        : std_ulogic_vector(2 downto 0);
         stall            : std_ulogic;
     end record;
     constant Execute1ToVectorInit : Execute1ToVectorType :=
@@ -1029,6 +1031,7 @@ package common is
          vrc_hi => (others => '0'), vrc_lo => (others => '0'),
          result_sel => ADD, sub_select => "000",
          xerc => xerc_init, length => (others => '0'),
+         lg_length => "000",
          others => '0');
 
     type VectorToExecute1Type is record

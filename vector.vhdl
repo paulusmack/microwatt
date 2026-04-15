@@ -30,12 +30,18 @@ architecture behaviour of vector_unit is
         rsel     : vec_result_sel_t;
         bits     : std_ulogic_vector(255 downto 0);
         sel      : std_ulogic_vector(127 downto 0);
+        shcnt    : std_ulogic_vector(63 downto 0);
 
         perm_counter : unsigned(1 downto 0);
         wdat_valid : std_ulogic;
         do_vperm : std_ulogic;
         is_vbpermq : std_ulogic;
         do_mult_32 : std_ulogic;
+
+        is_shift       : std_ulogic;
+        is_rotate      : std_ulogic;
+        is_right_shift : std_ulogic;
+        lg_length      : std_ulogic_vector(2 downto 0);
 
         vadd_data  : std_ulogic_vector(127 downto 0);
         vlog_data  : std_ulogic_vector(127 downto 0);
@@ -46,7 +52,9 @@ architecture behaviour of vector_unit is
         (e => VectorToWritebackInit,
          rsel => ADD,
          bits => (others => '0'), sel => (others => '0'),
+         shcnt => (others => '0'),
          perm_counter => "00",
+         lg_length => "000",
          vadd_data => (others => '0'),
          vlog_data => (others => '0'),
          vmisc_data => (others => '0'),
@@ -71,6 +79,8 @@ architecture behaviour of vector_unit is
     signal vgbbd_result : std_ulogic_vector(127 downto 0);
     signal lvs_vector : std_ulogic_vector(127 downto 0);
     signal vec_cr6 : std_ulogic_vector(3 downto 0);
+    signal vshiftbits : std_ulogic_vector(63 downto 0);
+    signal vshiftsel : std_ulogic_vector(63 downto 0);
 
     signal mult_hi_in, mult_lo_in : MultiplyInputType;
     signal mult_hi_out, mult_lo_out : MultiplyOutputType;
@@ -319,6 +329,129 @@ begin
         mult_lo_in.addend <= (others => '0');
     end process;
 
+    vector_rot: process(all)
+        variable shdata, shcnt : std_ulogic_vector(63 downto 0);
+        variable is_rotate : std_ulogic;
+        variable is_right_shift : std_ulogic;
+        variable lbyte, rbyte : std_ulogic_vector(7 downto 0);
+        variable twobytes : std_ulogic_vector(15 downto 0);
+        variable bitshift : unsigned(2 downto 0);
+        variable byteshift : unsigned(2 downto 0);
+        variable lenm1 : unsigned(2 downto 0);
+        variable b : unsigned(2 downto 0);
+        variable j, k, lsbi : integer;
+        variable resultb, selb : std_ulogic_vector(7 downto 0);
+    begin
+        shdata := vs1.bits(191 downto 128);
+        shcnt := vs1.shcnt;
+        is_rotate := vs1.is_rotate;
+        is_right_shift := vs1.is_right_shift;
+        for i in 0 to 7 loop
+            lbyte := (others => '0');
+            rbyte := (others => '0');
+            bitshift := "000";
+            byteshift := "000";
+            lenm1 := "000";
+            k := 0;
+            -- Compute a byte to the left (for right shifts)
+            -- and a byte to the right (for left shifts and rotates)
+            case vs1.lg_length(1 downto 0) is
+                when "00" =>
+                    lsbi := i;
+                    bitshift := unsigned(shcnt(i*8 + 2 downto i*8));
+                    if is_rotate = '1' then
+                        rbyte := shdata(i*8 + 7 downto i*8);
+                    end if;
+                when "01" =>
+                    k := i mod 2;
+                    lsbi := i - k;
+                    lenm1 := "001";
+                    bitshift := unsigned(shcnt(lsbi*8 + 2 downto lsbi*8));
+                    byteshift(0) := shcnt(lsbi*8 + 3);
+                    if k = 0 then
+                        lbyte := shdata(i*8 + 15 downto i*8 + 8);
+                        if is_rotate = '1' then
+                            rbyte := lbyte;
+                        end if;
+                    else
+                        rbyte := shdata(i*8 - 1 downto i*8 - 8);
+                    end if;
+                when "10" =>
+                    k := i mod 4;
+                    lsbi := i - k;
+                    lenm1 := "011";
+                    bitshift := unsigned(shcnt(lsbi*8 + 2 downto lsbi*8));
+                    byteshift(1 downto 0) := unsigned(shcnt(lsbi*8 + 4 downto lsbi*8 + 3));
+                    if k = 0 then
+                        if is_rotate = '1' then
+                            rbyte := shdata(i*8 + 31 downto i*8 + 24);
+                        end if;
+                    else
+                        rbyte := shdata(i*8 - 1 downto i*8 - 8);
+                    end if;
+                    if k < 3 then
+                        lbyte := shdata(i*8 + 15 downto i*8 + 8);
+                    end if;
+                when others =>
+                    k := i mod 8;
+                    lsbi := i - k;
+                    lenm1 := "111";
+                    bitshift := unsigned(shcnt(lsbi*8 + 2 downto lsbi*8));
+                    byteshift := unsigned(shcnt(lsbi*8 + 5 downto lsbi*8 + 3));
+                    if k = 0 then
+                        if is_rotate = '1' then
+                            rbyte := shdata(i*8 + 63 downto i*8 + 56);
+                        end if;
+                    else
+                        rbyte := shdata(i*8 - 1 downto i*8 - 8);
+                    end if;
+                    if k < 7 then
+                        lbyte := shdata(i*8 + 15 downto i*8 + 8);
+                    end if;
+            end case;
+            -- Shift (lbyte || data || rbyte) left or right by 0 - 7 bits
+            if is_X(bitshift) then
+                resultb := (others => 'X');
+            else
+                j := to_integer(bitshift);
+                if is_right_shift = '0' then
+                    twobytes := shdata(i*8 + 7 downto i*8) & rbyte;
+                    resultb := twobytes(15 - j downto 8 - j);
+                else
+                    twobytes := lbyte & shdata(i*8 + 7 downto i*8);
+                    resultb := twobytes(7 + j downto j);
+                end if;
+            end if;
+            vshiftbits(i*8 + 7 downto i*8) <= resultb;
+            -- Work out the selection vector to cause the permutation
+            -- machinery to do the byte-level part of the shift/rotate
+            -- This byte of the selection vector indicates which byte
+            -- of vshiftbits goes into this byte of the result.
+            if is_X(byteshift) then
+                selb := (others => 'X');
+            else
+                selb := (others => '0');
+                selb(6) := vs1.perm_counter(1);
+                if is_right_shift = '0' then
+                    if k >= to_integer(byteshift) or is_rotate = '1' then
+                        b := (to_unsigned(i, 3) - byteshift) and lenm1;
+                        selb(7) := '1';
+                        selb(5 downto 3) := std_ulogic_vector(to_unsigned(lsbi, 3)) or
+                                            std_ulogic_vector(b);
+                    end if;
+                else
+                    if k <= to_integer(lenm1 - byteshift) then
+                        b := to_unsigned(i, 3) + byteshift;
+                        selb(7) := '1';
+                        selb(5 downto 3) := std_ulogic_vector(to_unsigned(lsbi, 3)) or
+                                            std_ulogic_vector(b);
+                    end if;
+                end if;
+            end if;
+            vshiftsel(i*8 + 7 downto i*8) <= selb;
+        end loop;
+    end process;
+
     vector_1r: process(clk)
     begin
         if rising_edge(clk) then
@@ -345,7 +478,7 @@ begin
         mult_lo_in.valid <= '0';
 
         if vs1.busy = '1' then
-            -- can only be vperm or vbpermq, at present
+            -- can only be vperm or vbpermq, or a vector shift or rotate
             v.perm_counter := vs1.perm_counter + 1;
             if vs1.perm_counter >= 2 then
                 v.busy := '0';
@@ -354,6 +487,17 @@ begin
             end if;
             -- rotate vs1.bits right 64 bits
             v.bits := vs1.bits(63 downto 0) & vs1.bits(255 downto 64);
+            -- for vector shift/rotate, put rotated byte data into
+            -- LS doubleword of vs1.bits, and update vs1.sel
+            if vs1.is_shift = '1' then
+                v.bits(63 downto 0) := vshiftbits;
+                if vs1.perm_counter(1) = '0' then
+                    v.sel(63 downto 0) := vshiftsel;
+                else
+                    v.sel(127 downto 64) := vshiftsel;
+                end if;
+            end if;
+            v.shcnt := vs1.bits(127 downto 64);
 
         elsif e_in.stall = '0' then
             v := vec_stage1_init;
@@ -381,13 +525,25 @@ begin
                 v.e.write_enable := '0';
                 v.is_vbpermq := e_in.sub_select(0);
             end if;
+            if e_in.opv(OP_VSHIFT) = '1' then
+                v.busy := e_in.valid;
+                v.do_vperm := e_in.valid;
+                v.e.valid := '0';
+                v.e.write_enable := '0';
+                v.is_shift := '1';
+            end if;
             if e_in.opv(OP_VMUL) = '1' then
                 mult_hi_in.valid <= e_in.valid;
                 mult_lo_in.valid <= e_in.valid;
                 v.do_mult_32 := e_in.valid;
             end if;
 
-            if e_in.sub_select(0) = '1' then
+            if e_in.sub_select(2) = '1' then
+                -- vector shift or rotate
+                v.bits := a_in & b_in;
+                v.sel := (others => '0');
+                v.perm_counter := "01";
+            elsif e_in.sub_select(0) = '1' then
                 -- vbpermq, data in VRA and select in VRB
                 v.bits := 128x"0" & a_in;
                 v.sel := not b_in;
@@ -406,6 +562,10 @@ begin
                 end if;
                 v.perm_counter := "00";
             end if;
+            v.shcnt := b_in(63 downto 0);
+            v.is_rotate := e_in.sub_select(0);
+            v.is_right_shift := e_in.sub_select(1);
+            v.lg_length := e_in.lg_length;
 
         else
             v.do_vperm := '0';
@@ -443,7 +603,7 @@ begin
         v.e.write_cr_data := vs1.e.write_cr_data;
 
         if vs1.do_vperm = '1' then
-            -- vperm, vpermr
+            -- vperm, vpermr, vector shift/rotate
             vpd := (others => '0');
             if vs1.wdat_valid = '0' then
                 vpd := vs2.e.write_data;

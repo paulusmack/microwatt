@@ -2088,6 +2088,7 @@ begin
         vv.output_cr := e_in.output_cr or e_in.rc;
         vv.xerc := xerc_in;
         vv.length := e_in.data_len;
+        vv.lg_length := e_in.lg_length;
         vv.stall := l_in.l2stall or fp_in.f2stall;
 
 	-- Update registers

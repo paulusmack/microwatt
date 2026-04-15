@@ -428,6 +428,7 @@ begin
     decode2_1: process(all)
         variable v : reg_type;
         variable length : std_ulogic_vector(4 downto 0);
+        variable lg_len : std_ulogic_vector(2 downto 0);
         variable op : insn_type_t;
         variable unit : unit_t;
         variable valid_in : std_ulogic;
@@ -624,16 +625,22 @@ begin
             case d_in.decode.length is
                 when is1B =>
                     length := "00001";
+                    lg_len := "000";
                 when is2B =>
                     length := "00010";
+                    lg_len := "001";
                 when is4B =>
                     length := "00100";
+                    lg_len := "010";
                 when is8B =>
                     length := "01000";
+                    lg_len := "011";
                 when i16B =>
                     length := "10000";
+                    lg_len := "100";
                 when NONE =>
                     length := "00000";
+                    lg_len := "000";
             end case;
 
             -- execute unit
@@ -685,6 +692,7 @@ begin
             v.e.is_signed := d_in.decode.is_signed;
             v.e.insn := d_in.insn;
             v.e.data_len := length;
+            v.e.lg_length := lg_len;
             v.e.byte_reverse := d_in.decode.byte_reverse;
             v.e.sign_extend := d_in.decode.sign_extend;
             v.e.update := d_in.decode.update;

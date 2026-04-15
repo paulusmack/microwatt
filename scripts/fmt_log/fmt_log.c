@@ -90,7 +90,7 @@ const char *ops[64] =
 	"countb ", "darn   ", "cacheop", "fpcmp  ", "fparith", "fpmove ", "fpmisc ", "div    ",
 	"isync  ", "ld     ", "st     ", "mfmsr  ", "mfspr  ", "msg    ", "mtcrf  ", "mtmsr  ",
 	"mtspr  ", "mul    ", "rfid   ", "sc     ", "sync   ", "tlbie  ", "trap   ", "wait   ",
-	"vmul   ", "vperm  ", "mtfrin ", "ffail  ", "?36    ", "?37    ", "?38    ", "?39    ",
+	"vmul   ", "vperm  ", "vshift ", "mtfrin ", "ffail  ", "?37    ", "?38    ", "?39    ",
 	"?40    ", "?41    ", "?42    ", "?43    ", "?44    ", "?45    ", "?46    ", "?47    ",
 	"?48    ", "?49    ", "?50    ", "?51    ", "?52    ", "?53    ", "?54    ", "?55    ",
 	"?56    ", "?57    ", "?58    ", "?59    ", "?60    ", "?61    ", "?62    ", "?63    "

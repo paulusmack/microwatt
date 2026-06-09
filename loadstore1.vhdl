@@ -787,7 +787,8 @@ begin
                 end if;
             end if;
         end if;
-        if l_in.opv(OP_DCBF) = '1' then
+        if l_in.opv(OP_CACHEOP) = '1' then
+            -- dcbf; dcbst/icbi/icbt don't come to loadstore
             v.load := '1';
             v.flush := '1';
         end if;

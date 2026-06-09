@@ -1592,8 +1592,10 @@ begin
             v.redir_to_next := '1';
         end if;
 
-        if e_in.opv(OP_ICBI) = '1' then
-            v.se.icache_inval := '1';
+        if e_in.opv(OP_CACHEOP) = '1' then
+            if e_in.sub_select(1 downto 0) = "10" then
+                v.se.icache_inval := '1';       -- icbi
+            end if;
         end if;
 
         if e_in.opv(OP_BSORT) = '1' then
@@ -1791,8 +1793,7 @@ begin
                       (ext_irq_in and (not ctrl.lpcr_heic or ex1.msr(MSR_PR))));
 
         if valid_in = '1' then
-            v.prev_op_load := e_in.opv(OP_LOAD) or e_in.opv(OP_ICBI) or e_in.opv(OP_ICBT) or
-                              e_in.opv(OP_DCBF) or e_in.opv(OP_DCBST);
+            v.prev_op_load := e_in.opv(OP_LOAD) or e_in.opv(OP_CACHEOP);
             v.prev_op_store := e_in.opv(OP_STORE);
             v.prev_prefixed := e_in.prefixed;
             v.se.set_heir := actions.se.set_heir;

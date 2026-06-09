@@ -735,10 +735,14 @@ begin
                     v.e.vec_sel := ADD;
                 when LOG =>
                     v.e.vec_sel := LOG;
+                when VML =>
+                    v.e.vec_sel := MUL;
+                when VBT =>
+                    v.e.vec_sel := VGBB;
                 when MSC =>
                     v.e.vec_sel := MSC;
                 when others =>
-                    v.e.vec_sel := NONE;
+                    v.e.vec_sel := ZER;
             end case;
         end if;
 

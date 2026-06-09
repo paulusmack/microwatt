@@ -212,8 +212,8 @@ begin
 
             if v_in.write_enable = '1' then
                 w_out.write_reg <= v_in.write_reg;
-                w_out.write_data <= v_in.write_data;
-                w_out.lovrw_data <= v_in.write_data_lo;
+                w_out.write_data <= v_in.write_data(127 downto 64);
+                w_out.lovrw_data <= v_in.write_data(63 downto 0);
                 w_out.write_enable <= '1';
             end if;
             if v_in.write_cr_enable = '1' then

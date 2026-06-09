@@ -1042,8 +1042,7 @@ package common is
         instr_tag       : instr_tag_t;
         write_enable    : std_ulogic;
         write_reg       : gspr_index_t;
-        write_data      : std_ulogic_vector(63 downto 0);
-        write_data_lo   : std_ulogic_vector(63 downto 0);
+        write_data      : std_ulogic_vector(127 downto 0);
         write_cr_enable : std_ulogic;
         write_cr_mask   : std_ulogic_vector(7 downto 0);
         write_cr_data   : std_ulogic_vector(31 downto 0);
@@ -1051,7 +1050,7 @@ package common is
     constant VectorToWritebackInit : VectorToWritebackType :=
         (instr_tag => instr_tag_init, write_reg => (others => '0'),
          write_cr_mask => (others => '0'), write_cr_data => (others => '0'),
-         write_data => (others => '0'), write_data_lo => (others => '0'),
+         write_data => (others => '0'),
          others => '0');
 
     type WritebackToFetch1Type is record

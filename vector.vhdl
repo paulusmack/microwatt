@@ -27,6 +27,7 @@ architecture behaviour of vector_unit is
     type vec_stage1_type is record
         e        : VectorToWritebackType;
         busy     : std_ulogic;
+        rsel     : vec_result_sel_t;
         bits     : std_ulogic_vector(255 downto 0);
         sel      : std_ulogic_vector(127 downto 0);
 
@@ -36,13 +37,19 @@ architecture behaviour of vector_unit is
         is_vbpermq : std_ulogic;
         do_mult_32 : std_ulogic;
 
+        vadd_data  : std_ulogic_vector(127 downto 0);
+        vlog_data  : std_ulogic_vector(127 downto 0);
+        vmisc_data : std_ulogic_vector(127 downto 0);
         vgbbd_data : std_ulogic_vector(127 downto 0);
-        do_vgbbd   : std_ulogic;
     end record;
     constant vec_stage1_init : vec_stage1_type :=
         (e => VectorToWritebackInit,
+         rsel => ADD,
          bits => (others => '0'), sel => (others => '0'),
          perm_counter => "00",
+         vadd_data => (others => '0'),
+         vlog_data => (others => '0'),
+         vmisc_data => (others => '0'),
          vgbbd_data => (others => '0'),
          others => '0');
 
@@ -58,10 +65,10 @@ architecture behaviour of vector_unit is
     signal a_in : std_ulogic_vector(127 downto 0);
     signal b_in : std_ulogic_vector(127 downto 0);
     signal c_in : std_ulogic_vector(127 downto 0);
-    signal vec_result : std_ulogic_vector(127 downto 0);
     signal vadd_result : std_ulogic_vector(127 downto 0);
     signal vlog_result : std_ulogic_vector(127 downto 0);
     signal vmisc_result : std_ulogic_vector(127 downto 0);
+    signal vgbbd_result : std_ulogic_vector(127 downto 0);
     signal vec_cr6 : std_ulogic_vector(3 downto 0);
 
     signal mult_hi_in, mult_lo_in : MultiplyInputType;
@@ -171,7 +178,6 @@ begin
                 end if;
             when "001" =>
                 -- mfvsr*; mfvsrld has invert_out = 1, mfvsrwz has is_32bit = 1
-                -- also used to initialize write_data[_lo] to zero by vbpermq
                 if e_in.invert_out = '1' then
                     vlog_result(127 downto 64) <= e_in.vrc_lo;
                 else
@@ -233,6 +239,14 @@ begin
             when others =>
         end case;
 
+        -- vgbbd does a bit/byte transpose on each half of the input
+        for i in 0 to 7 loop
+            for j in 0 to 7 loop
+                vgbbd_result(i*8 + j) <= b_in(j*8 + i);
+                vgbbd_result(i*8 + j + 64) <= b_in(j*8 + i + 64);
+            end loop;
+        end loop;
+
         -- Other miscellaneous operations
         -- Just lvsl/lvsr so far
         -- The lvsl machinery is also used to generate a permute
@@ -277,11 +291,6 @@ begin
         mult_lo_in.addend <= (others => '0');
     end process;
 
-    vec_result <= vadd_result when e_in.result_sel = ADD else
-                  vlog_result when e_in.result_sel = LOG else
-                  vmisc_result when e_in.result_sel = MSC else
-                  (others => '0');
-
     vector_1r: process(clk)
     begin
         if rising_edge(clk) then
@@ -325,13 +334,17 @@ begin
 
             v.e.write_enable := v.e.valid and e_in.write_reg_enable;
             v.e.write_reg := e_in.write_reg;
-            v.e.write_data := vec_result(127 downto 64);
-            v.e.write_data_lo := vec_result(63 downto 0);
 
             v.e.write_cr_enable := v.e.valid and e_in.output_cr;
             v.e.write_cr_mask := num_to_fxm(6);
             v.e.write_cr_data := x"000000" & vec_cr6 & x"0";
             v.wdat_valid := e_in.valid;
+
+            v.rsel := e_in.result_sel;
+            v.vadd_data := vadd_result;
+            v.vlog_data := vlog_result;
+            v.vmisc_data := vmisc_result;
+            v.vgbbd_data := vgbbd_result;
 
             if e_in.opv(OP_VPERM) = '1' then
                 v.busy := e_in.valid;
@@ -339,11 +352,6 @@ begin
                 v.e.valid := '0';
                 v.e.write_enable := '0';
                 v.is_vbpermq := e_in.sub_select(0);
-            end if;
-            if e_in.opv(OP_COMPUTE) = '1' then
-                if e_in.sub_select = "101" then
-                    v.do_vgbbd := '1';
-                end if;
             end if;
             if e_in.opv(OP_VMUL) = '1' then
                 mult_hi_in.valid <= e_in.valid;
@@ -371,13 +379,6 @@ begin
                 v.perm_counter := "00";
             end if;
 
-            for i in 0 to 7 loop
-                for j in 0 to 7 loop
-                    v.vgbbd_data(i*8 + j) := b_in(j*8 + i);
-                    v.vgbbd_data(i*8 + j + 64) := b_in(j*8 + i + 64);
-                end loop;
-            end loop;
-
         else
             v.do_vperm := '0';
         end if;
@@ -401,9 +402,9 @@ begin
         variable v : vec_stage2_type;
         variable j : integer;
         variable b : std_ulogic_vector(7 downto 0);
+        variable vpd : std_ulogic_vector(127 downto 0);
     begin
         v.e.write_data := vs2.e.write_data;
-        v.e.write_data_lo := vs2.e.write_data_lo;
 
         v.e.valid := vs1.e.valid;
         v.e.instr_tag := vs1.e.instr_tag;
@@ -412,37 +413,43 @@ begin
         v.e.write_cr_enable := vs1.e.write_cr_enable;
         v.e.write_cr_mask := vs1.e.write_cr_mask;
         v.e.write_cr_data := vs1.e.write_cr_data;
-        if vs1.wdat_valid = '1' then
-            v.e.write_data := vs1.e.write_data;
-            v.e.write_data_lo := vs1.e.write_data_lo;
-        end if;
 
         if vs1.do_vperm = '1' then
             -- vperm, vpermr
+            vpd := (others => '0');
+            if vs1.wdat_valid = '0' then
+                vpd := vs2.e.write_data;
+            end if;
             for i in 0 to 15 loop
                 if vs1.sel(i*8 + 7 downto i*8 + 6) = std_ulogic_vector(vs1.perm_counter) then
                     j := to_integer(unsigned(vs1.sel(i*8 + 5 downto i*8 + 3))) * 8;
                     b := vs1.bits(j + 7 downto j);
                     if vs1.is_vbpermq = '1' then
                         j := to_integer(unsigned(vs1.sel(i*8 + 2 downto i*8)));
-                        v.e.write_data(i) := b(j);
+                        vpd(i + 64) := b(j);
                     else
-                        if i < 8 then
-                            v.e.write_data_lo(i*8 + 7 downto i*8) := b;
-                        else
-                            v.e.write_data((i-8)*8 + 7 downto (i-8)*8) := b;
-                        end if;
+                        vpd(i*8 + 7 downto i*8) := b;
                     end if;
                 end if;
             end loop;
+            v.e.write_data := vpd;
 
-        elsif vs1.do_vgbbd = '1' then
-            v.e.write_data := vs1.vgbbd_data(127 downto 64);
-            v.e.write_data_lo := vs1.vgbbd_data(63 downto 0);
-
-        elsif vs1.do_mult_32 = '1' then
-            v.e.write_data := mult_hi_out.result(63 downto 0);
-            v.e.write_data_lo := mult_lo_out.result(63 downto 0);
+        elsif vs1.wdat_valid = '1' then
+            case vs1.rsel is
+                when ADD =>
+                    v.e.write_data := vs1.vadd_data;
+                when LOG =>
+                    v.e.write_data := vs1.vlog_data;
+                when MUL =>
+                    v.e.write_data(127 downto 64) := mult_hi_out.result(63 downto 0);
+                    v.e.write_data(63 downto 0)   := mult_lo_out.result(63 downto 0);
+                when VGBB =>
+                    v.e.write_data := vs1.vgbbd_data;
+                when MSC =>
+                    v.e.write_data := vs1.vmisc_data;
+                when others =>
+                    v.e.write_data := (others => '0');
+            end case;
         end if;
 
         if e_in.stall = '1' then

@@ -619,7 +619,13 @@ package decode_types is
     type length_t is (NONE, is1B, is2B, is4B, is8B, i16B);
 
     type result_sel_t is (ADD, LOG, ROT, ZER, MCYC, SPR, UN6, MSC);
-    type vec_result_sel_t is (ADD, LOG, MSC, NONE);
+
+    -- Alternate names for some result_sel_t values,
+    -- used for vector ops
+    constant VML : result_sel_t := MCYC;
+    constant VBT : result_sel_t := UN6;
+
+    type vec_result_sel_t is (ADD, LOG, MUL, VGBB, MSC, ZER);
     subtype subresult_sel_t is std_ulogic_vector(2 downto 0);
 
     type repeat_t is (NONE,      -- instruction is not repeated

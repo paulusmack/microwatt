@@ -315,6 +315,8 @@ package common is
     constant DEXCR_NPHIE  : integer := 1;       -- non-privileged hash instruction enable
     constant DEXCR_PHIE   : integer := 0;       -- privileged hash instruction enable
 
+    type insn_type_vector_t is array (insn_type_t) of std_ulogic;
+
     -- This needs to die...
     type ctrl_t is record
         wait_state: std_ulogic;
@@ -466,7 +468,8 @@ package common is
 	valid: std_ulogic;
         unit : unit_t;
         fac : facility_t;
-	insn_type: insn_type_t;
+        insn_type: insn_type_t;
+        opv: insn_type_vector_t;
 	nia: std_ulogic_vector(63 downto 0);
         instr_tag : instr_tag_t;
 	write_reg: gspr_index_t;
@@ -535,7 +538,8 @@ package common is
         emu_mode : std_ulogic;
     end record;
     constant Decode2ToExecute1Init : Decode2ToExecute1Type :=
-	(valid => '0', unit => ALU, fac => NONE, insn_type => OP_ILLEGAL, instr_tag => instr_tag_init,
+	(valid => '0', unit => ALU, fac => NONE,
+         insn_type => OP_ILLEGAL, opv => (others => '0'), instr_tag => instr_tag_init,
          write_reg_enable => '0',
          lr => '0', br_abs => '0', rc => '0', oe => '0', invert_a => '0',
 	 invert_out => '0', input_carry => ZERO, output_carry => '0', input_cr => '0',
@@ -677,7 +681,7 @@ package common is
 
     type Execute1ToLoadstore1Type is record
 	valid : std_ulogic;
-        op : insn_type_t;                               -- what ld/st or m[tf]spr or TLB op to do
+        opv : insn_type_vector_t;                        -- what ld/st or m[tf]spr or TLB op to do
         insn : std_ulogic_vector(31 downto 0);
         instr_tag : instr_tag_t;
 	addr1 : std_ulogic_vector(63 downto 0);
@@ -707,8 +711,8 @@ package common is
         hash_enable : std_ulogic;
     end record;
     constant Execute1ToLoadstore1Init : Execute1ToLoadstore1Type :=
-        (valid => '0', op => OP_ILLEGAL, byte_reverse => '0',
-         sign_extend => '0', update => '0', mode => "000",
+        (valid => '0', opv => (others => '0'),
+         byte_reverse => '0', sign_extend => '0', update => '0', mode => "000",
          xerc => xerc_init,
          reserve => '0', rc => '0', virt_mode => '0', priv_mode => '0',
          insn => (others => '0'),
@@ -914,7 +918,7 @@ package common is
 
     type Execute1ToFPUType is record
         valid     : std_ulogic;
-        op        : insn_type_t;
+        opv       : insn_type_vector_t;
         subsel    : std_ulogic_vector(2 downto 0);
         nia       : std_ulogic_vector(63 downto 0);
         itag      : instr_tag_t;
@@ -940,7 +944,7 @@ package common is
         xerc      : xer_common_t;
         stall     : std_ulogic;
     end record;
-    constant Execute1ToFPUInit : Execute1ToFPUType := (valid => '0', op => OP_ILLEGAL, subsel => "000",
+    constant Execute1ToFPUInit : Execute1ToFPUType := (valid => '0', opv => (others => '0'), subsel => "000",
                                                        nia => (others => '0'), itag => instr_tag_init,
                                                        insn => (others => '0'), fe_mode => "00", rc => '0',
                                                        fra => (others => '0'), frb => (others => '0'),
@@ -993,7 +997,7 @@ package common is
 
     type Execute1ToVectorType is record
         valid            : std_ulogic;
-        op               : insn_type_t;
+        opv              : insn_type_vector_t;
         instr_tag        : instr_tag_t;
         insn             : std_ulogic_vector(31 downto 0);
         write_reg        : gspr_index_t;
@@ -1016,7 +1020,7 @@ package common is
         stall            : std_ulogic;
     end record;
     constant Execute1ToVectorInit : Execute1ToVectorType :=
-        (op => OP_ILLEGAL, instr_tag => instr_tag_init,
+        (opv => (others => '0'), instr_tag => instr_tag_init,
          insn => (others => '0'),
          write_reg => (others => '0'),
          vra_hi => (others => '0'), vra_lo => (others => '0'),

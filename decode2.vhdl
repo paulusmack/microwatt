@@ -672,6 +672,7 @@ begin
             v.e.write_reg_enable := decoded_reg_o.reg_valid;
             v.e.invert_a := d_in.decode.invert_a;
             v.e.insn_type := op;
+            v.e.opv(op) := '1';
             v.e.invert_out := d_in.decode.invert_out;
             v.e.input_carry := d_in.decode.input_carry;
             v.e.output_carry := d_in.decode.output_carry;

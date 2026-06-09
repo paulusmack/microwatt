@@ -628,11 +628,8 @@ begin
             when "001" =>
                 v.nc := '1';
             when "010" =>
-                if l_in.op = OP_STORE then
-                    v.hashst := '1';
-                elsif l_in.op = OP_LOAD then
-                    v.hashcmp := '1';
-                end if;
+                v.hashst := l_in.opv(OP_STORE);
+                v.hashcmp := l_in.opv(OP_LOAD);
                 noop := not l_in.hash_enable;
             when "011" =>
                 v.dcbz := '1';
@@ -677,9 +674,7 @@ begin
                         v.length := '0' & l_in.addr2(59 downto 56);
                         if v.length = 5x"0" then
                             noop := '1';
-                            if l_in.op = OP_LOAD then
-                                v.immed_ld := '1';
-                            end if;
+                            v.immed_ld := l_in.opv(OP_LOAD);
                         end if;
                     else
                         -- leave length at 16
@@ -761,55 +756,60 @@ begin
                 -- We require non-prefixed lq in LE mode to be aligned in order
                 -- to avoid the case where RA = RT+1 and the second access faults
                 -- after the first has overwritten RA.
-                if l_in.op = OP_LOAD and l_in.byte_reverse = '0' and l_in.prefixed = '0' then
+                if l_in.opv(OP_LOAD) = '1' and l_in.byte_reverse = '0' and l_in.prefixed = '0' then
                     v.align_intr := '1';
                 end if;
             end if;
         end if;
 
-        case l_in.op is
-            when OP_SYNC =>
-                v.sync := '1';
-                v.ea_valid := '0';
-            when OP_STORE =>
-                v.store := '1';
-                if l_in.length = "00000" and v.dcbz = '0' then
+        if l_in.opv(OP_SYNC) = '1' then
+            v.sync := '1';
+            v.ea_valid := '0';
+        end if;
+        if l_in.opv(OP_STORE) = '1' then
+            v.store := '1';
+            if l_in.length = "00000" and v.dcbz = '0' then
+                v.touch := '1';
+            end if;
+        end if;
+        if l_in.opv(OP_LOAD) = '1' then
+            if l_in.update = '1' and l_in.second = '1' then
+                -- write back address to RA
+                v.do_update := '1';
+            else
+                v.load := '1';
+                if HAS_FPU and l_in.is_32bit = '1' then
+                    -- Allow an extra cycle for SP->DP precision conversion
+                    v.load_sp := '1';
+                end if;
+                if l_in.length = "00000" then
                     v.touch := '1';
                 end if;
-            when OP_LOAD =>
-                if l_in.update = '1' and l_in.second = '1' then
-                    -- write back address to RA
-                    v.do_update := '1';
-                else
-                    v.load := '1';
-                    if HAS_FPU and l_in.is_32bit = '1' then
-                        -- Allow an extra cycle for SP->DP precision conversion
-                        v.load_sp := '1';
-                    end if;
-                    if l_in.length = "00000" then
-                        v.touch := '1';
-                    end if;
-                end if;
-            when OP_DCBF =>
-                v.load := '1';
-                v.flush := '1';
-            when OP_TLBIE =>
-                v.tlbie := '1';
-                v.is_slbia := l_in.insn(7);
-                v.mmu_op := '1';
-            when OP_MFSPR =>
-                v.read_spr := '1';
-                v.ea_valid := '0';
-            when OP_MTSPR =>
-                v.write_spr := '1';
-                v.mmu_op := not (sprn(1) or sprn(2));
-                v.ea_valid := '0';
-            when OP_FETCH_FAILED =>
-                -- send it to the MMU to do the radix walk
-                v.instr_fault := '1';
-                v.mmu_op := '1';
-            when others =>
-        end case;
+            end if;
+        end if;
+        if l_in.opv(OP_DCBF) = '1' then
+            v.load := '1';
+            v.flush := '1';
+        end if;
+        if l_in.opv(OP_TLBIE) = '1' then
+            v.tlbie := '1';
+            v.is_slbia := l_in.insn(7);
+            v.mmu_op := '1';
+        end if;
+        if l_in.opv(OP_MFSPR) = '1' then
+            v.read_spr := '1';
+            v.ea_valid := '0';
+        end if;
+        if l_in.opv(OP_MTSPR) = '1' then
+            v.write_spr := '1';
+            v.mmu_op := not (sprn(1) or sprn(2));
+            v.ea_valid := '0';
+        end if;
+        if l_in.opv(OP_FETCH_FAILED) = '1' then
+            -- send it to the MMU to do the radix walk
+            v.instr_fault := '1';
+            v.mmu_op := '1';
+        end if;
         v.dc_req := l_in.valid and (v.load or v.store or v.sync or v.dcbz or v.tlbie) and
                     not v.align_intr and not noop;
         v.incomplete := v.dc_req and (multi_dword or v.is_vector);

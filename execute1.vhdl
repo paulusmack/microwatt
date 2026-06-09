@@ -156,7 +156,8 @@ architecture behaviour of execute1 is
         fp_exception_next : std_ulogic;
         trace_next : std_ulogic;
         trace_ciabr : std_ulogic;
-        prev_op : insn_type_t;
+        prev_op_load : std_ulogic;
+        prev_op_store : std_ulogic;
         prev_prefixed : std_ulogic;
         oe : std_ulogic;
         mul_select : std_ulogic_vector(2 downto 0);
@@ -192,7 +193,7 @@ architecture behaviour of execute1 is
         (e => Execute1ToWritebackInit, se => side_effect_init,
          busy => '0',
          fp_exception_next => '0', trace_next => '0', trace_ciabr => '0',
-         prev_op => OP_ILLEGAL, prev_prefixed => '0',
+         prev_op_load => '0', prev_op_store => '0', prev_prefixed => '0',
          oe => '0', mul_select => "000", res2_sel => "00",
          spr_select => spr_id_init, pmu_spr_num => 5x"0",
          redir_to_next => '0', advance_nia => '0', lr_from_next => '0',
@@ -305,17 +306,6 @@ architecture behaviour of execute1 is
 
     -- directed hypervisor doorbell state
     signal dhd_pending : std_ulogic;
-
-    type privilege_level is (USER, SUPER);
-    type op_privilege_array is array(insn_type_t) of privilege_level;
-    constant op_privilege: op_privilege_array := (
-        OP_ATTN => SUPER,
-        OP_MFMSR => SUPER,
-        OP_MTMSRD => SUPER,
-        OP_RFID => SUPER,
-        OP_TLBIE => SUPER,
-        others => USER
-        );
 
     procedure set_carry(e: inout Execute1ToWritebackType;
 			carry32 : in std_ulogic;
@@ -1198,7 +1188,7 @@ begin
                 newcrf := xerc_in.ov & xerc_in.ov32 & xerc_in.ca & xerc_in.ca32;
             when others =>
         end case;
-        if e_in.insn_type = OP_MTCRF then
+        if e_in.opv(OP_MTCRF) = '1' then
             if e_in.insn(20) = '0' then
                 -- mtcrf
                 write_cr_mask <= insn_fxm(e_in.insn);
@@ -1216,7 +1206,7 @@ begin
         for i in 0 to 7 loop
             if write_cr_mask(i) = '0' then
                 write_cr_data(i*4 + 3 downto i*4) <= cr_in(i*4 + 3 downto i*4);
-            elsif e_in.insn_type = OP_MTCRF then
+            elsif e_in.opv(OP_MTCRF) = '1' then
                 write_cr_data(i*4 + 3 downto i*4) <= c_in(i*4 + 3 downto i*4);
             else
                 write_cr_data(i*4 + 3 downto i*4) <= newcrf;
@@ -1309,325 +1299,339 @@ begin
             end if;
         end if;
 
-        case_0: case e_in.insn_type is
-	    when OP_ILLEGAL =>
-                if HAS_EMUL_ROM then
-                    v.se.emu_intr := '1';
-                else
-                    illegal := '1';
-                end if;
+        if e_in.opv(OP_ILLEGAL) = '1' then
+            if HAS_EMUL_ROM then
+                v.se.emu_intr := '1';
+            else
+                illegal := '1';
+            end if;
+        end if;
 
-	    when OP_SC =>
-		-- check bit 1 of the instruction to distinguish sc from scv
-                if e_in.insn(1) = '1' then
-                    -- sc
-                    v.e.intr_vec := 16#C00#;
-                    if e_in.valid = '1' then
-                        report "sc";
-                    end if;
-                else
-                    -- scv
-                    v.se.scv_trap := '1';
-                    v.e.intr_vec := to_integer(unsigned(e_in.insn(11 downto 5))) * 32;
+        if e_in.opv(OP_SC) = '1' then
+            -- check bit 1 of the instruction to distinguish sc from scv
+            if e_in.insn(1) = '1' then
+                -- sc
+                v.e.intr_vec := 16#C00#;
+                if e_in.valid = '1' then
+                    report "sc";
                 end if;
+            else
+                -- scv
+                v.se.scv_trap := '1';
+                v.e.intr_vec := to_integer(unsigned(e_in.insn(11 downto 5))) * 32;
+            end if;
+            v.trap := '1';
+            v.advance_nia := '1';
+        end if;
+
+        if e_in.opv(OP_ATTN) = '1' then
+            -- check bits 1-10 of the instruction to make sure it's attn
+            -- if not then it is illegal
+            if e_in.insn(10 downto 1) = "0100000000" then
+                v.se.terminate := '1';
+                if e_in.valid = '1' then
+                    report "ATTN";
+                end if;
+            else
+                illegal := '1';
+            end if;
+        end if;
+
+        if e_in.opv(OP_ADD) = '1' then
+            if e_in.oe = '1' then
+                set_ov(v.e, overflow_64, overflow_32);
+            end if;
+        end if;
+
+        if e_in.opv(OP_TRAP) = '1' then
+            -- trap instructions (tw, twi, td, tdi)
+            v.e.intr_vec := 16#700#;
+            -- set bit 46 to say trap occurred
+            v.e.srr1(47 - 46) := '1';
+            if or (trapval and insn_to(e_in.insn)) = '1' then
+                -- generate trap-type program interrupt
                 v.trap := '1';
-                v.advance_nia := '1';
-	    when OP_ATTN =>
-                -- check bits 1-10 of the instruction to make sure it's attn
-                -- if not then it is illegal
-                if e_in.insn(10 downto 1) = "0100000000" then
-                    v.se.terminate := '1';
-                    if e_in.valid = '1' then
-                        report "ATTN";
-                    end if;
+                if e_in.valid = '1' then
+                    report "trap";
+                end if;
+            end if;
+        end if;
+
+        if e_in.opv(OP_B) = '1' then
+            v.take_branch := '1';
+            v.direct_branch := '1';
+            v.e.br_last := '1';
+            v.e.br_taken := '1';
+            if e_in.br_pred = '0' then
+                -- should never happen
+                v.e.redirect := '1';
+            end if;
+            if ex1.msr(MSR_BE) = '1' then
+                v.do_trace := '1';
+            end if;
+            v.se.set_cfar := '1';
+        end if;
+
+        if e_in.opv(OP_BC) = '1' then
+            -- If CTR is being decremented, it is in ramspr_odd.
+            bo := insn_bo(e_in.insn);
+            bi := insn_bi(e_in.insn);
+            v.take_branch := ppc_bc_taken(bo, bi, cr_in, ramspr_odd);
+            -- Mispredicted branches cause a redirect
+            if v.take_branch /= e_in.br_pred then
+                v.e.redirect := '1';
+            end if;
+            if v.take_branch = '0' then
+                v.redir_to_next := '1';
+            end if;
+            v.direct_branch := '1';
+            v.e.br_last := '1';
+            v.e.br_taken := v.take_branch;
+            if ex1.msr(MSR_BE) = '1' then
+                v.do_trace := '1';
+            end if;
+            v.se.set_cfar := v.take_branch;
+        end if;
+
+        if e_in.opv(OP_BCREG) = '1' then
+            -- If CTR is being decremented, it is in ramspr_odd.
+            -- The target address is in ramspr_result (LR, CTR or TAR).
+            bo := insn_bo(e_in.insn);
+            bi := insn_bi(e_in.insn);
+            v.take_branch := ppc_bc_taken(bo, bi, cr_in, ramspr_odd);
+            -- Indirect branches are never predicted taken
+            v.e.redirect := v.take_branch;
+            v.e.br_taken := v.take_branch;
+            if ex1.msr(MSR_BE) = '1' then
+                v.do_trace := '1';
+            end if;
+            v.se.set_cfar := v.take_branch;
+        end if;
+
+        if e_in.opv(OP_RFID) = '1' then
+            -- rfid, hrfid and rfscv.
+            -- These all act the same given that we don't have
+            -- privileged non-hypervisor mode or ultravisor mode.
+            srr1 := ramspr_odd;
+            v.e.redir_mode := (srr1(MSR_IR) or srr1(MSR_PR)) & not srr1(MSR_PR) &
+                              not srr1(MSR_LE) & not srr1(MSR_SF);
+            -- Can't use msr_copy here because the partial function MSR
+            -- bits should be left unchanged, not zeroed.
+            v.new_msr(63 downto 61) := srr1(63 downto 61);
+            v.new_msr(MSR_HV)       := '1';
+            v.new_msr(59 downto 31) := srr1(59 downto 31);
+            v.new_msr(26 downto 22) := srr1(26 downto 22);
+            v.new_msr(15 downto 0)  := srr1(15 downto 0);
+            if srr1(MSR_PR) = '1' then
+                v.new_msr(MSR_EE) := '1';
+                v.new_msr(MSR_IR) := '1';
+                v.new_msr(MSR_DR) := '1';
+            end if;
+            v.se.write_msr := '1';
+            v.e.redirect := '1';
+            v.se.set_cfar := '1';
+            if HAS_FPU then
+                v.fp_intr := fp_in.exception and
+                             (srr1(MSR_FE0) or srr1(MSR_FE1));
+            end if;
+            v.do_trace := '0';
+        end if;
+
+        if e_in.opv(OP_COUNTB) = '1' then
+            v.res2_sel := "01";
+            slow_op := '1';
+        end if;
+
+        if e_in.opv(OP_MFSPR) = '1' then
+            sprnum := decode_spr_num(e_in.insn);
+            if e_in.spr_is_ram = '1' then
+                if e_in.valid = '1' and not is_X(e_in.insn) then
+                    report "MFSPR to SPR " & integer'image(sprnum) &
+                        "=" & to_hstring(alu_result);
+                end if;
+            elsif e_in.spr_select.valid = '1' and e_in.spr_select.wonly = '0' then
+                if e_in.valid = '1' and not is_X(e_in.insn) then
+                    report "MFSPR to slow SPR " & integer'image(sprnum);
+                end if;
+                slow_op := '1';
+                if e_in.spr_select.noop = '1' then
+                    v.e.write_enable := '0';
+                end if;
+                if e_in.spr_select.ispmu = '0' then
+                    case e_in.spr_select.sel is
+                        when SPRSEL_LOGR =>
+                            if e_in.insn(16) = '1' then
+                                v.se.inc_loga := '1';       -- reading LOG_DATA
+                            end if;
+                        when others =>
+                    end case;
+                    v.res2_sel := "10";
                 else
+                    v.res2_sel := "11";
+                end if;
+            else
+                -- mfspr from unimplemented SPRs should be a nop in
+                -- supervisor mode and a program or HEAI interrupt for user mode
+                -- LPCR[EVIRT] = 1 makes it HEAI in privileged mode
+                if e_in.valid = '1' and not is_X(e_in.insn) then
+                    report "MFSPR to SPR " & integer'image(sprnum) & " invalid";
+                end if;
+                slow_op := '1';
+                v.e.write_enable := '0';
+                if ex1.msr(MSR_PR) = '1' or ctrl.lpcr_evirt = '1' or
+                    sprnum = 0 or sprnum = 4 or sprnum = 5 or sprnum = 6 then
                     illegal := '1';
                 end if;
-	    when OP_NOP | OP_DCBST | OP_ICBT =>
-                -- Do nothing
-	    when OP_ADD =>
-                if e_in.oe = '1' then
-                    set_ov(v.e, overflow_64, overflow_32);
-                end if;
-            when OP_COMPUTE =>
-            when OP_TRAP =>
-                -- trap instructions (tw, twi, td, tdi)
-                v.e.intr_vec := 16#700#;
-                -- set bit 46 to say trap occurred
-                v.e.srr1(47 - 46) := '1';
-                if or (trapval and insn_to(e_in.insn)) = '1' then
-                    -- generate trap-type program interrupt
-                    v.trap := '1';
-                    if e_in.valid = '1' then
-                        report "trap";
-                    end if;
-                end if;
+            end if;
+        end if;
 
-	    when OP_B =>
-                v.take_branch := '1';
-                v.direct_branch := '1';
-                v.e.br_last := '1';
-                v.e.br_taken := '1';
-                if e_in.br_pred = '0' then
-                    -- should never happen
-                    v.e.redirect := '1';
+        if e_in.opv(OP_MSG) = '1' then
+            -- msgsnd, msgclr
+            if b_in(31 downto 27) = 5x"5" then
+                if e_in.insn(6) = '0' then  -- msgsnd
+                    for cpuid in 0 to NCPUS-1 loop
+                        if unsigned(b_in(19 downto 0)) = to_unsigned(cpuid, 20) then
+                            v.se.send_hmsg(cpuid) := '1';
+                        end if;
+                    end loop;
+                else                        -- msgclr
+                    v.se.clr_hmsg := '1';
                 end if;
-                if ex1.msr(MSR_BE) = '1' then
-                    v.do_trace := '1';
-                end if;
-                v.se.set_cfar := '1';
-            when OP_BC =>
-                -- If CTR is being decremented, it is in ramspr_odd.
-		bo := insn_bo(e_in.insn);
-		bi := insn_bi(e_in.insn);
-                v.take_branch := ppc_bc_taken(bo, bi, cr_in, ramspr_odd);
-                -- Mispredicted branches cause a redirect
-                if v.take_branch /= e_in.br_pred then
-                    v.e.redirect := '1';
-                end if;
-                if v.take_branch = '0' then
-                    v.redir_to_next := '1';
-                end if;
-                v.direct_branch := '1';
-                v.e.br_last := '1';
-                v.e.br_taken := v.take_branch;
-                if ex1.msr(MSR_BE) = '1' then
-                    v.do_trace := '1';
-                end if;
-                v.se.set_cfar := v.take_branch;
-            when OP_BCREG =>
-                -- If CTR is being decremented, it is in ramspr_odd.
-                -- The target address is in ramspr_result (LR, CTR or TAR).
-		bo := insn_bo(e_in.insn);
-		bi := insn_bi(e_in.insn);
-                v.take_branch := ppc_bc_taken(bo, bi, cr_in, ramspr_odd);
-                -- Indirect branches are never predicted taken
-                v.e.redirect := v.take_branch;
-                v.e.br_taken := v.take_branch;
-                if ex1.msr(MSR_BE) = '1' then
-                    v.do_trace := '1';
-                end if;
-                v.se.set_cfar := v.take_branch;
+            end if;
+        end if;
 
-	    when OP_RFID =>
-                -- rfid, hrfid and rfscv.
-                -- These all act the same given that we don't have
-                -- privileged non-hypervisor mode or ultravisor mode.
-                srr1 := ramspr_odd;
-                v.e.redir_mode := (srr1(MSR_IR) or srr1(MSR_PR)) & not srr1(MSR_PR) &
-                                  not srr1(MSR_LE) & not srr1(MSR_SF);
-                -- Can't use msr_copy here because the partial function MSR
-                -- bits should be left unchanged, not zeroed.
-                v.new_msr(63 downto 61) := srr1(63 downto 61);
-                v.new_msr(MSR_HV)       := '1';
-                v.new_msr(59 downto 31) := srr1(59 downto 31);
-                v.new_msr(26 downto 22) := srr1(26 downto 22);
-                v.new_msr(15 downto 0)  := srr1(15 downto 0);
-                if srr1(MSR_PR) = '1' then
+        if e_in.opv(OP_MTMSRD) = '1' then
+            v.se.write_msr := '1';
+            if e_in.insn(16) = '1' then
+                -- just update EE and RI
+                v.new_msr(MSR_EE) := c_in(MSR_EE);
+                v.new_msr(MSR_RI) := c_in(MSR_RI);
+            else
+                -- Architecture says to leave out bits 3 (HV), 51 (ME)
+                -- and 63 (LE) (IBM bit numbering)
+                if e_in.is_32bit = '0' then
+                    v.new_msr(63 downto 61) := c_in(63 downto 61);
+                    v.new_msr(59 downto 32) := c_in(59 downto 32);
+                end if;
+                v.new_msr(31 downto 13) := c_in(31 downto 13);
+                v.new_msr(11 downto 1)  := c_in(11 downto 1);
+                if c_in(MSR_PR) = '1' then
                     v.new_msr(MSR_EE) := '1';
                     v.new_msr(MSR_IR) := '1';
                     v.new_msr(MSR_DR) := '1';
                 end if;
-                v.se.write_msr := '1';
-                v.e.redirect := '1';
-                v.se.set_cfar := '1';
                 if HAS_FPU then
                     v.fp_intr := fp_in.exception and
-                                 (srr1(MSR_FE0) or srr1(MSR_FE1));
+                                 (c_in(MSR_FE0) or c_in(MSR_FE1));
                 end if;
-                v.do_trace := '0';
+            end if;
+        end if;
 
-            when OP_COUNTB =>
-                v.res2_sel := "01";
-                slow_op := '1';
-            when OP_DARN =>
-	    when OP_MFMSR =>
+        if e_in.opv(OP_MTFRIN) = '1' then
+            v.start_rin_access := '1';
+            slow_op := '1';
+            owait := '1';
+        end if;
 
-	    when OP_MFSPR =>
-                sprnum := decode_spr_num(e_in.insn);
-		if e_in.spr_is_ram = '1' then
-                    if e_in.valid = '1' and not is_X(e_in.insn) then
-                        report "MFSPR to SPR " & integer'image(sprnum) &
-                            "=" & to_hstring(alu_result);
-                    end if;
-		elsif e_in.spr_select.valid = '1' and e_in.spr_select.wonly = '0' then
-                    if e_in.valid = '1' and not is_X(e_in.insn) then
-                        report "MFSPR to slow SPR " & integer'image(sprnum);
-                    end if;
-                    slow_op := '1';
-                    if e_in.spr_select.noop = '1' then
-                        v.e.write_enable := '0';
-                    end if;
-                    if e_in.spr_select.ispmu = '0' then
-                        case e_in.spr_select.sel is
-                            when SPRSEL_LOGR =>
-                                if e_in.insn(16) = '1' then
-                                    v.se.inc_loga := '1';       -- reading LOG_DATA
-                                end if;
-                            when others =>
-                        end case;
-                        v.res2_sel := "10";
-                    else
-                        v.res2_sel := "11";
-                    end if;
-                else
-                    -- mfspr from unimplemented SPRs should be a nop in
-                    -- supervisor mode and a program or HEAI interrupt for user mode
-                    -- LPCR[EVIRT] = 1 makes it HEAI in privileged mode
-                    if e_in.valid = '1' and not is_X(e_in.insn) then
-                        report "MFSPR to SPR " & integer'image(sprnum) & " invalid";
-                    end if;
-                    slow_op := '1';
-                    v.e.write_enable := '0';
-                    if ex1.msr(MSR_PR) = '1' or ctrl.lpcr_evirt = '1' or
-                        sprnum = 0 or sprnum = 4 or sprnum = 5 or sprnum = 6 then
-                        illegal := '1';
-                    end if;
+        if e_in.opv(OP_MTSPR) = '1' then
+            sprnum := decode_spr_num(e_in.insn);
+            if e_in.valid = '1' and not is_X(e_in.insn) then
+                report "MTSPR to SPR " & integer'image(sprnum) &
+                    "=" & to_hstring(c_in);
+            end if;
+            v.se.write_pmuspr := e_in.spr_select.ispmu;
+            if e_in.spr_select.valid = '1' and e_in.spr_select.ispmu = '0' then
+                case e_in.spr_select.sel is
+                    when SPRSEL_XER =>
+                        v.e.xerc.so := c_in(63-32);
+                        v.e.xerc.ov := c_in(63-33);
+                        v.e.xerc.ca := c_in(63-34);
+                        v.e.xerc.ov32 := c_in(63-44);
+                        v.e.xerc.ca32 := c_in(63-45);
+                        v.se.write_xerlow := '1';
+                    when SPRSEL_DEC =>
+                        v.se.write_dec := '1';
+                    when SPRSEL_EMUC =>
+                        v.se.write_emuc := '1';
+                    when SPRSEL_LOGR =>
+                        -- must be writing LOG_ADDR; LOG_DATA is readonly
+                        v.se.write_loga := '1';
+                    when SPRSEL_CFAR =>
+                        v.se.write_cfar := '1';
+                    when SPRSEL_FSCR =>
+                        v.se.write_fscr := '1';
+                    when SPRSEL_LPCR =>
+                        v.se.write_lpcr := '1';
+                    when SPRSEL_HEIR =>
+                        v.se.write_heir := '1';
+                    when SPRSEL_CTRL =>
+                        v.se.write_ctrl := '1';
+                    when SPRSEL_DSCR =>
+                        v.se.write_dscr := '1';
+                    when SPRSEL_CIABR =>
+                        v.se.write_ciabr := '1';
+                    when SPRSEL_TB =>
+                        v.se.write_tbl := not e_in.insn(16);
+                        v.se.write_tbu := e_in.insn(16);
+                    when others =>
+                end case;
+            end if;
+            if e_in.spr_select.valid = '0' and e_in.spr_is_ram = '0' then
+                -- mtspr to unimplemented SPRs should be a nop in
+                -- supervisor mode and a program interrupt or HEAI for user mode
+                -- LPCR[EVIRT] = 1 makes it HEAI in privileged mode
+                if ex1.msr(MSR_PR) = '1' or ctrl.lpcr_evirt = '1' or
+                    sprnum = 0 or sprnum = 4 or sprnum = 5 or sprnum = 6 then
+                    illegal := '1';
                 end if;
+            end if;
+        end if;
 
-            when OP_MSG =>
-                -- msgsnd, msgclr
-                if b_in(31 downto 27) = 5x"5" then
-                    if e_in.insn(6) = '0' then  -- msgsnd
-                        for cpuid in 0 to NCPUS-1 loop
-                            if unsigned(b_in(19 downto 0)) = to_unsigned(cpuid, 20) then
-                                v.se.send_hmsg(cpuid) := '1';
-                            end if;
-                        end loop;
-                    else                        -- msgclr
-                        v.se.clr_hmsg := '1';
-                    end if;
-                end if;
+        if e_in.opv(OP_ISYNC) = '1' then
+            v.e.redirect := '1';
+            v.redir_to_next := '1';
+        end if;
 
-	    when OP_MTCRF =>
-            when OP_MTMSRD =>
-                v.se.write_msr := '1';
-                if e_in.insn(16) = '1' then
-                    -- just update EE and RI
-                    v.new_msr(MSR_EE) := c_in(MSR_EE);
-                    v.new_msr(MSR_RI) := c_in(MSR_RI);
-                else
-                    -- Architecture says to leave out bits 3 (HV), 51 (ME)
-                    -- and 63 (LE) (IBM bit numbering)
-                    if e_in.is_32bit = '0' then
-                        v.new_msr(63 downto 61) := c_in(63 downto 61);
-                        v.new_msr(59 downto 32) := c_in(59 downto 32);
-                    end if;
-                    v.new_msr(31 downto 13) := c_in(31 downto 13);
-                    v.new_msr(11 downto 1)  := c_in(11 downto 1);
-                    if c_in(MSR_PR) = '1' then
-                        v.new_msr(MSR_EE) := '1';
-                        v.new_msr(MSR_IR) := '1';
-                        v.new_msr(MSR_DR) := '1';
-                    end if;
-                    if HAS_FPU then
-                        v.fp_intr := fp_in.exception and
-                                     (c_in(MSR_FE0) or c_in(MSR_FE1));
-                    end if;
-                end if;
+        if e_in.opv(OP_ICBI) = '1' then
+            v.se.icache_inval := '1';
+        end if;
 
-            when OP_MTFRIN =>
-                v.start_rin_access := '1';
+        if e_in.opv(OP_BSORT) = '1' then
+            v.start_bsort := '1';
+            slow_op := '1';
+            owait := '1';
+        end if;
+
+        if e_in.opv(OP_MUL) = '1' then
+            if e_in.is_32bit = '1' then
+                v.se.mult_32s := '1';
+                v.res2_sel(0) := e_in.sub_select(0);
+            else
+                -- Use standard multiplier
+                v.start_mul := '1';
+                owait := '1';
+            end if;
+            slow_op := '1';
+        end if;
+
+        if e_in.opv(OP_DIV) = '1' then
+            if not HAS_FPU then
+                v.start_div := '1';
                 slow_op := '1';
                 owait := '1';
+            end if;
+        end if;
 
-	    when OP_MTSPR =>
-                sprnum := decode_spr_num(e_in.insn);
-                if e_in.valid = '1' and not is_X(e_in.insn) then
-                    report "MTSPR to SPR " & integer'image(sprnum) &
-                        "=" & to_hstring(c_in);
-                end if;
-                v.se.write_pmuspr := e_in.spr_select.ispmu;
-                if e_in.spr_select.valid = '1' and e_in.spr_select.ispmu = '0' then
-                    case e_in.spr_select.sel is
-                        when SPRSEL_XER =>
-                            v.e.xerc.so := c_in(63-32);
-                            v.e.xerc.ov := c_in(63-33);
-                            v.e.xerc.ca := c_in(63-34);
-                            v.e.xerc.ov32 := c_in(63-44);
-                            v.e.xerc.ca32 := c_in(63-45);
-                            v.se.write_xerlow := '1';
-                        when SPRSEL_DEC =>
-                            v.se.write_dec := '1';
-                        when SPRSEL_EMUC =>
-                            v.se.write_emuc := '1';
-                        when SPRSEL_LOGR =>
-                            -- must be writing LOG_ADDR; LOG_DATA is readonly
-                            v.se.write_loga := '1';
-                        when SPRSEL_CFAR =>
-                            v.se.write_cfar := '1';
-                        when SPRSEL_FSCR =>
-                            v.se.write_fscr := '1';
-                        when SPRSEL_LPCR =>
-                            v.se.write_lpcr := '1';
-                        when SPRSEL_HEIR =>
-                            v.se.write_heir := '1';
-                        when SPRSEL_CTRL =>
-                            v.se.write_ctrl := '1';
-                        when SPRSEL_DSCR =>
-                            v.se.write_dscr := '1';
-                        when SPRSEL_CIABR =>
-                            v.se.write_ciabr := '1';
-                        when SPRSEL_TB =>
-                            v.se.write_tbl := not e_in.insn(16);
-                            v.se.write_tbu := e_in.insn(16);
-                        when others =>
-                    end case;
-                end if;
-		if e_in.spr_select.valid = '0' and e_in.spr_is_ram = '0' then
-                    -- mtspr to unimplemented SPRs should be a nop in
-                    -- supervisor mode and a program interrupt or HEAI for user mode
-                    -- LPCR[EVIRT] = 1 makes it HEAI in privileged mode
-                    if ex1.msr(MSR_PR) = '1' or ctrl.lpcr_evirt = '1' or
-                        sprnum = 0 or sprnum = 4 or sprnum = 5 or sprnum = 6 then
-                        illegal := '1';
-                    end if;
-		end if;
+        if e_in.opv(OP_WAIT) = '1' then
+            if e_in.insn(22 downto 21) = "00" then
+                v.se.enter_wait := '1';
+            end if;
+        end if;
 
-	    when OP_ISYNC =>
-		v.e.redirect := '1';
-                v.redir_to_next := '1';
-
-	    when OP_ICBI =>
-		v.se.icache_inval := '1';
-
-            when OP_BSORT =>
-                v.start_bsort := '1';
-                slow_op := '1';
-                owait := '1';
-
-	    when OP_MUL =>
-                if e_in.is_32bit = '1' then
-                    v.se.mult_32s := '1';
-                    v.res2_sel(0) := e_in.sub_select(0);
-                else
-                    -- Use standard multiplier
-                    v.start_mul := '1';
-                    owait := '1';
-                end if;
-                slow_op := '1';
-
-	    when OP_DIV =>
-                if not HAS_FPU then
-                    v.start_div := '1';
-                    slow_op := '1';
-                    owait := '1';
-                end if;
-
-            when OP_WAIT =>
-                if e_in.insn(22 downto 21) = "00" then
-                    v.se.enter_wait := '1';
-                end if;
-
-            when OP_FETCH_FAILED =>
-                -- Handling an ITLB miss doesn't count as having executed an instruction
-                v.do_trace := '0';
-
-            when others =>
-                if e_in.valid = '1' and e_in.unit = ALU then
-                    report "unhandled insn_type " & insn_type_t'image(e_in.insn_type);
-                end if;
-        end case;
+        if e_in.opv(OP_FETCH_FAILED) = '1' then
+            -- Handling an ITLB miss doesn't count as having executed an instruction
+            v.do_trace := '0';
+        end if;
 
         if ex1.msr(MSR_PR) = '1' and (e_in.prefixed = '1' or e_in.misaligned_prefix = '1') and
             ctrl.fscr_pref = '0' then
@@ -1787,7 +1791,9 @@ begin
                       (ext_irq_in and (not ctrl.lpcr_heic or ex1.msr(MSR_PR))));
 
         if valid_in = '1' then
-            v.prev_op := e_in.insn_type;
+            v.prev_op_load := e_in.opv(OP_LOAD) or e_in.opv(OP_ICBI) or e_in.opv(OP_ICBT) or
+                              e_in.opv(OP_DCBF) or e_in.opv(OP_DCBST);
+            v.prev_op_store := e_in.opv(OP_STORE);
             v.prev_prefixed := e_in.prefixed;
             v.se.set_heir := actions.se.set_heir;
             v.se.write_ic := actions.se.write_ic;
@@ -1813,12 +1819,8 @@ begin
                 v.e.srr1 := (others => '0');
                 v.e.srr1(47 - 33) := '1';
                 v.e.srr1(47 - 34) := ex1.prev_prefixed;
-                if (ex1.prev_op = OP_LOAD or ex1.prev_op = OP_ICBI or ex1.prev_op = OP_ICBT or
-                    ex1.prev_op = OP_DCBF or ex1.prev_op = OP_DCBST) and ex1.trace_ciabr = '0' then
-                    v.e.srr1(47 - 35) := '1';
-                elsif ex1.prev_op = OP_STORE and ex1.trace_ciabr = '0' then
-                    v.e.srr1(47 - 36) := '1';
-                end if;
+                v.e.srr1(47 - 35) := ex1.prev_op_load and not ex1.trace_ciabr;
+                v.e.srr1(47 - 36) := ex1.prev_op_store and not ex1.trace_ciabr;
                 v.e.srr1(47 - 43) := ex1.trace_ciabr;
 
             elsif irq_valid = '1' then
@@ -2005,7 +2007,7 @@ begin
         bypass_cr_data.data <= write_cr_data;
 
         -- Outputs to loadstore1 (async)
-        lv.op := e_in.insn_type;
+        lv.opv := e_in.opv;
         lv.instr_tag := e_in.instr_tag;
         lv.addr1 := a_in;
         lv.addr2 := b_in;
@@ -2039,7 +2041,7 @@ begin
         end if;
 
         -- Outputs to FPU
-        fv.op := e_in.insn_type;
+        fv.opv := e_in.opv;
         fv.insn := e_in.insn;
         fv.subsel := e_in.sub_select;
         fv.itag := e_in.instr_tag;
@@ -2065,7 +2067,7 @@ begin
         fv.stall := l_in.l2stall or v_in.v2stall;
 
         -- Outputs to vector unit
-        vv.op := e_in.insn_type;
+        vv.opv := e_in.opv;
         vv.instr_tag := e_in.instr_tag;
         vv.insn := e_in.insn;
         vv.write_reg := e_in.write_reg;

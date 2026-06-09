@@ -231,20 +231,19 @@ begin
             v.e.write_cr_data := x"000000" & vec_cr6 & x"0";
             v.wdat_valid := e_in.valid;
 
-            case e_in.op is
-                when OP_VPERM =>
-                    v.busy := e_in.valid;
-                    v.do_vperm := e_in.valid;
-                    v.e.valid := '0';
-                    v.e.write_enable := '0';
-                    -- abuse is_32bit flag to indicate vbpermq
-                    v.is_vbpermq := e_in.is_32bit;
-                when OP_COMPUTE =>
-                    if e_in.sub_select = "101" then
-                        v.do_vgbbd := '1';
-                    end if;
-                when others =>
-            end case;
+            if e_in.opv(OP_VPERM) = '1' then
+                v.busy := e_in.valid;
+                v.do_vperm := e_in.valid;
+                v.e.valid := '0';
+                v.e.write_enable := '0';
+                -- abuse is_32bit flag to indicate vbpermq
+                v.is_vbpermq := e_in.is_32bit;
+            end if;
+            if e_in.opv(OP_COMPUTE) = '1' then
+                if e_in.sub_select = "101" then
+                    v.do_vgbbd := '1';
+                end if;
+            end if;
             if e_in.is_32bit = '1' then
                 -- vbpermq, data in VRA and select in VRB
                 v.bits := 128x"0" & a_in;

@@ -37,6 +37,7 @@ architecture behaviour of vector_unit is
         do_vperm : std_ulogic;
         is_vbpermq : std_ulogic;
         do_mult_32 : std_ulogic;
+        is_mtvscr  : std_ulogic;
 
         is_shift       : std_ulogic;
         is_rotate      : std_ulogic;
@@ -84,6 +85,10 @@ architecture behaviour of vector_unit is
 
     signal mult_hi_in, mult_lo_in : MultiplyInputType;
     signal mult_hi_out, mult_lo_out : MultiplyOutputType;
+
+    signal vscr_sat  : std_ulogic;
+    signal vscr_nj   : std_ulogic;
+    signal do_mtvscr : std_ulogic;
 
 begin
 
@@ -232,6 +237,10 @@ begin
                 if e_in.insn(8) = '1' then
                     vlog_result(63 downto 0) <= e_in.vrb_lo;
                 end if;
+            when "101" =>
+                -- mfvscr
+                vlog_result(0) <= vscr_sat;
+                vlog_result(16) <= vscr_nj;
             when "110" =>
                 -- vector comparison result
                 for i in 0 to 15 loop
@@ -537,6 +546,7 @@ begin
                 mult_lo_in.valid <= e_in.valid;
                 v.do_mult_32 := e_in.valid;
             end if;
+            v.is_mtvscr := e_in.opv(OP_MTVSCR);
 
             if e_in.sub_select(2) = '1' then
                 -- vector shift or rotate
@@ -582,6 +592,13 @@ begin
                 vs2 <= vec_stage2_init;
             else
                 vs2 <= vs2in;
+            end if;
+            if rst = '1' then
+                vscr_sat <= '0';
+                vscr_nj <= '0';
+            elsif do_mtvscr = '1' then
+                vscr_sat <= vs2in.e.write_data(0);
+                vscr_nj <= vs2in.e.write_data(16);
             end if;
         end if;
     end process;
@@ -646,6 +663,8 @@ begin
             v.e.write_cr_enable := '0';
         end if;
         vs2in <= v;
+
+        do_mtvscr <= vs1.e.valid and vs1.is_mtvscr and not e_in.stall;
     end process;
 
     e_out.busy <= vs1.busy;

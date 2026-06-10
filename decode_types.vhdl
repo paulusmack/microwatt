@@ -16,6 +16,7 @@ package decode_types is
 			 OP_MFMSR, OP_MFSPR,
                          OP_MSG,
 			 OP_MTCRF, OP_MTMSRD, OP_MTSPR,
+                         OP_MTVSCR,
                          OP_MUL,
 			 OP_RFID,
 			 OP_SC,
@@ -478,6 +479,8 @@ package decode_types is
         -- Vector ops
         INSN_lvsl,
         INSN_lvsr,
+        INSN_mfvscr,
+        INSN_mtvscr,
         INSN_vaddubm,
         INSN_vadduhm,
         INSN_vadduwm,
@@ -925,6 +928,7 @@ package body decode_types is
             when INSN_mfmsr     => return "011111";
             when INSN_mfrin     => return "010110";
             when INSN_mfspr     => return "011111";
+            when INSN_mfvscr    => return "000100";
             when INSN_mfvsrd    => return "011111";
             when INSN_mfvsrwz   => return "011111";
             when INSN_mfvsrld   => return "011111";
@@ -940,6 +944,7 @@ package body decode_types is
             when INSN_mtmsrd    => return "011111";
             when INSN_mtrin     => return "010110";
             when INSN_mtspr     => return "011111";
+            when INSN_mtvscr    => return "000100";
             when INSN_mtvsrd    => return "011111";
             when INSN_mtvsrwa   => return "011111";
             when INSN_mtvsrwz   => return "011111";

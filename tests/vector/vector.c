@@ -82,6 +82,19 @@ void print_test_number(int i)
 	putchar(':');
 }
 
+void print_buf(unsigned char *buf, unsigned long len, const char *what)
+{
+	unsigned long i;
+
+	print_string(what);
+	print_string(" =");
+	for (i = 0; i < len; ++i) {
+		print_string(" ");
+		print_hex(buf[i], 2);
+	}
+	print_string("\r\n");
+}
+
 #define DO_LSTVX(instr, vr, addr)	asm(instr " %%v%0,0,%1" : : "i" (vr), "r" (addr) : "memory")
 
 unsigned char lvx_result[16] __attribute__((__aligned__(16)));
@@ -220,6 +233,285 @@ int vector_test_2(void)
 	return 0;
 }
 
+unsigned long do_vpkpx(unsigned long addr, unsigned long x)
+{
+	asm("lvx 12,0,%0; lvx 27,0,%1; vpkpx 11,27,12; stvx 11,0,%2" : :
+	    "r" (addr), "r" (addr + 16), "r" (&lvx_result) : "memory");
+	return 0;
+}
+
+int vector_test_3(void)
+{
+	unsigned long ret, i, j, k, v;
+	unsigned char data[32] __attribute__((__aligned__(16)));
+	unsigned char exp[16];
+
+	v = 69;
+	disable_vec();
+	ret = callit((unsigned long)&data, 0, do_vpkpx);
+	if (ret != 0xf20)
+		return ret | 1;
+	enable_vec();
+	for (j = 0; j < 5; ++j) {
+		k = 0;
+		for (i = 0; i < 32; i += 4) {
+			data[i] = (v += 27);
+			exp[k] = (v & 0xf8) >> 3;
+			data[i+1] = (v += 27);
+			exp[k] |= (v & 0x38) << 2;
+			exp[k+1] = (v & 0xc0) >> 6;
+			data[i+2] = (v += 27);
+			exp[k+1] |= (v & 0xf8) >> 1;
+			data[i+3] = (v += 27);
+			exp[k+1] |= (v & 1) << 7;
+			k += 2;
+		}
+		ret = callit((unsigned long)&data, 0, do_vpkpx);
+		if (ret)
+			return ret | 0x1000;
+		for (k = 0; k < 16; ++k)
+			if (lvx_result[k] != exp[k])
+				return 0x8000 | (j << 12) | (k << 8) | lvx_result[k];
+	}
+	return 0;
+}
+
+unsigned long do_vperm(unsigned long addr, unsigned long x)
+{
+	if (x == 0)
+		asm("lvx 17,0,%0; lvx 19,0,%1; lvx 21,0,%2; vperm 11,17,19,21; stvx 11,0,%3" : :
+		    "r" (addr + 16), "r" (addr), "r" (addr + 32), "r" (&lvx_result) : "memory");
+	else
+		asm("lvx 16,0,%0; lvx 19,0,%1; lvx 21,0,%2; vpermr 12,16,19,21; stvx 12,0,%3" : :
+		    "r" (addr + 16), "r" (addr), "r" (addr + 32), "r" (&lvx_result) : "memory");
+	return 0;
+}
+
+int vector_test_4(void)
+{
+	unsigned long ret, i, j, v;
+	unsigned char x[48] __attribute__((__aligned__(16)));
+
+	v = 73;
+	disable_vec();
+	ret = callit((unsigned long)&x, 0, do_vperm);
+	if (ret != 0xf20)
+		return ret | 1;
+	enable_vec();
+	for (i = 0; i < 48; ++i)
+		x[i] = (v += 17);
+	ret = callit((unsigned long)&x, 0, do_vperm);
+	if (ret)
+		return ret | 0x1000;
+	for (i = 0; i < 16; ++i) {
+		j = ~x[i + 32] & 0x1f;
+		if (lvx_result[i] != x[j])
+			return 0x2000 | (i << 8) | lvx_result[i];
+	}
+	ret = callit((unsigned long)&x, 1, do_vperm);
+	if (ret)
+		return ret | 0x3000;
+	for (i = 0; i < 16; ++i) {
+		j = x[i + 32] & 0x1f;
+		if (lvx_result[i] != x[j])
+			return 0x4000 | (i << 8) | lvx_result[i];
+	}
+	return 0;
+}
+
+unsigned long do_vspltis(unsigned long addr, unsigned long x)
+{
+	switch (x) {
+	case 0:
+		asm("vspltisb 3,5; stvx 3,0,%0" : : "r" (&lvx_result) : "memory");
+		break;
+	case 1:
+		asm("vspltisb 4,-7; stvx 4,0,%0" : : "r" (&lvx_result) : "memory");
+		break;
+	case 2:
+		asm("vspltish 5,8; stvx 5,0,%0" : : "r" (&lvx_result) : "memory");
+		break;
+	case 3:
+		asm("vspltish 6,-9; stvx 6,0,%0" : : "r" (&lvx_result) : "memory");
+		break;
+	case 4:
+		asm("vspltisw 7,13; stvx 7,0,%0" : : "r" (&lvx_result) : "memory");
+		break;
+	case 5:
+		asm("vspltisw 8,-11; stvx 8,0,%0" : : "r" (&lvx_result) : "memory");
+		break;
+	}
+	return 0;
+}
+
+unsigned char vsplt_vals[] = {
+	5, 5, 5, 5,
+	0xf9, 0xf9, 0xf9, 0xf9,
+	8, 0, 8, 0,
+	0xf7, 0xff, 0xf7, 0xff,
+	13, 0, 0, 0,
+	0xf5, 0xff, 0xff, 0xff
+};
+
+int vector_test_5(void)
+{
+	unsigned long ret, i, j;
+
+	disable_vec();
+	ret = callit(0, 0, do_vspltis);
+	if (ret != 0xf20)
+		return ret | 1;
+	enable_vec();
+	for (i = 0; i < 6; ++i) {
+		ret = callit(0, i, do_vspltis);
+		if (ret)
+			return ret | 0x1000;
+		for (j = 0; j < 16; ++j)
+			if (lvx_result[j] != vsplt_vals[i*4 + j%4])
+				return 0x8000 + (i << 4) + j;
+	}
+	return 0;
+}
+
+/* Test vector shifts */
+unsigned long do_vshift(unsigned long addr, unsigned long x)
+{
+	switch (x) {
+	case 0:
+		asm("lvx 19,0,%0; vspltisb 21,5; vsl 11,19,21; stvx 11,0,%1" : :
+		    "r" (addr), "r" (&lvx_result) : "memory");
+		break;
+	case 1:
+		asm("lvx 19,0,%0; vspltisb 22,2; vsr 12,19,22; stvx 12,0,%1" : :
+		    "r" (addr), "r" (&lvx_result) : "memory");
+		break;
+	case 2:
+		asm("lvx 17,0,%0; lvx 14,0,%1; vrlb 13,17,14; stvx 13,0,%2" : :
+		    "r" (addr), "r" (addr + 16), "r" (&lvx_result) : "memory");
+		break;
+	case 3:
+		asm("lvx 17,0,%0; lvx 14,0,%1; vrld 15,17,14; stvx 15,0,%2" : :
+		    "r" (addr), "r" (addr + 16), "r" (&lvx_result) : "memory");
+		break;
+	case 4:
+		asm("lvx 17,0,%0; lvx 14,0,%1; vslb 13,17,14; stvx 13,0,%2" : :
+		    "r" (addr), "r" (addr + 16), "r" (&lvx_result) : "memory");
+		break;
+	case 5:
+		asm("lvx 17,0,%0; lvx 14,0,%1; vsld 15,17,14; stvx 15,0,%2" : :
+		    "r" (addr), "r" (addr + 16), "r" (&lvx_result) : "memory");
+		break;
+	case 6:
+		asm("lvx 17,0,%0; lvx 14,0,%1; vsrb 13,17,14; stvx 13,0,%2" : :
+		    "r" (addr), "r" (addr + 16), "r" (&lvx_result) : "memory");
+		break;
+	case 7:
+		asm("lvx 17,0,%0; lvx 14,0,%1; vsrd 15,17,14; stvx 15,0,%2" : :
+		    "r" (addr), "r" (addr + 16), "r" (&lvx_result) : "memory");
+		break;
+	}
+	return 0;
+}
+
+int vector_test_6(void)
+{
+	unsigned long ret, i, k, v, x;
+	unsigned char data[32] __attribute__((__aligned__(16)));
+
+	enable_vec();
+	v = 29;
+	for (i = 0; i < 16; ++i)
+		data[i] = (v += 13);
+	data[15] = 255;
+	data[7] = 255;
+	ret = callit((unsigned long)&data, 0, do_vshift);
+	if (ret)
+		return ret | 1;
+	k = 0;
+	for (i = 0; i < 16; ++i) {
+		if (lvx_result[i] != ((((data[i] << 8) | k) >> 3) & 0xff))
+			return 0x1000 | (i << 8) | lvx_result[i];
+		k = data[i];
+	}
+	ret = callit((unsigned long)&data, 1, do_vshift);
+	if (ret)
+		return ret | 2;
+	for (i = 0; i < 16; ++i) {
+		k = (i < 15)? data[i+1]: 0;
+		if (lvx_result[i] != ((((k << 8) | data[i]) >> 2) & 0xff))
+			return 0x2000 | (i << 8) | lvx_result[i];
+	}
+	for (i = 16; i < 32; ++i)
+		data[i] = (v += 19);
+	ret = callit((unsigned long)&data, 2, do_vshift);
+	if (ret)
+		return ret | 3;
+	for (i = 0; i < 16; ++i) {
+		k = data[i + 16] & 7;
+		x = ((data[i] << k) | (data[i] >> (8 - k))) & 0xff;
+		if (lvx_result[i] != x)
+			return 0x3000 | (i << 8) | lvx_result[i];
+	}
+	for (i = 16; i < 32; ++i)
+		data[i] = (v += 19);
+	ret = callit((unsigned long)&data, 3, do_vshift);
+	if (ret)
+		return ret | 4;
+	for (i = 0; i < 2; ++i) {
+		k = data[i*8 + 16] & 0x3f;
+		x = ((unsigned long *)&data)[i];
+		if (k)
+			x = (x << k) | (x >> (64 - k));
+		if (((unsigned long *)&lvx_result)[i] != x)
+			return 0x4000 | (i << 11);
+	}
+	for (i = 16; i < 32; ++i)
+		data[i] = (v += 19);
+	ret = callit((unsigned long)&data, 4, do_vshift);
+	if (ret)
+		return ret | 5;
+	for (i = 0; i < 16; ++i) {
+		k = data[i + 16] & 7;
+		x = (data[i] << k) & 0xff;
+		if (lvx_result[i] != x)
+			return 0x5000 | (i << 8) | lvx_result[i];
+	}
+	for (i = 16; i < 32; ++i)
+		data[i] = (v += 19);
+	ret = callit((unsigned long)&data, 5, do_vshift);
+	if (ret)
+		return ret | 6;
+	for (i = 0; i < 2; ++i) {
+		k = data[i*8 + 16] & 0x3f;
+		x = ((unsigned long *)&data)[i] << k;
+		if (((unsigned long *)&lvx_result)[i] != x)
+			return 0x6000 | (i << 11);
+	}
+	for (i = 16; i < 32; ++i)
+		data[i] = (v += 19);
+	ret = callit((unsigned long)&data, 6, do_vshift);
+	if (ret)
+		return ret | 7;
+	for (i = 0; i < 16; ++i) {
+		k = data[i + 16] & 7;
+		x = data[i] >> k;
+		if (lvx_result[i] != x)
+			return 0x7000 | (i << 8) | lvx_result[i];
+	}
+	for (i = 16; i < 32; ++i)
+		data[i] = (v += 19);
+	ret = callit((unsigned long)&data, 7, do_vshift);
+	if (ret)
+		return ret | 8;
+	for (i = 0; i < 2; ++i) {
+		k = data[i*8 + 16] & 0x3f;
+		x = ((unsigned long *)&data)[i] >> k;
+		if (((unsigned long *)&lvx_result)[i] != x)
+			return 0x8000 | (i << 11);
+	}
+	return 0;
+}
+
 int fail = 0;
 
 void do_test(int num, int (*test)(void))
@@ -244,6 +536,10 @@ int main(void)
 
 	do_test(1, vector_test_1);
 	do_test(2, vector_test_2);
+	do_test(3, vector_test_3);
+	do_test(4, vector_test_4);
+	do_test(5, vector_test_5);
+	do_test(6, vector_test_6);
 
 	return fail;
 }

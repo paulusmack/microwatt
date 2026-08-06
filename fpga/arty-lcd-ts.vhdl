@@ -134,7 +134,6 @@ begin
     tp <= tsctrl;
 
     process (clk)
-        variable rdat : std_ulogic_vector(7 downto 0);
     begin
         if rising_edge(clk) then
             ack <= '0';
@@ -203,8 +202,9 @@ begin
                                     -- c8050010, touchscreen drive register
                                     tsctrl <= '1';
                                     idle2 <= '0';
-                                    rdat := rsoe & rs & doe0 & d0 & doe1 & d1 & csoe & cs;
-                                    rd_data <= rdat & rdat & rdat & rdat;
+                                    rd_data <= 8x"0" & lcd_din &
+                                               5x"0" & not lcd_rd & not lcd_wr & lcd_doe &
+                                               rsoe & rs & doe0 & d0 & doe1 & d1 & csoe & cs;
                                     if wb_in.we = '1' and wb_in.sel(0) = '1' then
                                         rsoe <= wb_in.dat(7);
                                         rs <= wb_in.dat(6);
@@ -217,10 +217,17 @@ begin
                                         csoe <= wb_in.dat(1);
                                         cs <= wb_in.dat(0);
                                     end if;
+                                    if wb_in.we = '1' and wb_in.sel(1) = '1' then
+                                        lcd_doe <= wb_in.dat(8);
+                                        lcd_wr <= not wb_in.dat(9);
+                                        lcd_rd <= not wb_in.dat(10);
+                                    end if;
+                                    if wb_in.we = '1' and wb_in.sel(2) = '1' then
+                                        lcd_dout <= wb_in.dat(23 downto 16);
+                                    end if;
                                 else
                                     -- c8050018, touchscreen status register
-                                    rdat := 4x"0" & xadc_busy & eoc_stat & eos_stat & tsctrl;
-                                    rd_data <= rdat & rdat & rdat & rdat;
+                                    rd_data <= 28x"0" & xadc_busy & eoc_stat & eos_stat & tsctrl;
                                     if wb_in.we = '1' and wb_in.sel(0) = '1' then
                                         -- for eoc_stat and eos_state, write 0 to clear
                                         if wb_in.dat(2) = '0' then

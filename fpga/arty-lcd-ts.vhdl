@@ -63,6 +63,7 @@ architecture rtl of lcd_touchscreen is
     signal doe1   : std_ulogic;
     signal d1     : std_ulogic;
     signal tsctrl : std_ulogic;
+    signal sreset : std_ulogic;
 
     signal wr_data : std_ulogic_vector(31 downto 0);
     signal rd_data : std_ulogic_vector(31 downto 0);
@@ -118,7 +119,7 @@ begin
             );
 
     -- for now; should make sure it is at least 10us wide
-    lcd_rst <= not rst;
+    lcd_rst <= not (rst or sreset);
 
     wb_out.dat <= rd_data;
     wb_out.ack <= ack;
@@ -149,6 +150,7 @@ begin
                 state <= idle;
                 delay <= to_unsigned(0, 6);
                 rd_data <= (others => '0');
+                sreset <= '0';
                 lcd_rd <= '1';
                 lcd_wr <= '1';
                 cs <= '1';
@@ -203,7 +205,7 @@ begin
                                     tsctrl <= '1';
                                     idle2 <= '0';
                                     rd_data <= 8x"0" & lcd_din &
-                                               5x"0" & not lcd_rd & not lcd_wr & lcd_doe &
+                                               4x"0" & sreset & not lcd_rd & not lcd_wr & lcd_doe &
                                                rsoe & rs & doe0 & d0 & doe1 & d1 & csoe & cs;
                                     if wb_in.we = '1' and wb_in.sel(0) = '1' then
                                         rsoe <= wb_in.dat(7);
@@ -221,6 +223,7 @@ begin
                                         lcd_doe <= wb_in.dat(8);
                                         lcd_wr <= not wb_in.dat(9);
                                         lcd_rd <= not wb_in.dat(10);
+                                        sreset <= wb_in.dat(11);
                                     end if;
                                     if wb_in.we = '1' and wb_in.sel(2) = '1' then
                                         lcd_dout <= wb_in.dat(23 downto 16);
